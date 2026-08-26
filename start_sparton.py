@@ -14,10 +14,17 @@ from __future__ import annotations
 
 import argparse
 import os
+import socket
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+
+
+def _port_in_use(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.4)
+        return probe.connect_ex((host, port)) == 0
 
 
 def main() -> int:
@@ -42,13 +49,25 @@ def main() -> int:
         print(f"  {sys.executable} -m pip install -r requirements.txt")
         return 1
 
+    # Far and away the most common launch failure, and uvicorn reports it as a
+    # bare WinError 10048. Say what is actually wrong instead.
+    if _port_in_use(args.host, args.port):
+        print(f"Port {args.port} is already in use on {args.host}.")
+        print("SPARTON is probably still running in another window.")
+        print(f"  Open it:        http://{args.host}:{args.port}/dashboard/")
+        print(f"  Or use another: {Path(__file__).name} --port {args.port + 1}")
+        return 1
+
     print("=" * 60)
     print("SPARTON")
-    print(f"  API:      http://{args.host}:{args.port}")
-    print(f"  Docs:     http://{args.host}:{args.port}/docs")
-    print(f"  Database: {os.environ['DATABASE_URL']}")
-    print(f"  LLM:      {os.environ['LLM_PROVIDER']}")
+    print(f"  Dashboard: http://{args.host}:{args.port}/dashboard/")
+    print(f"  Docs:      http://{args.host}:{args.port}/docs")
+    print(f"  Database:  {os.environ['DATABASE_URL']}")
+    print(f"  LLM:       {os.environ['LLM_PROVIDER']}")
     print("=" * 60)
+    # stdout is block-buffered when redirected to a file or pipe; without this
+    # the banner only appears once the server exits.
+    sys.stdout.flush()
 
     uvicorn.run(
         "app.main:create_app",
