@@ -135,7 +135,7 @@ class Settings(BaseSettings):
 
     # --- Background jobs -----------------------------------------------------
     # Local development: the API runs an embedded worker. Production: run
-    # `python -m app.worker` replicas and set EMBEDDED_WORKER=false here.
+    # `python -m workers.worker` replicas and set EMBEDDED_WORKER=false here.
     embedded_worker: bool = True
 
     # --- Rate limiting ---------------------------------------------------------

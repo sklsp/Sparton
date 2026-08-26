@@ -7,6 +7,7 @@ import os
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_sparton.db")
 os.environ.setdefault("LLM_PROVIDER", "test")
 os.environ.setdefault("AGENT_RUN_INLINE", "true")
+os.environ.setdefault("EMBEDDED_WORKER", "false")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

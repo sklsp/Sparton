@@ -58,6 +58,20 @@ Full stack (PostgreSQL + Redis + API + workers):
 docker compose up --build
 ```
 
+## Background jobs
+
+Research crawls and ComfyUI generations are durable `Job` rows, executed by a
+worker. On a single-process run the API drains the queue itself on a
+background thread (`EMBEDDED_WORKER=true`, the default), so nothing extra has
+to be started locally.
+
+In production, set `EMBEDDED_WORKER=false` and run worker replicas against
+Redis:
+
+```bash
+python -m workers.worker
+```
+
 ## Dashboard
 
 `app/web/` is a static ES-module SPA served by the API process itself — **no

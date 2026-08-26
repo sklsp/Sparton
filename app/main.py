@@ -54,7 +54,22 @@ async def lifespan(app: FastAPI):
     if settings.is_sqlite:
         Base.metadata.create_all(bind=engine)
     logger.info("SPARTON API starting (provider=%s)", settings.llm_provider)
+
+    # Drain the durable job queue in-process. Without this nothing consumes
+    # research or generation jobs on a single-process run and they sit at
+    # QUEUED forever. Production sets EMBEDDED_WORKER=false and runs
+    # `python -m workers.worker` replicas instead.
+    worker = None
+    if settings.embedded_worker:
+        from workers.embedded import EmbeddedWorker
+
+        worker = EmbeddedWorker()
+        worker.start()
+
     yield
+
+    if worker is not None:
+        worker.stop()
     from app.agent import runner
 
     runner.shutdown()
