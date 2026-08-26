@@ -1,27 +1,49 @@
 """SPARTON application factory.
 
-One FastAPI app: platform core (auth, tenancy, jobs, observability) plus
-every domain router. Apollo's CORS wildcard is replaced with an explicit
-origin allowlist; Ares' middleware/metrics stack is applied globally.
+One FastAPI app: platform core (auth, tenancy, jobs, observability), every
+domain router, and the dashboard. Apollo's CORS wildcard is replaced with an
+explicit origin allowlist; Ares' middleware/metrics stack is applied globally.
+
+The dashboard is a static ES-module SPA under app/web, served by this same
+process — no second toolchain, no build step, no separate origin.
 """
 
 from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from app.api import admin as admin_api
 from app.api import agent_api, auth, create, ecommerce, health, intelligence, knowledge
 from app.core.config import settings
 from app.core.database.base import Base, engine
 from app.core.observability.logging_config import configure_logging
-from app.core.observability.middleware import instrument_requests
+from app.core.observability.middleware import RequestInstrumentation
 
 logger = logging.getLogger(__name__)
+
+WEB_DIR = Path(__file__).resolve().parent / "web"
+
+
+class DashboardFiles(StaticFiles):
+    """StaticFiles that always revalidates.
+
+    Without an explicit Cache-Control, browsers apply heuristic caching to the
+    dashboard's ES modules and keep serving a stale build after a deploy.
+    `no-cache` still allows a cheap 304 via the ETag — it only forbids using a
+    cached copy without asking.
+    """
+
+    def file_response(self, *args, **kwargs) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 @asynccontextmanager
@@ -57,7 +79,7 @@ def create_app() -> FastAPI:
     )
 
     # Correlation IDs + request metrics.
-    instrument_requests(app)
+    app.add_middleware(RequestInstrumentation)
 
     # Routers — one coherent surface, no per-project prefixes.
     app.include_router(health.router)
@@ -68,6 +90,19 @@ def create_app() -> FastAPI:
     app.include_router(ecommerce.router)
     app.include_router(create.router)
     app.include_router(admin_api.router)
+
+    # Dashboard. Mounted last so every API route above wins on a path clash.
+    if WEB_DIR.is_dir():
+        app.mount("/dashboard", DashboardFiles(directory=WEB_DIR, html=True), name="dashboard")
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        """Browsers get the dashboard; without it, the interactive API docs."""
+        return RedirectResponse(url="/dashboard/" if WEB_DIR.is_dir() else "/docs")
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon() -> Response:
+        return Response(status_code=204)
 
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError):

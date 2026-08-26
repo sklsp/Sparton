@@ -15,7 +15,7 @@ from app.core.observability.tracing import get_tracer
 CORRELATION_HEADER = "X-Correlation-ID"
 
 
-class instrument_requests(BaseHTTPMiddleware):
+class RequestInstrumentation(BaseHTTPMiddleware):
     """Records request count/latency/status and propagates a correlation ID.
 
     The ID is accepted from clients (X-Correlation-ID) or generated, stored on
@@ -47,3 +47,6 @@ class instrument_requests(BaseHTTPMiddleware):
         inc("http_requests_total", method=method, path=path, status=str(response.status_code))
         response.headers[CORRELATION_HEADER] = correlation_id
         return response
+
+
+__all__ = ["RequestInstrumentation", "CORRELATION_HEADER"]

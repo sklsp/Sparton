@@ -25,10 +25,15 @@ from app.core.database.creation_models import (
     GeneratedImage,
     TrainingProject,
 )
+from app.core.database.domain_models import Job
+from app.core.jobs.queue import enqueue
 from app.datasets.service import DatasetError, DatasetService
 from app.generation.comfyui_client import ComfyUIError
-from app.generation.service import WorkflowError
+from app.generation.service import ComfyUIService, WorkflowError
 from app.llm import LLMError
+from app.training.hardware import detect_hardware
+from app.training.preflight import advise
+from app.training.service import LoRATrainingService
 
 router = APIRouter(tags=["create"])
 
@@ -43,8 +48,6 @@ def get_dataset_service() -> DatasetService:
 
 
 def _get_comfyui():
-    from app.generation.service import ComfyUIService
-
     return ComfyUIService()
 
 
@@ -105,9 +108,6 @@ def generate(
     user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     """Queue a synchronous-tracked generation job on the shared job system."""
-    from app.core.database.domain_models import Job
-    from app.core.jobs.queue import enqueue
-
     service = _get_comfyui()
     params = {k: v for k, v in payload.model_dump().items() if v is not None}
     try:
@@ -270,29 +270,21 @@ def generate_captions(dataset_id: int, payload: CaptionRequest, db: DbSession = 
 # --------------------------------------------------------------------------
 @router.get("/training/status")
 def training_status() -> dict:
-    from app.training.service import LoRATrainingService
-
     return LoRATrainingService().status()
 
 
 @router.get("/training/presets")
 def training_presets() -> dict:
-    from app.training.service import LoRATrainingService
-
     return {"presets": LoRATrainingService().presets()}
 
 
 @router.get("/training/hardware")
 def hardware_info() -> dict:
-    from app.training.hardware import detect_hardware
-
     return detect_hardware().to_dict()
 
 
 @router.post("/training/preflight")
 def preflight(options: dict, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
-    from app.training.preflight import advise
-
     return advise(options).to_dict()
 
 

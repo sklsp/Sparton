@@ -42,7 +42,9 @@ class RAGService:
         self.persist_dir = Path(persist_dir) if persist_dir else settings.rag_dir
         self._store: VectorStore | None = None
         self._versions: dict[str, dict[str, Any]] = {}
-        self._lock = threading.Lock()
+        # Reentrant: add_document() holds the lock and calls remove_document(),
+        # which takes it again. A plain Lock deadlocks on every upload.
+        self._lock = threading.RLock()
 
     # ---------- public API ----------
 

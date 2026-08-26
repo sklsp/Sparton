@@ -48,7 +48,7 @@ def enqueue(
     """
     scope_prefix = f"org{organization_id}:" if organization_id else ""
     signature = idempotency_key or f"{scope_prefix}{type}:{job_signature(payload)}"
-    active = [JobStatus.QUEUED.value, JobStatus.RUNNING.value]
+    active = [JobStatus.QUEUED, JobStatus.RUNNING]
 
     existing = (
         db.execute(
@@ -112,7 +112,7 @@ def claim_next(db: Session, worker_id: str, job_type: str | None = None) -> Job 
     now = utcnow()
     stmt = (
         select(Job)
-        .where(Job.status == JobStatus.QUEUED.value)
+        .where(Job.status == JobStatus.QUEUED)
         .order_by(Job.priority.asc(), Job.created_at.asc())
         .limit(10)
     )
@@ -175,12 +175,12 @@ def record_failure(db: Session, job: Job, error: str) -> Job:
     attempts_used = job.retry_count
     if attempts_used < min(job.max_attempts or MAX_ATTEMPTS, MAX_ATTEMPTS):
         # Requeue; the worker's poll delay provides the backoff window.
-        job.status = JobStatus.QUEUED.value
+        job.status = JobStatus.QUEUED
         job.stage = f"retry {attempts_used} scheduled"
         delay = RETRY_DELAYS_SECONDS[min(attempts_used - 1, len(RETRY_DELAYS_SECONDS) - 1)]
         job.run_after = utcnow() + timedelta(seconds=delay)
     else:
-        job.status = JobStatus.FAILED.value
+        job.status = JobStatus.FAILED
         job.stage = "failed"
         job.completed_at = utcnow()
     db.commit()
@@ -190,8 +190,8 @@ def record_failure(db: Session, job: Job, error: str) -> Job:
 
 def request_cancel(db: Session, job: Job) -> Job:
     """Cooperative cancellation: long-running handlers poll this flag."""
-    if job.status in {JobStatus.QUEUED.value, JobStatus.RUNNING.value}:
-        if job.status == JobStatus.QUEUED.value:
+    if job.status in {JobStatus.QUEUED, JobStatus.RUNNING}:
+        if job.status == JobStatus.QUEUED:
             transition(db, job, JobStatus.CANCELLED)
         else:
             job.cancel_requested = True
@@ -209,7 +209,7 @@ def due_jobs(db: Session, limit: int = 10) -> list[Job]:
     now: datetime = utcnow()
     stmt = (
         select(Job)
-        .where(Job.status == JobStatus.QUEUED.value)
+        .where(Job.status == JobStatus.QUEUED)
         .order_by(Job.priority.asc(), Job.created_at.asc())
         .limit(limit)
     )

@@ -162,12 +162,10 @@ class ApprovalRequest(Base):
 # --------------------------------------------------------------------------
 # Durable job platform (shared by every domain's long-running work)
 # --------------------------------------------------------------------------
-class JobStatus:
-    QUEUED = "QUEUED"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-    CANCELLED = "CANCELLED"
+# The job state machine owns JobStatus (app/core/jobs/__init__.py). It is
+# re-exported here so model users keep importing it alongside Job; defining a
+# second copy would silently break JobStatus(...) and .value at the call sites.
+from app.core.jobs import JobStatus  # noqa: E402
 
 
 class Job(Base):

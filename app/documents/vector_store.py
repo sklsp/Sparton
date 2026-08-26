@@ -195,7 +195,14 @@ class VectorStore:
 
         self._index = index
         self._chunks = chunks
-        self._embeddings = []
+        # Recover the vectors from the flat index so `_chunks` and
+        # `_embeddings` stay the same length. Leaving this empty made the
+        # first remove_by_doc_id() after a restart raise, which meant every
+        # upload failed until the index was deleted by hand.
+        self._embeddings = [
+            np.asarray(row, dtype=np.float32)
+            for row in index.reconstruct_n(0, index.ntotal)
+        ] if index.ntotal else []
         self._dirty = False
         logger.info("[RAG] Restored index: %d vectors from %s", meta.vector_count, self.persist_dir)
         return True

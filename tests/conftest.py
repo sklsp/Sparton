@@ -10,7 +10,7 @@ os.environ.setdefault("AGENT_RUN_INLINE", "true")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import text  # noqa: E402
+from sqlalchemy import select, text  # noqa: E402
 
 from app.core.database.base import Base, SessionLocal, engine  # noqa: E402
 from app.llm import DeterministicProvider, set_llm_override  # noqa: E402
@@ -44,13 +44,16 @@ def client(db_session, llm):
         yield test_client
 
 
+TEST_ADMIN_EMAIL = "admin@example.com"
+
+
 @pytest.fixture()
 def auth_headers(client):
     """Register a fresh org admin and return bearer headers."""
     response = client.post(
         "/auth/register",
         json={
-            "email": "admin@example.com",
+            "email": TEST_ADMIN_EMAIL,
             "password": "correct-horse-battery",
             "organization_name": "Test Org",
         },
@@ -70,13 +73,23 @@ def _clean_rate_limits():
 
 
 @pytest.fixture()
-def seed_products(db_session):
+def seed_products(db_session, auth_headers):
+    """Catalog rows owned by the authenticated caller's organization.
+
+    Seeding with organization_id=None would be correctly filtered out by
+    tenant scoping, so every request would see an empty catalog.
+    """
     from app.core.database.domain_models import Inventory, Product
+    from app.core.database.identity import User
+
+    org_id = db_session.execute(
+        select(User).where(User.email == TEST_ADMIN_EMAIL)
+    ).scalars().first().organization_id
 
     products = []
     for i in range(1, 6):
         p = Product(
-            organization_id=None,
+            organization_id=org_id,
             sku=f"SKU-{i}",
             title=f"Product {i}",
             description=f"Description for product {i}",

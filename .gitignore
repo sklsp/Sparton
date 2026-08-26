@@ -36,6 +36,7 @@ out/
 next-env.d.ts
 playwright-report/
 test-results/
+.playwright-mcp/
 
 # --- Environment & secrets ---
 .env
@@ -48,6 +49,7 @@ data/
 logs/
 *.log
 *.db
+*.db-journal
 *.sqlite3
 
 # --- Models & large binaries ---

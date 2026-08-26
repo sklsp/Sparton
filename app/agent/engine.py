@@ -120,7 +120,7 @@ class AgentEngine:
 
     def resume(self, run: AgentRun) -> AgentRun:
         logger.info("Agent run resumed: id=%s", run.id)
-        run.status = RunStatus.RUNNING.value
+        run.status = RunStatus.RUNNING
         self.db.commit()
         return self._loop(run)
 
@@ -134,7 +134,7 @@ class AgentEngine:
                 deadline.check()
 
                 if run.pending_tool_calls and self._drain_pending(run, deadline):
-                    run.status = RunStatus.WAITING_FOR_APPROVAL.value
+                    run.status = RunStatus.WAITING_FOR_APPROVAL
                     self.db.commit()
                     return run
 
@@ -224,7 +224,7 @@ class AgentEngine:
                 decision = self._approval_state(run, raw, call)
                 if decision is None:
                     return True  # waiting for a human
-                if decision.status == ApprovalStatus.REJECTED.value:
+                if decision.status == ApprovalStatus.REJECTED:
                     self._record(
                         run, StepType.APPROVAL_RESOLVED,
                         f"Approval rejected for {call.name}",
@@ -308,7 +308,7 @@ class AgentEngine:
         approval_id = raw.get("approval_id")
         if approval_id is not None:
             approval = self.db.get(ApprovalRequest, approval_id)
-            if approval is None or approval.status == ApprovalStatus.PENDING.value:
+            if approval is None or approval.status == ApprovalStatus.PENDING:
                 return None
             return approval
 
@@ -378,7 +378,7 @@ class AgentEngine:
         if note:
             final = f"{final}\n\n({note})"
         run.final_response = final
-        run.status = RunStatus.COMPLETED.value
+        run.status = RunStatus.COMPLETED
         run.completed_at = utcnow()
         run.pending_tool_calls = []
         self._record(run, StepType.FINAL, "Run completed", output={"response": final})
@@ -387,7 +387,7 @@ class AgentEngine:
         return run
 
     def _fail(self, run: AgentRun, error: str) -> AgentRun:
-        run.status = RunStatus.FAILED.value
+        run.status = RunStatus.FAILED
         run.error = error
         run.completed_at = utcnow()
         run.pending_tool_calls = []
@@ -427,12 +427,12 @@ class AgentEngine:
         step = AgentStep(
             agent_run_id=run.id,
             step_number=self._next_step_number(run),
-            step_type=step_type.value,
+            step_type=step_type,
             message=message,
             tool_name=tool_name,
             input=input,
             output=_truncate(output),
-            status=status.value,
+            status=status,
             duration_ms=duration_ms,
         )
         self.db.add(step)

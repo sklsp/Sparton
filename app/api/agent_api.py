@@ -157,7 +157,7 @@ def list_approvals(
     if status_filter:
         query = query.where(ApprovalRequest.status == status_filter.upper())
     else:
-        query = query.where(ApprovalRequest.status == ApprovalStatus.PENDING.value)
+        query = query.where(ApprovalRequest.status == ApprovalStatus.PENDING)
     org = _org_id(user)
     if org is not None:
         query = query.where(ApprovalRequest.organization_id == org)
@@ -190,10 +190,10 @@ def resolve_approval(
     org = _org_id(user)
     if approval is None or (org is not None and approval.organization_id != org):
         raise HTTPException(status_code=404, detail="Approval not found")
-    if approval.status != ApprovalStatus.PENDING.value:
+    if approval.status != ApprovalStatus.PENDING:
         raise HTTPException(status_code=409, detail="Approval already resolved")
 
-    approval.status = ApprovalStatus.APPROVED.value if payload.approved else ApprovalStatus.REJECTED.value
+    approval.status = ApprovalStatus.APPROVED if payload.approved else ApprovalStatus.REJECTED
     approval.decision_note = payload.note
     approval.resolved_at = __import__("app.core.database.models", fromlist=["utcnow"]).utcnow()
     db.commit()
