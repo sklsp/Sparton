@@ -1,0 +1,45 @@
+﻿feat(saas): signup, verification, password reset, Stripe billing, plan limits
+
+Phase 4. Turns the product from "a thing you can run" into "a thing you can
+sell".
+
+Signup and account recovery
+- Email verification via a single auth_tokens table (D-011), tokens stored
+  HASHED like session tokens, single-use, re-issuing invalidates the previous
+  one, and a verification link cannot be redeemed as a password reset.
+- Enforced in production only, and at the PRODUCT boundary rather than at
+  signup: a customer who loses the email must still be able to sign in and
+  resend, or they are locked out of their own account with no recovery.
+- Password reset and change-password. A reset REVOKES EVERY SESSION, because
+  the reset may have been prompted by a compromise.
+- forgot-password always answers identically for known and unknown addresses.
+- Email over stdlib SMTP; with no SMTP configured it writes data/outbox/*.eml,
+  so local dev and CI exercise the real flow with no mail server and no network.
+
+Billing, with no new dependency (D-002)
+- app/billing/plans.py: Free (1 shop/3 competitors), Pro EUR29 (3/15),
+  Business EUR79 (10/50). get_plan() FAILS CLOSED to Free on an unknown id,
+  so a bad row can never produce an unlimited allowance.
+- check_shops / check_competitors / check_tokens raise 402 with a
+  machine-readable plan_limit_reached detail. check_crawl_frequency CLAMPS
+  rather than refusing: the customer asked for something valid.
+- Every count filters on an explicit organization_id. Billing deliberately
+  does NOT use TenantContext.scoped, which is unscoped for machine principals.
+- The plan is resolved SERVER-SIDE on every mutating route. The browser never
+  decides what plan it is on.
+- app/billing/stripe.py: Checkout, Customer Portal, customer creation, and
+  webhook signature verification (constant-time HMAC over the RAW body, with a
+  replay window and multi-v1 rotation support).
+- The webhook is the ONLY writer of paid plans (D-014), idempotent by event
+  id, and a failure returns 500 so Stripe retries rather than silently
+  diverging from what the customer paid for.
+- An unknown Stripe price fails closed to Free rather than granting access.
+
+Duplicate shop is reported as 409, not as a 402 upsell: telling someone to
+upgrade when they have simply re-added a shop makes a limit feel arbitrary.
+
+Two more bugs the tests caught: _flatten() was stringifying pre-built bracket
+keys, and the new auth routes were registered as /auth/auth/... (the router
+already carries the prefix), so all six 404'd.
+
+pytest: 226 passed, 0 failed.

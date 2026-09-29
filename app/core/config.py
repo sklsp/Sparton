@@ -230,6 +230,9 @@ class Settings(BaseSettings):
     # Public signup. Deliberately generous for humans behind one NAT, tight
     # enough to stop a script filling the database with organizations.
     rate_limit_register_per_minute: int = 10
+    # Password reset is rate limited harder: each request can send an email, so
+    # an unthrottled endpoint is a mail-bomb amplifier.
+    rate_limit_forgot_password_per_minute: int = 5
     rate_limit_default_per_minute: int = 120
     # When set, rate limits are shared across API replicas via Redis.
     # Leave empty for single-process local development (in-process limiter).

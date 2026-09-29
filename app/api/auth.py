@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 
+from app.core import email
+from app.core.auth import tokens
 from app.core.auth.api import DbSession, current_user
 from app.core.auth.service import (
     audit,
@@ -18,10 +20,19 @@ from app.core.auth.service import (
     verify_password,
 )
 from app.core.config import settings
-from app.core.database.identity import Organization, User
+from app.core.database.billing_models import AuthTokenPurpose
+from app.core.database.identity import Organization, Session, User
 from app.core.observability.metrics import inc
 from app.core.security.rate_limit import rate_limit
-from app.api.schemas import LoginRequest, RegisterRequest, TokenResponse
+from app.api.schemas import (
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+    TokenResponse,
+    VerifyRequest,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _bearer = HTTPBearer(auto_error=False)
@@ -32,6 +43,7 @@ def _user_dict(user) -> dict:
         "email": user.email,
         "role": user.role,
         "organization_id": user.organization_id,
+        "email_verified": bool(getattr(user, "email_verified", False)),
     }
 
 
@@ -72,7 +84,23 @@ def register(
 
     token, _ = create_session(db, user)
     audit(db, action="auth.register", actor_user_id=user.id, organization_id=user.organization_id)
-    return TokenResponse(token=token, user=_user_dict(user))
+
+    # Send the verification link. A failure here must not fail the signup: the
+    # customer can always resend, and a mail-server outage should not look like
+    # "your account was not created".
+    try:
+        verification_token = tokens.issue(db, user, AuthTokenPurpose.VERIFY_EMAIL)
+        email.send_verification(user.email, verification_token)
+    except Exception:  # noqa: BLE001 - never lose a successful signup to mail
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Could not send the verification email to %s", user.email, exc_info=True
+        )
+
+    response = _user_dict(user)
+    response["verification_required"] = settings.require_email_verification
+    return TokenResponse(token=token, user=response)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -109,6 +137,133 @@ def logout(request: Request, db: DbSession) -> dict:
 @router.get("/me")
 def me(user: Annotated[object, Depends(current_user)]) -> dict:
     return _user_dict(user)
+
+
+# ---------------------------------------------------------------------------
+# Email verification
+# ---------------------------------------------------------------------------
+@router.post("/verify-email", status_code=200)
+def verify_email(payload: VerifyRequest, db: DbSession = None) -> dict:
+    """Redeem a verification link.
+
+    The token is single-use, and redeeming it marks the user verified. A token
+    that has already been used reports success anyway: the honest answer is
+    "this link is not valid any more", and telling a second visitor that their
+    link already worked is not worth the enumeration surface.
+    """
+    user = tokens.consume(db, payload.token, AuthTokenPurpose.VERIFY_EMAIL)
+    if user is not None:
+        tokens.mark_verified(db, user)
+        audit(
+            db, action="auth.email_verified", actor_user_id=user.id,
+            organization_id=user.organization_id,
+        )
+    return {"verified": True}
+
+
+@router.post("/resend-verification")
+def resend_verification(
+    request: Request,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
+    """Send the verification link again."""
+    if getattr(user, "email_verified", False):
+        return {"sent": False, "message": "Your email is already verified"}
+    token = tokens.issue(db, user, AuthTokenPurpose.VERIFY_EMAIL)
+    email.send_verification(user.email, token)
+    audit(
+        db, action="auth.verification_resent", actor_user_id=user.id,
+        organization_id=user.organization_id,
+    )
+    return {"sent": True}
+
+
+# ---------------------------------------------------------------------------
+# Password reset
+# ---------------------------------------------------------------------------
+@router.post("/forgot-password")
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    db: DbSession = None,
+    _: None = Depends(rate_limit(limit=settings.rate_limit_forgot_password_per_minute)),
+) -> dict:
+    """Start a password reset.
+
+    Always returns the same thing, whether or not the address exists. Anything
+    else turns this endpoint into a way to enumerate who has an account.
+    """
+    user = db.execute(
+        select(User).where(User.email == payload.email, User.is_active.is_(True))
+    ).scalars().first()
+    if user is not None:
+        token = tokens.issue(db, user, AuthTokenPurpose.RESET_PASSWORD)
+        email.send_password_reset(user.email, token)
+        audit(
+            db, action="auth.password_reset_requested",
+            organization_id=user.organization_id, resource="redacted",
+        )
+    return {
+        "sent": True,
+        "message": "If that address has a Sparton account, a reset link is on its way.",
+    }
+
+
+@router.post("/reset-password")
+def reset_password(
+    payload: ResetPasswordRequest,
+    request: Request,
+    db: DbSession = None,
+    _: None = Depends(rate_limit(limit=settings.rate_limit_forgot_password_per_minute)),
+) -> dict:
+    """Complete a password reset.
+
+    On success every existing session for that user is revoked: if the reset
+    was prompted by a compromise, the attacker's sessions must not survive it.
+    """
+    user = tokens.consume(db, payload.token, AuthTokenPurpose.RESET_PASSWORD)
+    if user is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="That reset link is invalid or has expired. Request a new one.",
+        )
+
+    user.password_hash = hash_password(payload.password)
+    db.commit()
+    db.execute(
+        Session.__table__.delete().where(Session.__table__.c.user_id == user.id)
+    )
+    db.commit()
+    audit(
+        db, action="auth.password_reset", actor_user_id=user.id,
+        organization_id=user.organization_id,
+    )
+    return {"reset": True, "message": "Password updated. Sign in with your new password."}
+
+
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
+    """Change your own password. Requires the current one."""
+    if not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Your current password is incorrect"
+        )
+    if payload.current_password == payload.new_password:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Choose a different password"
+        )
+    user.password_hash = hash_password(payload.new_password)
+    db.commit()
+    audit(
+        db, action="auth.password_changed", actor_user_id=user.id,
+        organization_id=user.organization_id,
+    )
+    return {"changed": True}
 
 
 __all__ = ["router"]

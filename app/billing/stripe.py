@@ -62,13 +62,17 @@ def is_configured() -> bool:
 def _flatten(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
     """Flatten nested dicts into Stripe's bracket notation.
 
-    `{"a": {"b": 1}}` becomes `{"a[b]": 1}`. Keys that already use brackets
-    (our `line_items[0][price]` style) pass through untouched.
+    `{"a": {"b": 1}}` becomes `{"a[b]": 1}`.
+
+    A key that *already* contains a bracket (`line_items[0][price]`) is a
+    pre-built leaf and must pass through untouched. Without that check it
+    would be expanded into `line_items[0][price][]`, and `urlencode` would then
+    stringify the whole list — sending Stripe a parameter it silently ignores.
     """
     flat: dict[str, Any] = {}
     for key, value in data.items():
         name = f"{prefix}[{key}]" if prefix else str(key)
-        if isinstance(value, dict) and "[" not in str(key):
+        if isinstance(value, dict) and "[" not in str(key) and "]" not in str(key):
             flat.update(_flatten(value, name))
         else:
             flat[name] = value

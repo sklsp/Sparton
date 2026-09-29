@@ -79,7 +79,28 @@ def current_user(
     set_usage_context(
         getattr(principal, "organization_id", None), getattr(principal, "id", None)
     )
+    _require_verified(principal)
     return principal
+
+
+def _require_verified(principal) -> None:
+    """Refuse product access to an unverified account, in production only.
+
+    Deliberately *not* enforced at signup: a customer must be able to sign in,
+    see the banner and request a new link, or they are locked out of their own
+    account with no way to recover (D-010).
+    """
+    from app.core.auth import tokens
+
+    if tokens.is_verified(principal):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=(
+            "Confirm your email address to use Sparton. "
+            "Check your inbox, or request a new link from the dashboard."
+        ),
+    )
 
 
 def _authenticate(request: Request, db: Session) -> User | MachineUser:

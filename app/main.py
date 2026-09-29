@@ -16,11 +16,21 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from app.api import admin as admin_api
-from app.api import agent_api, auth, commerce, create, ecommerce, health, intelligence, knowledge
+from app.api import (
+    admin as admin_api,
+    agent_api,
+    auth,
+    billing,
+    commerce,
+    create,
+    ecommerce,
+    health,
+    intelligence,
+    knowledge,
+)
 from app.core.config import settings
 from app.core.database.base import Base, engine
 from app.core.features import Domain, is_enabled
@@ -103,6 +113,8 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(admin_api.router)
+    # Billing is part of the product: Checkout, the Portal and the webhook.
+    app.include_router(billing.router)
 
     # The product.
     if is_enabled(Domain.COMMERCE):
@@ -125,9 +137,12 @@ def create_app() -> FastAPI:
         app.mount("/app", DashboardFiles(directory=WEB_DIR, html=True), name="app")
 
     @app.get("/", include_in_schema=False)
-    async def root() -> RedirectResponse:
-        """Browsers get the marketing page; without it, the API docs."""
-        return RedirectResponse(url="/index.html" if WEB_DIR.is_dir() else "/docs")
+    async def root() -> FileResponse:
+        """The public landing page. Everything a visitor needs before signup."""
+        landing = WEB_DIR / "landing.html"
+        if landing.is_file():
+            return FileResponse(landing, media_type="text/html")
+        return RedirectResponse(url="/app/")
 
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon() -> Response:

@@ -33,6 +33,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from app.billing.plans import check_competitors, check_crawl_frequency, check_shops, check_tokens
+from app.billing.service import effective_plan
 from app.core.auth.api import DbSession, current_user
 from app.core.database.ecommerce_models import ChangeEvent, Competitor, Report, Shop
 from app.core.database.models import utcnow
@@ -41,8 +43,10 @@ from app.ecommerce.discovery import (
     ShopError,
     add_competitor,
     add_shop,
+    shop_already_tracked,
     suggest_competitors,
 )
+from app.ecommerce.urls import InvalidShopUrl, normalize_url
 from app.ecommerce.reports import report_to_dict
 
 router = APIRouter(tags=["intelligence"])
@@ -71,6 +75,15 @@ class CompetitorCreate(BaseModel):
 
 def _org_id(user) -> int | None:
     return getattr(user, "organization_id", None)
+
+
+def _plan_of(db, user) -> str:
+    """The caller's plan, resolved server-side on every mutating route.
+
+    Never read from the request body or a header: the browser does not get to
+    decide what plan it is on (D-012).
+    """
+    return effective_plan(db, _org_id(user))
 
 
 def _fail(exc: ShopError) -> HTTPException:
@@ -174,15 +187,29 @@ def create_shop(
     user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     """Add your shop. This is the first step of the whole product."""
+    org = _org_id(user)
+    # Validate and de-duplicate *before* the plan check: a customer re-adding a
+    # shop they already have should be told "you already added it", not told to
+    # upgrade. The 402 must be reserved for "you want more than your plan has".
+    try:
+        normalized = normalize_url(payload.url)
+    except InvalidShopUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if shop_already_tracked(db, org, normalized.domain):
+        raise HTTPException(status_code=409, detail="You have already added this shop")
+
+    check_shops(db, org, _plan_of(db, user))
     try:
         shop = add_shop(
             db,
-            _org_id(user),
+            org,
             url=payload.url,
             name=payload.name,
             category=payload.category,
             currency=payload.currency,
-            crawl_frequency_hours=payload.crawl_frequency_hours,
+            crawl_frequency_hours=check_crawl_frequency(
+                _plan_of(db, user), payload.crawl_frequency_hours
+            ),
         )
     except ShopError as exc:
         raise _fail(exc) from exc
@@ -243,9 +270,11 @@ def update_shop(
     if payload.category is not None:
         shop.category = payload.category.strip()[:120]
     if payload.crawl_frequency_hours is not None:
-        # Floor of 6h: crawling someone else's server every 20 minutes is
-        # abuse, whatever the customer's plan says.
-        shop.crawl_frequency_hours = max(6, min(payload.crawl_frequency_hours, 720))
+        # The plan clamps the cadence rather than refusing it: the customer
+        # asked for something valid, we just do it less often.
+        shop.crawl_frequency_hours = check_crawl_frequency(
+            _plan_of(db, user), payload.crawl_frequency_hours
+        )
     if payload.is_active is not None:
         shop.is_active = payload.is_active
     db.commit()
@@ -288,10 +317,12 @@ def create_competitor(
     db: DbSession = None,
     user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
+    org = _org_id(user)
+    check_competitors(db, org, _plan_of(db, user))
     try:
         competitor = add_competitor(
             db,
-            _org_id(user),
+            org,
             url=payload.url,
             name=payload.name,
             shop_id=payload.shop_id,
@@ -412,6 +443,10 @@ def generate_report_now(
     """Write a report now over the last `days` days."""
     org = _org_id(user)
     shop = get_shop_or_404(db, shop_id, org)
+    # The daily AI allowance is checked *here*, before the job is queued, so the
+    # customer gets an immediate error instead of a job that fails anonymously
+    # thirty seconds later.
+    check_tokens(db, org, _plan_of(db, user))
     job, created = enqueue(
         db,
         type="generate_report",

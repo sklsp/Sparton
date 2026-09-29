@@ -27,6 +27,25 @@ class TokenResponse(BaseModel):
     user: dict[str, Any]
 
 
+# --- email verification / password reset -----------------------------------
+class VerifyRequest(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 # --- chat / documents --------------------------------------------------------
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)

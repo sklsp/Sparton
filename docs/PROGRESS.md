@@ -129,7 +129,48 @@ row. `test_cost_is_computed_from_reported_pricing` caught it.
 
 ---
 
-## Phase 1 — Audit & baseline
+## Phase 4 — SaaS layer
+
+### Done
+
+**Signup and account recovery**
+- Email verification: `auth_tokens` table, tokens stored **hashed**, single-use,
+  re-issuing invalidates the old one, and a verification link cannot be
+  redeemed as a password reset.
+- Enforced in production only, and at the *product* boundary rather than at
+  signup — otherwise a customer who loses the email is locked out of their own
+  account with no recovery (D-010).
+- Password reset + change-password. A reset **revokes every existing session**,
+  because the reset may have been prompted by a compromise.
+- `forgot-password` always answers the same thing, known address or not.
+- Email is sent over stdlib SMTP; with no SMTP configured it is written to
+  `data/outbox/*.eml`, so local dev and CI exercise the real flow offline.
+
+**Billing** (no new dependency — Stripe over `requests` + stdlib HMAC, D-002)
+- `plans.py`: Free (1 shop / 3 competitors), Pro €29 (3 / 15), Business €79
+  (10 / 50). `get_plan` **fails closed to Free** on an unknown id.
+- `check_shops` / `check_competitors` / `check_tokens` raise **402** with a
+  machine-readable `plan_limit_reached` detail. `check_crawl_frequency` clamps
+  rather than refusing.
+- Every count filters on an explicit `organization_id`. Billing code does not
+  use `TenantContext.scoped`, which is deliberately unscoped for machine
+  principals.
+- The plan is resolved **server-side on every mutating route**; the browser
+  never says what plan it is on.
+- `stripe.py`: Checkout, Customer Portal, customer creation, signature
+  verification with a replay window and multi-`v1` rotation support.
+- Webhooks are the **only** writer of paid plans, idempotent by event id.
+- A duplicate shop is reported as a 409 duplicate, not as a 402 upsell.
+
+### Bugs the tests caught
+
+1. `_flatten()` expanded pre-built bracket keys (`line_items[0][price]`) into
+   `line_items[0][price][]`, which `urlencode` would stringify into a parameter
+   Stripe silently ignores.
+2. The new auth routes were registered as `/auth/auth/...` — the router already
+   carries the `/auth` prefix, so all six returned 404.
+
+---
 
 ### Done
 

@@ -1,6 +1,14 @@
 """Database models package."""
 
 from app.core.database.base import Base, JSONType, SessionLocal, engine, get_db
+from app.core.database.billing_models import (
+    AuthToken,
+    AuthTokenPurpose,
+    Invoice,
+    StripeEvent,
+    Subscription,
+    SubscriptionStatus,
+)
 from app.core.database.creation_models import (
     Conversation,
     ConversationMessage,
@@ -49,6 +57,8 @@ __all__ = [
     "AgentStep",
     "ApprovalRequest",
     "AuditLog",
+    "AuthToken",
+    "AuthTokenPurpose",
     "Base",
     "ChangeEvent",
     "ChangeKind",
@@ -66,6 +76,7 @@ __all__ = [
     "ExternalStore",
     "GeneratedImage",
     "Inventory",
+    "Invoice",
     "JSONType",
     "Job",
     "LLMUsage",
@@ -84,6 +95,9 @@ __all__ = [
     "Session",
     "SessionLocal",
     "Shop",
+    "StripeEvent",
+    "Subscription",
+    "SubscriptionStatus",
     "TrainingProject",
     "TrainingRun",
     "User",

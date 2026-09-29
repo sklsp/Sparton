@@ -80,6 +80,20 @@ def _is_blocked_host(domain: str) -> bool:
     return any(fragment in lowered for fragment in _BLOCKED_HOST_SUBSTRINGS)
 
 
+def shop_already_tracked(db: Session, organization_id: int | None, domain: str) -> bool:
+    """Has this tenant already added this domain?
+
+    Checked by the API *before* the plan limit, so a customer re-adding a shop
+    is told "you already have it" rather than "upgrade your plan" — the second
+    message is both wrong and a way to make a limit feel arbitrary (D-009).
+    """
+    return db.execute(
+        select(Shop.id).where(
+            Shop.organization_id == organization_id, Shop.domain == domain
+        )
+    ).first() is not None
+
+
 def _registrable(domain: str) -> str:
     """Reduce a hostname to a stable owner key, for "is this the same shop?".
 
@@ -134,13 +148,14 @@ def add_shop(
     except InvalidShopUrl as exc:
         raise ShopError(str(exc)) from exc
 
-    existing = db.execute(
-        select(Shop).where(
+    # Checked before the plan limit by the caller, so a re-added shop is
+    # reported as a duplicate rather than as an upsell.
+    if db.execute(
+        select(Shop.id).where(
             Shop.organization_id == organization_id,
             Shop.domain == normalized.domain,
         )
-    ).scalars().first()
-    if existing is not None:
+    ).first() is not None:
         raise ShopError("You have already added this shop", status_code=409)
 
     # A shop with a 2-hour crawl budget would be an abuse vector against other
