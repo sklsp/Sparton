@@ -14,8 +14,8 @@ Read this file first if context was lost. It is the source of truth for
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Audit & baseline — audit doc, app boots, `pytest` green, docs corrected | 🔄 in progress |
-| 2 | OpenRouter — production provider: retries, timeouts, headers, token usage | ⬜ not started |
+| 1 | Audit & baseline — audit doc, app boots, `pytest` green, docs corrected | ✅ done |
+| 2 | OpenRouter — production provider: retries, timeouts, headers, token usage | ✅ done |
 | 3 | Product core — `app/ecommerce/` shop→competitors→crawl→changes→report | ⬜ not started |
 | 4 | SaaS layer — signup, verification, reset, Stripe, plans, feature flags | ⬜ not started |
 | 5 | Frontend — public landing page + product dashboard | ⬜ not started |

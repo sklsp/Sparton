@@ -24,6 +24,7 @@ from app.core.auth.service import resolve_session
 from app.core.config import settings
 from app.core.database.base import get_db
 from app.core.database.identity import User
+from app.llm import set_usage_context
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -65,7 +66,24 @@ def current_user(
     request: Request,
     db: DbSession,
 ) -> User | MachineUser:
-    """Resolve the authenticated principal or raise 401."""
+    """Resolve the authenticated principal or raise 401.
+
+    Also binds the tenant into a context variable so LLM calls made deeper in
+    the stack are attributed to the right organization for billing, without
+    threading a user object through every call signature. This runs as a route
+    dependency, i.e. immediately before the handler, which is why it lives
+    here rather than in request middleware.
+    """
+    principal = _authenticate(request, db)
+    request.state.user = principal
+    set_usage_context(
+        getattr(principal, "organization_id", None), getattr(principal, "id", None)
+    )
+    return principal
+
+
+def _authenticate(request: Request, db: Session) -> User | MachineUser:
+    """1. Interactive session, 2. shared machine key, 3. 401."""
     # 1. Interactive session.
     token = _extract_bearer_token(request)
     if token is not None:

@@ -41,13 +41,31 @@ class Settings(BaseSettings):
     # --- LLM ------------------------------------------------------------
     llm_provider: str = "ollama"  # "ollama" | "openai_compatible" | "test"
     llm_timeout_seconds: float = 120.0
+    # Extra attempts after a 429/5xx/timeout. 0 disables retrying.
+    llm_max_retries: int = 3
+    # First backoff step in seconds; doubles per attempt, capped below.
+    llm_retry_base_seconds: float = 1.0
+    llm_retry_cap_seconds: float = 30.0
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
 
-    openai_base_url: str = "https://api.openai.com/v1"
+    # OpenRouter is an OpenAI-compatible endpoint. The default base URL is
+    # OpenRouter; the provider is the same class either way, so a
+    # self-hosted vLLM/Together/LiteLLM proxy works by changing one value.
+    openai_base_url: str = "https://openrouter.ai/api/v1"
     openai_api_key: str | None = None
-    openai_model: str = "gpt-4o-mini"
+    # Backwards-compatible single-model setting. `llm_model_strong` wins when set.
+    openai_model: str = "anthropic/claude-3.5-sonnet"
+    # Model routing: the agent and the weekly report need reasoning quality and
+    # run once per shop per week; structured extraction runs on every crawled
+    # page and needs to be cheap (see docs/DECISIONS.md D-006).
+    llm_model_strong: str = "anthropic/claude-3.5-sonnet"
+    llm_model_cheap: str = "google/gemini-2.0-flash-001"
+    # OpenRouter asks every app to identify itself on the HTTP-Referer and
+    # X-Title headers; it uses them for its leaderboard and abuse contact.
+    openrouter_site_url: str = "http://localhost:8000"
+    openrouter_app_name: str = "Sparton Intelligence"
 
     # --- Agent limits ---------------------------------------------------
     agent_max_iterations: int = 10

@@ -30,6 +30,7 @@ from app.core.database.domain_models import (
     ProductSnapshot,
 )
 from app.core.database.identity import AuditLog, Organization, Project, Session, User
+from app.core.database.usage_models import LLMUsage, tokens_used_today, usage_summary
 
 __all__ = [
     "AgentRun",
@@ -49,6 +50,7 @@ __all__ = [
     "Inventory",
     "JSONType",
     "Job",
+    "LLMUsage",
     "LoraAsset",
     "Opportunity",
     "OpportunityEvidence",
@@ -66,4 +68,6 @@ __all__ = [
     "Workflow",
     "engine",
     "get_db",
+    "tokens_used_today",
+    "usage_summary",
 ]
