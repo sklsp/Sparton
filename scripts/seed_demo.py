@@ -9,6 +9,7 @@ Development only — never point this at a production database.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import random
 import sys
 from datetime import timedelta
@@ -19,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import select  # noqa: E402
 
-from app.core.auth.service import hash_password  # noqa: E402
+from app.core.auth.service import hash_password, unique_slug  # noqa: E402
 from app.core.database.base import Base, SessionLocal, engine  # noqa: E402
 from app.core.database.creation_models import Document  # noqa: E402
 from app.core.database.domain_models import (  # noqa: E402
@@ -52,7 +53,7 @@ def seed(email: str, password: str, org_name: str) -> None:
     try:
         org = db.execute(select(Organization).where(Organization.name == org_name)).scalars().first()
         if org is None:
-            org = Organization(name=org_name)
+            org = Organization(name=org_name, slug=unique_slug(db, org_name))
             db.add(org)
             db.flush()
 
@@ -203,7 +204,10 @@ def seed(email: str, password: str, org_name: str) -> None:
             ]:
                 db.add(Document(
                     organization_id=org.id, filename=name, title=name,
-                    content_hash=f"{abs(hash(name)):064x}"[:64],
+                    # sha256, not hash(): hash() is salted per interpreter run, so
+                    # re-seeding from a new process wrote a different "content
+                    # hash" for an identical file and broke incremental indexing.
+                    content_hash=hashlib.sha256(name.encode()).hexdigest(),
                     size_bytes=size, chunk_count=chunks, created_by=user.id,
                 ))
             print("  knowledge 3 documents")

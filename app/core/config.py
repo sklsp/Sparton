@@ -67,17 +67,23 @@ class Settings(BaseSettings):
     strict_tool_grounding: bool = True
 
     # --- HTTP -----------------------------------------------------------
-    cors_origins: str = (
-        "http://localhost:3000,http://127.0.0.1:3000,https://sparton.vercel.app"
-    )
+    # Only first-party origins by default. The dashboard and landing page are
+    # served from this same process, so the browser never needs CORS at all —
+    # this list exists purely for third-party API clients.
+    cors_origins: str = "http://localhost:8000,http://127.0.0.1:8000"
     log_level: str = "INFO"
-    # When set, every API request must present this value in X-API-Key.
-    # Leave empty for open local development.
+    # Machine principal for server-to-server calls and Prometheus scrapes.
+    # Leave empty to disable the X-API-Key path entirely; note that there is no
+    # anonymous fallback, so an empty value does NOT open the API.
     api_key: str | None = None
 
     # --- Documents & RAG (Apollo) ----------------------------------------
     embedding_model: str = "nomic-embed-text"
     embedding_fallback_model: str = "all-MiniLM-L6-v2"
+    # Which embedding backend to use: "auto" walks ollama -> sentence-transformers
+    # -> hash. Force "hash" for an offline, deterministic, no-download setup —
+    # this is what keeps `pytest` from hanging on a model fetch.
+    embedding_backend: str = "auto"
     rag_chunk_size: int = 800
     rag_chunk_overlap: int = 150
     rag_top_k: int = 4
@@ -143,6 +149,9 @@ class Settings(BaseSettings):
     rate_limit_agent_per_minute: int = 10
     rate_limit_research_per_minute: int = 10
     rate_limit_login_per_minute: int = 20
+    # Public signup. Deliberately generous for humans behind one NAT, tight
+    # enough to stop a script filling the database with organizations.
+    rate_limit_register_per_minute: int = 10
     rate_limit_default_per_minute: int = 120
     # When set, rate limits are shared across API replicas via Redis.
     # Leave empty for single-process local development (in-process limiter).

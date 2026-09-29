@@ -8,6 +8,12 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./test_sparton.db")
 os.environ.setdefault("LLM_PROVIDER", "test")
 os.environ.setdefault("AGENT_RUN_INLINE", "true")
 os.environ.setdefault("EMBEDDED_WORKER", "false")
+# Force the offline hash embedding backend. Without this the RAG tests fall
+# through to sentence-transformers and block on a HuggingFace download, which
+# made `pytest` hang forever rather than fail (see docs/DECISIONS.md D-025).
+os.environ.setdefault("EMBEDDING_BACKEND", "hash")
+# Keep the RAG index out of the repository's data/ directory.
+os.environ.setdefault("RAG_DIR", "./.pytest-data/rag")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

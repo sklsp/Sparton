@@ -14,6 +14,7 @@ from app.core.auth.service import (
     create_session,
     hash_password,
     revoke_session,
+    unique_slug,
     verify_password,
 )
 from app.core.config import settings
@@ -35,22 +36,27 @@ def _user_dict(user) -> dict:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-def register(payload: RegisterRequest, db: DbSession) -> TokenResponse:
+def register(
+    payload: RegisterRequest,
+    request: Request,
+    db: DbSession,
+    _: None = Depends(rate_limit(limit=settings.rate_limit_register_per_minute)),
+) -> TokenResponse:
+    # Public signup: rate limited per IP. Without this, anyone can fill the
+    # database with organizations at line speed.
     existing = db.execute(
         select(User).where(User.email == payload.email)
     ).scalars().first()
     if existing is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Email already registered")
 
-    org = db.execute(
-        select(Organization).where(Organization.name == payload.organization_name)
-    ).scalars().first()
-    if org is not None:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            detail="Organization already exists; ask an admin for an invite",
-        )
-    org = Organization(name=payload.organization_name)
+    # Organization display names are NOT unique: on a public signup form a
+    # global unique constraint lets one user squat "Acme" and deny it to every
+    # other shop. Uniqueness lives on the slug instead (D-009, D-026).
+    org = Organization(
+        name=payload.organization_name,
+        slug=unique_slug(db, payload.organization_name),
+    )
     db.add(org)
     db.flush()
 

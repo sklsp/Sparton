@@ -19,7 +19,12 @@ class Organization(Base):
     __tablename__ = "organizations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(160), unique=True)
+    # Display name. NOT unique: on a public signup form a global unique
+    # constraint lets one user squat "Acme" and deny it to every other shop
+    # (docs/DECISIONS.md D-009). The unique key is `id` (and `slug`).
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    # URL-safe, unique, derived from `name` with a numeric suffix on collision.
+    slug: Mapped[str] = mapped_column(String(160), unique=True, index=True, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     users: Mapped[list["User"]] = relationship(back_populates="organization")

@@ -31,16 +31,18 @@ class TestAuthAndTenancy:
             "email": "u2@example.com", "password": "wrong-password"})
         assert response.status_code == 401
 
-    def test_health_reports_llm_and_db(self, client):
-        response = client.get("/health")
+    def test_health_reports_llm_and_db(self, client, auth_headers):
+        # /health now requires a principal: it reports the LLM provider and the
+        # agent tool inventory, which is internal surface (audit P0-B).
+        response = client.get("/health", headers=auth_headers)
         assert response.status_code == 200
         body = response.json()
         assert body["database"]["ok"] is True
         assert body["llm"]["provider"] == "test"
         assert body["agent_tools"] >= 10
 
-    def test_metrics_endpoint(self, client):
-        response = client.get("/metrics")
+    def test_metrics_endpoint(self, client, auth_headers):
+        response = client.get("/metrics", headers=auth_headers)
         assert response.status_code == 200
         # Prometheus text format: at least one metric line is present.
         assert " 1.0" in response.text or "_total" in response.text
@@ -90,8 +92,8 @@ class TestEcommerceDomain:
 
 
 class TestAgentDomain:
-    def test_tool_registry_endpoint(self, client):
-        tools = client.get("/tools")
+    def test_tool_registry_endpoint(self, client, auth_headers):
+        tools = client.get("/tools", headers=auth_headers)
         assert tools.status_code == 200
         names = [t["name"] for t in tools.json()["tools"]]
         # Domains from BOTH source projects are present:

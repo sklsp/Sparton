@@ -47,6 +47,8 @@ test-results/
 # --- Local data & artifacts (SPARTON runtime data) ---
 data/
 logs/
+.pytest-data/
+report.xml
 *.log
 *.db
 *.db-journal

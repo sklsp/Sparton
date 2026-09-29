@@ -7,9 +7,9 @@ Resolves the caller's identity for every request:
    valid only when ``API_KEY`` is configured; maps to a synthetic admin
    user with no organization (sees all tenants).
 
-Requests with neither credential raise 401 unless the deployment runs
-without an ``API_KEY`` *and* anonymous access is explicitly allowed
-(local development only).
+Requests with neither credential raise 401. There is no anonymous fallback: an
+unset ``API_KEY`` disables the machine principal rather than opening the API
+(see docs/DECISIONS.md D-004).
 """
 
 from __future__ import annotations
@@ -35,6 +35,10 @@ class MachineUser:
     tenant scoping checks ``is_machine`` / ``organization_id is None`` to
     grant cross-tenant visibility, and audit rows record machine actions
     without a user FK.
+
+    Use :meth:`create` rather than the constructor: a bare instance carries a
+    mutable ``email`` and sharing one class-level object across requests lets
+    one caller overwrite another's identity.
     """
 
     id = None
@@ -43,6 +47,10 @@ class MachineUser:
     organization_id = None
     is_active = True
     is_machine = True
+
+    def __init__(self, email: str = "machine@sparton.local") -> None:
+        # Instance attribute: shadowing the class default, not mutating it.
+        self.email = email
 
 
 def _extract_bearer_token(request: Request) -> str | None:
@@ -80,14 +88,13 @@ def current_user(
             detail="Invalid API key",
         )
 
-    # 3. Open local development: no API key configured and no credentials
-    # presented. Anonymous requests act as a synthetic viewer-scoped admin
-    # of the default org so local workflows still function end to end.
-    if not settings.api_key:
-        anon = MachineUser()
-        anon.email = "anonymous@localhost"
-        return anon
-
+    # 3. No usable credential.
+    #
+    # There is deliberately NO "no API_KEY configured, so let everyone in"
+    # fallback. MachineUser.organization_id is None, which every query path
+    # reads as "sees all tenants" — so an unset API_KEY used to turn a
+    # forgotten env var into a public cross-tenant read/write window.
+    # Local development registers a user like any other client.
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Authentication required",
