@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app.core import email
 from app.core.auth import tokens
-from app.core.auth.api import DbSession, current_user
+from app.core.auth.api import DbSession, current_user, unverified_user
 from app.core.auth.service import (
     audit,
     create_session,
@@ -135,7 +135,14 @@ def logout(request: Request, db: DbSession) -> dict:
 
 
 @router.get("/me")
-def me(user: Annotated[object, Depends(current_user)]) -> dict:
+def me(user: Annotated[object, Depends(unverified_user)]) -> dict:
+    """Who am I.
+
+    Uses `unverified_user`, not `current_user`: the client calls this on every
+    boot to decide whether to show the "confirm your email" banner. Gating it
+    behind verification would make an unverified customer unable to discover
+    that they need verifying.
+    """
     return _user_dict(user)
 
 
@@ -165,9 +172,13 @@ def verify_email(payload: VerifyRequest, db: DbSession = None) -> dict:
 def resend_verification(
     request: Request,
     db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    user: Annotated[object, Depends(unverified_user)] = None,
 ) -> dict:
-    """Send the verification link again."""
+    """Send the verification link again.
+
+    `unverified_user` is the whole point of this route: requiring a verified
+    email to ask for a verification email is a deadlock.
+    """
     if getattr(user, "email_verified", False):
         return {"sent": False, "message": "Your email is already verified"}
     token = tokens.issue(db, user, AuthTokenPurpose.VERIFY_EMAIL)
@@ -246,9 +257,15 @@ def reset_password(
 def change_password(
     payload: ChangePasswordRequest,
     db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    user: Annotated[object, Depends(unverified_user)] = None,
 ) -> dict:
-    """Change your own password. Requires the current one."""
+    """Change your own password. Requires the current one.
+
+    `unverified_user`: the password being changed is the one the customer was
+    emailed about. Gating this behind verification would lock out exactly the
+    person who cannot receive mail yet. It still requires the *current*
+    password, so this is not a takeover vector.
+    """
     if not verify_password(payload.current_password, user.password_hash):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, detail="Your current password is incorrect"

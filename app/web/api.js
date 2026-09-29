@@ -76,6 +76,11 @@ export const api = {
   resendVerification: () => post("/auth/resend-verification"),
   forgotPassword: (email) => post("/auth/forgot-password", { email }),
   resetPassword: (token, password) => post("/auth/reset-password", { token, password }),
+  changePassword: (currentPassword, newPassword) =>
+    post("/auth/change-password", {
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
 
   // --- system
   health: () => get("/health"),
@@ -115,6 +120,8 @@ export const api = {
   report: (id) => get(`/reports/${id}`),
 
   // --- billing
+  // `plans` is public: the landing page prices itself from it before signup.
+  plans: () => get("/billing/plans"),
   plan: () => get("/billing/plan"),
   checkout: (plan) => post("/billing/checkout", { plan }),
   portal: () => post("/billing/portal"),

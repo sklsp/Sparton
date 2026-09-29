@@ -1,11 +1,8 @@
 # ============================================================
 # SPARTON — Git ignore
-# ============================================================
-
 # --- Read-only source/reference repositories (NEVER commit) ---
 /Apollo/
 /Ares/
-
 # --- Python ---
 __pycache__/
 *.py[cod]
@@ -17,7 +14,6 @@ dist/
 venv/
 env/
 .python-version
-
 # --- Testing / coverage ---
 .pytest_cache/
 .coverage
@@ -26,7 +22,6 @@ htmlcov/
 .tox/
 .mypy_cache/
 .ruff_cache/
-
 # --- Node / frontend ---
 node_modules/
 .next/
@@ -37,13 +32,11 @@ next-env.d.ts
 playwright-report/
 test-results/
 .playwright-mcp/
-
 # --- Environment & secrets ---
 .env
 .env.*
 !.env.example
 !.env.production.example
-
 # --- Local data & artifacts (SPARTON runtime data) ---
 data/
 logs/
@@ -53,22 +46,25 @@ report.xml
 *.db
 *.db-journal
 *.sqlite3
-
 # --- Models & large binaries ---
 *.safetensors
 *.ckpt
 *.pt
 *.bin
 *.faiss
-
 # --- IDE / OS ---
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
-run_tests.ps1
 rt.ps1
 rt2.ps1
 o.txt
 e.txt
 rc.txt
+runtests.ps1
+out.txt
+err.txt
+report.xml
+run_tests.ps1
+COMMIT_MSG.txt

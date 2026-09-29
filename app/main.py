@@ -14,7 +14,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -143,6 +143,39 @@ def create_app() -> FastAPI:
         if landing.is_file():
             return FileResponse(landing, media_type="text/html")
         return RedirectResponse(url="/app/")
+
+    # The landing page is served from `/`, but its assets live in the same
+    # directory as the dashboard, which is mounted at `/app`. Without these the
+    # page renders unstyled and its script 404s. Serving them explicitly keeps
+    # the dashboard's own `/app/...` paths untouched.
+    for _asset, _media in (
+        ("landing.css", "text/css"),
+        ("landing.js", "text/javascript"),
+        ("styles.css", "text/css"),
+    ):
+        def _serve(_asset: str = _asset, _media: str = _media):
+            path = WEB_DIR / _asset
+            if not path.is_file():
+                raise HTTPException(status_code=404, detail="Not found")
+            return FileResponse(path, media_type=_media)
+
+        app.add_api_route(
+            f"/{_asset}", _serve, methods=["GET"], include_in_schema=False
+        )
+
+    # Legal pages. The landing page links to these, so they are real routes
+    # rather than dead anchors: a pricing page that 404s on "Terms" is a
+    # signal to a prospective customer about how the rest is run.
+    for _page in ("privacy", "terms", "dpa"):
+        def _legal(_page: str = _page):
+            path = WEB_DIR / "legal" / f"{_page}.html"
+            if not path.is_file():
+                raise HTTPException(status_code=404, detail="Not found")
+            return FileResponse(path, media_type="text/html")
+
+        app.add_api_route(
+            f"/legal/{_page}", _legal, methods=["GET"], include_in_schema=False
+        )
 
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon() -> Response:

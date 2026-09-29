@@ -17,11 +17,17 @@ Read this file first if context was lost. It is the source of truth for
 | 1 | Audit & baseline — audit doc, app boots, `pytest` green, docs corrected | ✅ done |
 | 2 | OpenRouter — production provider: retries, timeouts, headers, token usage | ✅ done |
 | 3 | Product core — `app/ecommerce/` shop→competitors→crawl→changes→report | ✅ done |
-| 4 | SaaS layer — signup, verification, reset, Stripe, plans, feature flags | 🔄 in progress |
-| 5 | Frontend — public landing page + product dashboard | ⬜ not started |
+| 4 | SaaS layer — signup, verification, reset, Stripe, plans, feature flags | ✅ done |
+| 5 | Frontend — public landing page + product dashboard | ✅ done |
 | 6 | Production — Docker, compose, real migrations, health, CI, DEPLOYMENT.md | ⬜ not started |
 | 7 | Hardening — full route coverage, tenant isolation, Playwright, security review | ⬜ not started |
 | 8 | Launch checklist — `docs/LAUNCH.md` | ⬜ not started |
+
+Commits, one per phase: `77d14d6` (security), `aafb69c` (llm), `006d5ed`
+(ecommerce), `a4f3b76` (saas), then Phase 5 on top.
+
+**Suite status: 257 passed, 0 failed, 0 errors** (226 at the end of Phase 4,
+plus 31 added in Phase 5).
 
 ---
 
@@ -171,6 +177,80 @@ row. `test_cost_is_computed_from_reported_pricing` caught it.
    carries the `/auth` prefix, so all six returned 404.
 
 ---
+
+---
+
+## Phase 5 — Frontend
+
+### Done
+
+**Public surface (unauthenticated)**
+
+- `GET /` serves `landing.html` — the pitch, how it works, pricing, FAQ, all
+  wired to the real endpoints. It prices itself from `GET /billing/plans`, so
+  the table can never drift from what the server actually charges.
+- `/landing.css`, `/landing.js`, `/styles.css` are served explicitly. The
+  dashboard is mounted at `/app`, so a root-served page referencing `./x.css`
+  resolved to `/x.css` and 404'd — the page rendered unstyled.
+- `/legal/privacy`, `/legal/terms`, `/legal/dpa` are real pages. They were
+  linked from the footer and did not exist.
+
+**Dashboard** — six views replacing the old platform-oriented ones:
+
+| View | Job |
+|---|---|
+| `overview` | One `GET /overview` round trip. Four numbers, what needs a decision, what you are watching. |
+| `alerts` | The daily screen. Filter by kind/shop/unread, acknowledge, always link to the evidence page. |
+| `shops` | Onboarding. Add a shop, add a competitor, crawl, discover, delete. |
+| `reports` | Filing cabinet on the left, document on the right. |
+| `billing` | Current plan, allowance meters against hard limits, the plan table, Stripe hand-off. |
+| `settings` | Account, password, and a plain statement of what we store. |
+
+- `views/shared.js` holds only product-domain helpers (money, change kinds,
+  plan-limit detection) and **re-exports nothing `ui.js` already provides** —
+  `ago`, `when`, `empty`, `badge` stay in one place.
+- `api.js` gained `plans()`, `changePassword()` and `discoverCompetitors()`,
+  which had server routes but no client wrapper.
+- Product-view CSS added to `styles.css` on the existing token system, using
+  the existing `data-variant` / `data-size` button convention.
+
+### Bug the tests caught
+
+`overview.js` had an unbalanced paren in the shop grid. `node --check` did not
+see it (it parsed the file as CommonJS); it only surfaced when each view was
+imported as a real ES module. **All 116 classes** the six views reference are
+now covered by a stylesheet rule, and every view mounts against a stub DOM.
+
+### Bug found and fixed: the verification lockout
+
+Phase 4 applied the verification gate inside `current_user`, so in production
+**every** authenticated route 403'd for an unverified account — including
+`GET /auth/me`, `POST /auth/resend-verification` and `POST /auth/change-password`.
+
+That is a deadlock: a customer who cannot receive mail could not ask for another
+link, read their own account, or change the password they were emailed about.
+
+Fixed by splitting the gate out:
+
+- `app/core/auth/api.py` gains `unverified_user` — authenticates and binds
+  tenant context, but does not require verification. `current_user` is now
+  `unverified_user` + `_require_verified`, so the default is unchanged.
+- Only the three recovery routes opt out. Everything that reads tenant data
+  still 403s, and all three still require a valid session (anonymous → 401).
+
+`tests/test_recovery_paths.py` pins both halves: recovery works unverified,
+product access does not, and a verified session is not rejected.
+
+### Tests added
+
+- `tests/test_recovery_paths.py` — 12 tests: recovery open, product shut,
+  verification round trip, password reset round trip.
+- `tests/test_public_pages.py` — 19 tests: landing page and its assets resolve,
+  legal pages serve, dashboard `/app` mount undisturbed.
+
+---
+
+## Phase 1 — Audit & baseline
 
 ### Done
 

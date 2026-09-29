@@ -62,6 +62,16 @@ def _extract_bearer_token(request: Request) -> str | None:
     return None
 
 
+def _resolve_principal(request: Request, db: Session) -> User | MachineUser:
+    """Authenticate and bind tenant context. Raises 401 when anonymous."""
+    principal = _authenticate(request, db)
+    request.state.user = principal
+    set_usage_context(
+        getattr(principal, "organization_id", None), getattr(principal, "id", None)
+    )
+    return principal
+
+
 def current_user(
     request: Request,
     db: DbSession,
@@ -73,14 +83,32 @@ def current_user(
     threading a user object through every call signature. This runs as a route
     dependency, i.e. immediately before the handler, which is why it lives
     here rather than in request middleware.
+
+    Requires a verified email. Recovery routes must use
+    :func:`unverified_user` instead — see the note there.
     """
-    principal = _authenticate(request, db)
-    request.state.user = principal
-    set_usage_context(
-        getattr(principal, "organization_id", None), getattr(principal, "id", None)
-    )
+    principal = _resolve_principal(request, db)
     _require_verified(principal)
     return principal
+
+
+def unverified_user(
+    request: Request,
+    db: DbSession,
+) -> User | MachineUser:
+    """Authenticated, but *not* required to have verified their email.
+
+    This exists because a verification gate applied to every ``current_user``
+    route is a lockout, not a safeguard: an unverified customer could not read
+    their own account, could not ask for a new link, and could not change the
+    password they were emailed about. They would be stuck outside their own
+    account with no way back in.
+
+    Use this only on routes whose entire job is recovery — reading who you are,
+    resending verification, changing a password. Everything that touches a
+    tenant's data stays behind :func:`current_user`.
+    """
+    return _resolve_principal(request, db)
 
 
 def _require_verified(principal) -> None:
