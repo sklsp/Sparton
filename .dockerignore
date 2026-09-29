@@ -1,0 +1,58 @@
+# Keep the build context small and the image free of anything that must not
+# ship. A .env in a layer is a leaked secret for the life of the image, even if
+# a later layer deletes it — the bytes are still in the earlier one.
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Version control and CI
+.git
+.gitignore
+.github
+
+# Virtual environments
+.venv
+venv
+env
+
+# Python build artefacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local data — databases and the email outbox, which contains live reset links
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Tests and their artefacts. Running them in the image would only bloat it.
+tests/
+report.xml
+out.txt
+err.txt
+rc.txt
+
+# Docs and scratch files
+docs/
+*.md
+!requirements.txt
+
+# Deployment scaffolding that is not needed inside the image
+Dockerfile
+docker-compose.yml
+.dockerignore
+compose.yaml
+run_tests.ps1
+outbox/
+
+# Local tooling
+.vscode/
+.idea/

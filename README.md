@@ -79,8 +79,14 @@ Double-click **`start_sparton.bat`**, or run `start_sparton.bat` from a terminal
 
 ### Docker
 
-Phase 6. A `docker compose up --build` stack (api, worker, postgres, redis) is
-being added; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+```bash
+cp .env.example .env      # set POSTGRES_PASSWORD and APP_URL at minimum
+docker compose up -d --build
+```
+
+Postgres 16, Redis 7, the API and the queue worker. Migrations run on start, so
+there is no separate step to forget. Full runbook, the settings that actually
+matter, and a security checklist: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ---
 

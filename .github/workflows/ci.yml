@@ -1,0 +1,132 @@
+# Continuous integration.
+#
+# Two jobs, deliberately: the test job must not be blocked by the fact that
+# Docker is slow to start, and a syntax error in the deployment files should be
+# reported in a few seconds rather than after a full suite run.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Suite
+        # The suite uses a per-process SQLite database and deterministic
+        # providers, so it needs no services and makes no network calls.
+        run: pytest -q --junitxml=report.xml
+
+      - name: Publish results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report
+          path: report.xml
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The dashboard is plain ES modules with no build step and no npm
+      # dependencies, so there is nothing to install — only something to check.
+      - name: Parse every module
+        run: |
+          fail=0
+          for f in $(find app/web -name '*.js'); do
+            # Copy to .mjs so Node parses it as an ES module, which is how the
+            # browser loads it. `node --check` on a .js file parses as
+            # CommonJS and will not catch a top-level `export` mistake.
+            cp "$f" /tmp/probe.mjs
+            if ! node --check /tmp/probe.mjs; then
+              echo "::error file=$f::is not a valid ES module"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Build context sanity
+        run: |
+          # Catches a Dockerfile that copies a directory which no longer
+          # exists, and a compose file that will not parse.
+          docker build --check .
+          docker compose config -q
+
+  image:
+    name: Build image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [test, frontend]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: sparton:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: The image really starts
+        run: |
+          # Building is not deploying. This boots the image on SQLite and asks
+          # the health endpoint, which is the first thing an orchestrator does.
+          docker run -d --name sparton \
+            -e SPARTON_ENV=development \
+            -e DATABASE_URL=sqlite:////tmp/sparton.db \
+            -p 8000:8000 sparton:ci
+
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/live >/dev/null 2>&1; then
+              echo "container is live after ${i}s"
+              curl -fsS http://localhost:8000/ready
+              curl -fsS -o /dev/null -w 'landing page: %{http_code}\n' http://localhost:8000/
+              docker rm -f sparton
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "::error::container never became live"
+          docker logs sparton
+          docker rm -f sparton
+          exit 1
