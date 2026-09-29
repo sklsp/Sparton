@@ -66,3 +66,9 @@ report.xml
 .idea/
 .DS_Store
 Thumbs.db
+run_tests.ps1
+rt.ps1
+rt2.ps1
+o.txt
+e.txt
+rc.txt

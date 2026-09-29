@@ -49,6 +49,8 @@ def health(user: Annotated[object, Depends(current_user)] = None) -> dict:
         pass
 
     llm = get_llm_provider()
+    from app.core.features import describe as describe_features
+
     return {
         "status": "ok" if db_ok else "degraded",
         "database": {"ok": db_ok, "url_scheme": settings.database_url.split(":", 1)[0]},
@@ -58,6 +60,7 @@ def health(user: Annotated[object, Depends(current_user)] = None) -> dict:
             "model": getattr(llm, "default_model", None) or getattr(llm, "model", None),
         },
         "agent_tools": len(build_registry()),
+        "features": describe_features(),
     }
 
 

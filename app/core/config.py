@@ -32,11 +32,62 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
+    # --- Core -----------------------------------------------------------
+    #: "development" | "production". Drives defaults that must differ between
+    #: a laptop and a real deployment (email verification, log level).
+    sparton_env: str = "development"
+
     # --- Database -------------------------------------------------------
     # Postgres is the target database (docker compose provides one). The
     # SQLite default keeps `pytest` and a quick local run dependency free.
     database_url: str = "sqlite:///./sparton.db"
     db_echo: bool = False
+
+    # --- Feature flags ---------------------------------------------------
+    # Which domains are mounted. A disabled domain has NO routes at all rather
+    # than routes that 403, which is strictly less attack surface. Unknown
+    # names are ignored so a typo cannot take the API down at import.
+    enabled_domains: str = "intelligence,commerce,agent"
+    # Enforce email verification. Defaults to on in production, where
+    # transactional mail to an unverified address is both a GDPR problem and
+    # the cheapest spam vector available.
+    email_verification_required: bool | None = None
+
+    @property
+    def require_email_verification(self) -> bool:
+        if self.email_verification_required is not None:
+            return self.email_verification_required
+        return (self.sparton_env or "").lower() == "production"
+
+    # --- Public URL -------------------------------------------------------
+    #: Base URL of the deployment. Used to build Stripe redirect targets and
+    #: verification / reset links in email. Getting this wrong means the
+    #: customer receives a link to localhost, so it is a required production
+    #: setting rather than something inferred.
+    app_url: str = "http://localhost:8000"
+
+    # --- Billing (Stripe) -------------------------------------------------
+    # Never hardcoded, never committed. `stripe listen --forward-to
+    # localhost:8000/stripe/webhook` in development.
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_price_pro: str | None = None
+    stripe_price_business: str | None = None
+    #: Refuse to start Checkout when Stripe is unconfigured, rather than
+    #: failing with a confusing error at the payment step.
+    billing_enabled: bool = True
+
+    # --- Email -------------------------------------------------------------
+    # With no SMTP_HOST, messages are written to ./data/outbox instead of being
+    # sent, so local development works with no mail server at all.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "no-reply@sparton.ai"
+    smtp_starttls: bool = True
+    #: How long a verification / reset token stays valid.
+    auth_token_ttl_minutes: int = 60 * 24
 
     # --- LLM ------------------------------------------------------------
     llm_provider: str = "ollama"  # "ollama" | "openai_compatible" | "test"
@@ -156,6 +207,15 @@ class Settings(BaseSettings):
     # SSRF guard: private/loopback destinations are blocked unless this is
     # explicitly enabled for local development fixtures.
     crawler_allow_private_addresses: bool = False
+    # Identify ourselves honestly. Sites use this for abuse contact, and some
+    # block obvious bots outright.
+    crawler_user_agent: str = "SpartonIntelligence/1.0 (+https://sparton.ai/bot)"
+    # Page budget per competitor, per crawl. The plan limits cap this further.
+    crawler_max_pages_per_shop: int = 40
+    # Competitors proposed by search are stored as suggestions, not facts, and
+    # are not crawled until the customer confirms them.
+    competitor_discovery_auto_add: bool = False
+    competitor_discovery_limit: int = 10
 
     # --- Background jobs -----------------------------------------------------
     # Local development: the API runs an embedded worker. Production: run

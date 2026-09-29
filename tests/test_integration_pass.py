@@ -1,12 +1,34 @@
-"""Cross-domain integration tests: prove Ares + Apollo functionality works
-together as one application."""
+"""Cross-domain integration tests.
+
+The documents / generation / datasets / training domains are **feature-flagged
+off by default** (docs/DECISIONS.md D-020), so their routes do not exist in a
+default deployment. The tests for them therefore build an app with the flags
+switched on, which is also a direct test of the flag mechanism: the same
+factory returns a different surface depending on configuration.
+"""
 
 from __future__ import annotations
 
-import json
+import pytest
 
-from app.core.database.creation_models import Document
-from app.core.database.domain_models import Product
+
+class TestFeatureFlags:
+    def test_default_deployment_has_no_non_product_routes(self, client):
+        """Hiding is done by not registering the route at all (D-020)."""
+        for path in ("/documents", "/rag/status", "/comfyui/workflows",
+                     "/training/status", "/datasets", "/intelligence/jobs"):
+            assert client.get(path).status_code == 404, path
+
+    def test_default_deployment_has_the_product(self, client, auth_headers):
+        for path in ("/shops", "/competitors", "/changes", "/reports", "/overview"):
+            assert client.get(path, headers=auth_headers).status_code == 200, path
+
+    def test_enabling_a_domain_registers_its_routes(self, all_domains_client,
+                                                    all_domain_headers):
+        assert all_domains_client.get(
+            "/rag/status", headers=all_domain_headers
+        ).status_code == 200
+
 
 
 class TestAuthAndTenancy:
@@ -49,33 +71,33 @@ class TestAuthAndTenancy:
 
 
 class TestKnowledgeDomain:
-    def test_document_upload_and_rag_query(self, client, auth_headers):
+    def test_document_upload_and_rag_query(self, all_domains_client, all_domain_headers):
         files = [("files", ("notes.txt", b"Sparton unifies RAG and agents. The sky is blue.", "text/plain"))]
-        upload = client.post("/documents/upload", files=files, headers=auth_headers)
+        upload = all_domains_client.post("/documents/upload", files=files, headers=all_domain_headers)
         assert upload.status_code == 201
         assert upload.json()["uploaded"] == 1
 
-        status = client.get("/rag/status", headers=auth_headers)
+        status = all_domains_client.get("/rag/status", headers=all_domain_headers)
         assert status.status_code == 200
         assert status.json()["chunks"] >= 1
 
-    def test_chat_with_rag_citations(self, client, auth_headers):
+    def test_chat_with_rag_citations(self, all_domains_client, all_domain_headers):
         files = [("files", ("facts.txt", b"Our flagship product is called Zephyr and costs 42 dollars.", "text/plain"))]
-        client.post("/documents/upload", files=files, headers=auth_headers)
+        all_domains_client.post("/documents/upload", files=files, headers=all_domain_headers)
 
-        chat = client.post("/chat", json={"message": "What is the flagship product?"},
-                           headers=auth_headers)
+        chat = all_domains_client.post("/chat", json={"message": "What is the flagship product?"},
+                           headers=all_domain_headers)
         assert chat.status_code == 200
         body = chat.json()
         assert body["conversation_id"] > 0
         assert isinstance(body["citations"], list)
 
-    def test_prompt_template_crud(self, client, auth_headers):
-        created = client.post("/prompts", headers=auth_headers, json={
+    def test_prompt_template_crud(self, all_domains_client, all_domain_headers):
+        created = all_domains_client.post("/prompts", headers=all_domain_headers, json={
             "key": "test_tpl", "name": "Test Template", "template": "Hello {input}"})
         assert created.status_code == 201
 
-        listed = client.get("/prompts", headers=auth_headers)
+        listed = all_domains_client.get("/prompts", headers=all_domain_headers)
         assert listed.status_code == 200
         assert any(p["key"] == "test_tpl" for p in listed.json()["prompts"])
 
@@ -148,66 +170,66 @@ class TestAgentDomain:
 
 
 class TestCreateDomain:
-    def test_comfyui_workflows_library(self, client, auth_headers):
-        workflows = client.get("/comfyui/workflows", headers=auth_headers)
+    def test_comfyui_workflows_library(self, all_domains_client, all_domain_headers):
+        workflows = all_domains_client.get("/comfyui/workflows", headers=all_domain_headers)
         assert workflows.status_code == 200
         # The bundled SDXL workflow ships with the repo.
         ids = [w["id"] for w in workflows.json().get("workflows", [])]
         assert isinstance(ids, list)
 
-    def test_dataset_lifecycle(self, client, auth_headers):
+    def test_dataset_lifecycle(self, all_domains_client, all_domain_headers):
         from io import BytesIO
 
         from PIL import Image
 
-        created = client.post("/datasets", headers=auth_headers,
+        created = all_domains_client.post("/datasets", headers=all_domain_headers,
                               json={"name": "Test DS", "trigger_word": "zephyr"})
         assert created.status_code == 201
         dataset_id = created.json()["id"]
 
         buffer = BytesIO()
         Image.new("RGB", (512, 512), color=(120, 40, 40)).save(buffer, format="PNG")
-        upload = client.post(
+        upload = all_domains_client.post(
             f"/datasets/{dataset_id}/images",
             files={"file": ("img1.png", buffer.getvalue(), "image/png")},
-            headers=auth_headers,
+            headers=all_domain_headers,
         )
         assert upload.status_code == 201
 
-        images = client.get(f"/datasets/{dataset_id}/images", headers=auth_headers)
+        images = all_domains_client.get(f"/datasets/{dataset_id}/images", headers=all_domain_headers)
         assert images.json()["count"] == 1
 
-        validation = client.get(f"/datasets/{dataset_id}/validate", headers=auth_headers)
+        validation = all_domains_client.get(f"/datasets/{dataset_id}/validate", headers=all_domain_headers)
         assert validation.status_code == 200
         report = validation.json()
         assert report["total_images"] == 1
         assert "missing_caption" in str(report["findings"])
 
-    def test_training_preflight(self, client, auth_headers):
-        preflight = client.post("/training/preflight", headers=auth_headers,
+    def test_training_preflight(self, all_domains_client, all_domain_headers):
+        preflight = all_domains_client.post("/training/preflight", headers=all_domain_headers,
                                 json={"resolution": [1024, 1024], "batch_size": 1})
         assert preflight.status_code == 200
         assert preflight.json()["verdict"] in {"ok", "heavy", "risky", "unsupported", "blocked"}
 
-    def test_hardware_detection(self, client, auth_headers):
-        hardware = client.get("/training/hardware", headers=auth_headers)
+    def test_hardware_detection(self, all_domains_client, all_domain_headers):
+        hardware = all_domains_client.get("/training/hardware", headers=all_domain_headers)
         assert hardware.status_code == 200
         assert "accelerator" in hardware.json()
 
 
 class TestIntelligenceDomain:
-    def test_research_job_lifecycle(self, client, auth_headers):
-        started = client.post("/intelligence/jobs", headers=auth_headers,
+    def test_research_job_lifecycle(self, all_domains_client, all_domain_headers):
+        started = all_domains_client.post("/intelligence/jobs", headers=all_domain_headers,
                               json={"query": "handmade ceramic mugs market"})
         assert started.status_code == 202
         job_id = started.json()["job_id"]
 
-        jobs = client.get("/intelligence/jobs", headers=auth_headers)
+        jobs = all_domains_client.get("/intelligence/jobs", headers=all_domain_headers)
         assert jobs.status_code == 200
         assert any(j["id"] == job_id for j in jobs.json()["jobs"])
 
-    def test_opportunities_listing(self, client, auth_headers):
-        response = client.get("/intelligence/opportunities", headers=auth_headers)
+    def test_opportunities_listing(self, all_domains_client, all_domain_headers):
+        response = all_domains_client.get("/intelligence/opportunities", headers=all_domain_headers)
         assert response.status_code == 200
         assert "opportunities" in response.json()
 

@@ -15,6 +15,9 @@ from app.core.database.identity import User
 
 #: Every one of these answered 200 with no credentials before the fix. The
 #: list is the audit's "endpoints with no auth dependency" finding, verbatim.
+#: Several now live behind feature flags and answer 404, which is an equally
+#: correct outcome — 404 is "this does not exist", 401 is "you must sign in",
+#: and neither is "here is the data".
 UNGUARDED_AT_AUDIT_TIME = [
     "/rag/status",
     "/rag/debug-query?q=secret",
@@ -40,12 +43,15 @@ UNGUARDED_AT_AUDIT_TIME = [
 
 
 @pytest.mark.parametrize("path", UNGUARDED_AT_AUDIT_TIME)
-def test_route_requires_authentication(client, path):
+def test_route_requires_authentication(client, db_session, path):
     """Audit P0-B: these routes had no `current_user` dependency at all."""
     response = client.get(path)
-    assert response.status_code == 401, (
-        f"{path} answered {response.status_code} anonymously; expected 401. "
-        f"Body: {response.text[:200]}"
+    assert response.status_code in (401, 404), (
+        f"{path} answered {response.status_code} anonymously; expected 401 "
+        f"(auth required) or 404 (domain disabled). Body: {response.text[:200]}"
+    )
+    assert "anonymous@" not in response.text, (
+        f"{path} leaked a cross-tenant response anonymously"
     )
 
 
@@ -62,12 +68,16 @@ def test_no_anonymous_cross_tenant_fallback(client, db_session):
         "This test proves the no-API_KEY path is closed; if API_KEY is set in "
         "the test environment the assertion is meaningless."
     )
+    # Product data is behind auth (401). Retired domains are simply gone (404).
+    # Neither is "here is another customer's data".
+    assert client.get("/shops").status_code == 401
+    assert client.get("/competitors").status_code == 401
+    assert client.get("/changes").status_code == 401
     assert client.get("/products").status_code == 401
-    assert client.get("/intelligence/stores").status_code == 401
     assert client.get("/admin/users").status_code == 401
 
 
-def test_api_key_principal_still_works_when_configured(client, monkeypatch):
+def test_api_key_principal_still_works_when_configured(client, db_session, monkeypatch):
     """The machine principal is still available — it is just explicit now."""
     from app.core.config import settings
     from app.core.security import rate_limit
@@ -112,7 +122,7 @@ def test_two_tenants_cannot_see_each_others_products(client, db_session):
     assert theirs["count"] == 0
 
 
-def test_duplicate_organization_name_is_allowed(client):
+def test_duplicate_organization_name_is_allowed(client, db_session):
     """Audit P2-8 / D-009: names must not be globally unique.
 
     Two unrelated shops may both be called "Acme"; squatting the name must not
@@ -133,7 +143,7 @@ def test_duplicate_organization_name_is_allowed(client):
     assert first.json()["user"]["organization_id"] != second.json()["user"]["organization_id"]
 
 
-def test_duplicate_email_still_rejected(client):
+def test_duplicate_email_still_rejected(client, db_session):
     client.post(
         "/auth/register",
         json={"email": "dupe@example.com", "password": "long-password-1",
@@ -147,7 +157,7 @@ def test_duplicate_email_still_rejected(client):
     assert again.status_code == 409
 
 
-def test_register_is_rate_limited(client):
+def test_register_is_rate_limited(client, db_session):
     """Audit P2-7 / D-027: public signup must not be unlimited."""
     from app.core.security import rate_limit
 
@@ -169,14 +179,20 @@ def test_register_is_rate_limited(client):
         rate_limit.reset_limits()
 
 
-def test_liveness_probes_stay_open(client):
+def test_liveness_probes_stay_open(client, db_session):
     """Orchestrators probe these without credentials; they must not 401."""
     assert client.get("/live").status_code == 200
     assert client.get("/ready").status_code == 200
 
 
-def test_global_prompt_templates_are_visible_to_tenants(client, db_session):
-    """Audit P2-3: `organization_id IN (org, NULL)` never matches NULL."""
+def test_global_prompt_templates_are_visible_to_tenants(
+    all_domains_client, all_domain_headers, db_session
+):
+    """Audit P2-3: `organization_id IN (org, NULL)` never matches NULL.
+
+    Lives here rather than in the flag-off suite because the bug it guards is a
+    tenancy bug: global rows were invisible to every tenant.
+    """
     from app.core.database.creation_models import PromptTemplate
 
     db_session.add(
@@ -185,12 +201,8 @@ def test_global_prompt_templates_are_visible_to_tenants(client, db_session):
     )
     db_session.commit()
 
-    token = client.post(
-        "/auth/register",
-        json={"email": "tpl@example.com", "password": "long-password-1",
-              "organization_name": "Tpl Org"},
-    ).json()["token"]
-    listed = client.get("/prompts", headers={"Authorization": f"Bearer {token}"})
+    listed = all_domains_client.get("/prompts", headers=all_domain_headers)
+    assert listed.status_code == 200
     assert any(p["key"] == "global_tpl" for p in listed.json()["prompts"])
 
 

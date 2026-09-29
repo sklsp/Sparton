@@ -20,9 +20,10 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.api import admin as admin_api
-from app.api import agent_api, auth, create, ecommerce, health, intelligence, knowledge
+from app.api import agent_api, auth, commerce, create, ecommerce, health, intelligence, knowledge
 from app.core.config import settings
 from app.core.database.base import Base, engine
+from app.core.features import Domain, is_enabled
 from app.core.observability.logging_config import configure_logging
 from app.core.observability.middleware import RequestInstrumentation
 
@@ -96,24 +97,37 @@ def create_app() -> FastAPI:
     # Correlation IDs + request metrics.
     app.add_middleware(RequestInstrumentation)
 
-    # Routers — one coherent surface, no per-project prefixes.
+    # Routers are registered conditionally. A disabled domain has NO routes at
+    # all rather than routes that 403 — strictly less attack surface
+    # (docs/DECISIONS.md D-020).
     app.include_router(health.router)
     app.include_router(auth.router)
-    app.include_router(knowledge.router)
-    app.include_router(agent_api.router)
-    app.include_router(intelligence.router)
-    app.include_router(ecommerce.router)
-    app.include_router(create.router)
     app.include_router(admin_api.router)
+
+    # The product.
+    if is_enabled(Domain.COMMERCE):
+        app.include_router(commerce.router)
+    if is_enabled(Domain.AGENT):
+        app.include_router(agent_api.router)
+    if is_enabled(Domain.INTELLIGENCE):
+        app.include_router(ecommerce.router)
+    if is_enabled(Domain.RESEARCH):
+        app.include_router(intelligence.router)
+    if is_enabled(Domain.DOCUMENTS):
+        app.include_router(knowledge.router)
+    if is_enabled(Domain.GENERATION) or is_enabled(Domain.DATASETS) or is_enabled(
+        Domain.TRAINING
+    ):
+        app.include_router(create.router)
 
     # Dashboard. Mounted last so every API route above wins on a path clash.
     if WEB_DIR.is_dir():
-        app.mount("/dashboard", DashboardFiles(directory=WEB_DIR, html=True), name="dashboard")
+        app.mount("/app", DashboardFiles(directory=WEB_DIR, html=True), name="app")
 
     @app.get("/", include_in_schema=False)
     async def root() -> RedirectResponse:
-        """Browsers get the dashboard; without it, the interactive API docs."""
-        return RedirectResponse(url="/dashboard/" if WEB_DIR.is_dir() else "/docs")
+        """Browsers get the marketing page; without it, the API docs."""
+        return RedirectResponse(url="/index.html" if WEB_DIR.is_dir() else "/docs")
 
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon() -> Response:

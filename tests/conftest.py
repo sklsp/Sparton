@@ -4,16 +4,41 @@ from __future__ import annotations
 
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_sparton.db")
-os.environ.setdefault("LLM_PROVIDER", "test")
-os.environ.setdefault("AGENT_RUN_INLINE", "true")
-os.environ.setdefault("EMBEDDED_WORKER", "false")
+# One database file per process. Two pytest runs sharing a file collide on
+# CREATE TABLE and produce failures that look like product bugs but are pure
+# harness interference.
+_DATABASE_URL = f"sqlite:///./test_sparton_{os.getpid()}.db"
+
+os.environ["DATABASE_URL"] = _DATABASE_URL
+os.environ["LLM_PROVIDER"] = "test"
+os.environ["AGENT_RUN_INLINE"] = "true"
+os.environ["EMBEDDED_WORKER"] = "false"
 # Force the offline hash embedding backend. Without this the RAG tests fall
 # through to sentence-transformers and block on a HuggingFace download, which
 # made `pytest` hang forever rather than fail (see docs/DECISIONS.md D-025).
 os.environ.setdefault("EMBEDDING_BACKEND", "hash")
 # Keep the RAG index out of the repository's data/ directory.
 os.environ.setdefault("RAG_DIR", "./.pytest-data/rag")
+
+import atexit  # noqa: E402
+import pathlib  # noqa: E402
+
+# SQLite files are not in .gitignore patterns that cover every PID, and a
+# crashed run can leave one behind. Clean up on exit, and at import.
+_DB_FILE = pathlib.Path(_DATABASE_URL.split("sqlite:///")[-1])
+
+
+def _remove_db() -> None:
+    for suffix in ("", "-journal", "-wal", "-shm"):
+        path = pathlib.Path(str(_DB_FILE) + suffix)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+atexit.register(_remove_db)
+_remove_db()
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -26,14 +51,20 @@ from app.main import create_app  # noqa: E402
 
 @pytest.fixture()
 def db_session():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    """A clean schema for one test.
+
+    ``checkfirst`` matters: a previous test may have left a table behind if it
+    was interrupted, and a bare CREATE TABLE then fails on a database that is
+    logically clean. ``drop_all`` is scoped to the metadata, never the file.
+    """
+    Base.metadata.drop_all(bind=engine, checkfirst=True)
+    Base.metadata.create_all(bind=engine, checkfirst=True)
     session = SessionLocal()
     try:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(bind=engine)
+        Base.metadata.drop_all(bind=engine, checkfirst=True)
 
 
 @pytest.fixture()
@@ -77,6 +108,45 @@ def _clean_rate_limits():
     reset_limits()
     yield
     reset_limits()
+
+
+@pytest.fixture()
+def all_domains_client(db_session, llm):
+    """A client with every domain enabled.
+
+    The documents / generation / datasets / training domains are feature-flagged
+    off by default (docs/DECISIONS.md D-020), so their routes do not exist in a
+    default deployment. Tests for them use this, which doubles as a direct test
+    of the flag mechanism: the same app factory returns a different surface
+    depending on configuration.
+    """
+    from fastapi.testclient import TestClient
+
+    from app.core.config import settings
+    from app.main import create_app
+
+    saved = settings.enabled_domains
+    settings.enabled_domains = ",".join([
+        "intelligence", "commerce", "agent", "research",
+        "documents", "generation", "datasets", "training",
+    ])
+    try:
+        with TestClient(create_app()) as client:
+            yield client
+    finally:
+        settings.enabled_domains = saved
+
+
+@pytest.fixture()
+def all_domain_headers(all_domains_client):
+    """Auth headers for a fresh org, against the all-domains client."""
+    response = all_domains_client.post(
+        "/auth/register",
+        json={"email": TEST_ADMIN_EMAIL, "password": "correct-horse-battery",
+              "organization_name": "Test Org"},
+    )
+    assert response.status_code == 201, response.text
+    return {"Authorization": f"Bearer {response.json()['token']}"}
 
 
 @pytest.fixture()
