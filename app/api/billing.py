@@ -105,7 +105,17 @@ def invoices(
     db: DbSession = None,
     user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
+    """Invoices for the caller's organization.
+
+    A user with no organization yet is a real state, not an error: an admin
+    whose org was removed, or a session minted before the org was attached.
+    `where(organization_id == None)` compiles to `IS NULL`, which returns every
+    *unscoped* invoice in the table — a cross-tenant read for anyone who can
+    reach this route. No organization means no invoices, full stop.
+    """
     org_id = _org_id(user)
+    if org_id is None:
+        return {"count": 0, "invoices": []}
     rows = db.execute(
         select(Invoice)
         .where(Invoice.organization_id == org_id)

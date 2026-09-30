@@ -184,3 +184,29 @@ timeout. The suite is not green — it is **incomplete**, and README.md:145
 
 Nothing in the codebase does any of: register a shop URL, discover competitors,
 re-crawl on a schedule, diff prices, write a report, alert a user, or take money.
+
+---
+
+## Addendum — Phase 7 external security review
+
+Found after the initial audit, in the code that audit had already blessed. The
+crawler entry above says "SSRF guard resolves DNS and blocks
+private/loopback/link-local/reserved", and that was true of the code and false
+of the behaviour: the guard ran once, on the first URL.
+
+| # | Finding | Severity | Now |
+|---|---------|----------|-----|
+| 1 | httpx built with `follow_redirects=True`; the address check ran only on the entry URL, so a `Location` header reached loopback or `169.254.169.254` | High | `follow_redirects=False`, redirects followed by hand (max 5), address checked on every hop including `robots.txt` |
+| 2 | DNS rebinding: the name could resolve public at check time and private at connect time | High | the connected peer address is read from the response and checked as well |
+| 3 | `response.content[:max_body_bytes]` buffered the whole body before truncating, so the cap bounded memory *after* the download | Medium | `iter_bytes()` with the read stopping at the cap; tested against an unbounded chunked response |
+| 4 | address check was a denylist, missing `100.64.0.0/10` and `192.0.0.0/24` | Medium | `not address.is_global` (plus multicast), 12 non-public forms pinned by test |
+| 5 | `client_key` read `X-Forwarded-For` unconditionally, and uvicorn ran with `--forwarded-allow-ips='*'` | High | header honoured only from a peer in `FORWARDED_ALLOW_IPS` (default loopback); uvicorn flag reads the same variable |
+| 6 | `GET /billing/invoices` filtered `organization_id == None`, i.e. `IS NULL`, returning every unscoped invoice | Medium | empty list before any query when the caller has no organization |
+| 7 | both default model ids (`claude-3.5-sonnet`, `gemini-2.0-flash-001`) absent from OpenRouter's catalogue | Medium | verified-current ids; a test fails if a retired id is assigned again |
+| 8 | `alembic upgrade head` in the container CMD races across API replicas | Low | documented as a one-off pre-deploy step; pinned by test |
+
+The common shape of 1, 2 and 5 is worth recording: each was a check that
+existed, was correct as written, and was defeated by a boundary the author had
+not considered — the second URL, the socket, the request's arrival path. A
+guard is only as good as the thing it is applied to, so each fix here is a test
+about the *response* rather than about the function.

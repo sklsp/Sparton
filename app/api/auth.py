@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 
 from app.core import email
@@ -35,7 +34,6 @@ from app.api.schemas import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-_bearer = HTTPBearer(auto_error=False)
 
 def _user_dict(user) -> dict:
     return {
@@ -127,11 +125,22 @@ def login(
 
 @router.post("/logout")
 def logout(request: Request, db: DbSession) -> dict:
-    creds: HTTPAuthorizationCredentials | None = _bearer(request)
-    if creds is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="No session presented")
-    revoked = revoke_session(db, creds.credentials)
-    return {"revoked": revoked}
+    """Revoke the caller's own session.
+
+    Reads the header directly rather than via FastAPI's `HTTPBearer`: its
+    `__call__` is async, so calling it from a sync handler returns a coroutine
+    instead of the credentials, and `creds.credentials` raises `AttributeError` —
+    a 500 on the one route a user hits when something has already gone wrong.
+    """
+    header = request.headers.get("Authorization", "")
+    token = header[7:].strip() if header.lower().startswith("bearer ") else ""
+    if not token:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            detail="No session presented",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return {"revoked": revoke_session(db, token)}
 
 
 @router.get("/me")

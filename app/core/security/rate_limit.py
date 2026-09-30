@@ -9,6 +9,8 @@ than blocking all traffic.
 
 from __future__ import annotations
 
+import ipaddress
+import logging
 import threading
 import time
 from collections import defaultdict, deque
@@ -17,6 +19,8 @@ from typing import Callable
 from fastapi import HTTPException, Request, status
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 _local_lock = threading.Lock()
 _local_hits: dict[str, deque[float]] = defaultdict(deque)
@@ -80,12 +84,63 @@ def check_rate_limit(key: str, limit: int, window_seconds: float = 60.0) -> None
         _hit_local(key, limit, window_seconds)
 
 
+def _trusted_proxy_networks() -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """Networks whose forwarded headers we believe, from FORWARDED_ALLOW_IPS.
+
+    Defaults to loopback only, which is correct for the common deployment: the
+    app sits behind a reverse proxy on the same host or in the same pod, and
+    nothing else may speak for a client's address.
+    """
+    raw = settings.forwarded_allow_ips or "127.0.0.1"
+    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for entry in raw.replace(";", ",").split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            # A bare address becomes a /32 (or /128), which is what an operator
+            # listing one proxy means.
+            networks.append(ipaddress.ip_network(entry, strict=False))
+        except ValueError:
+            logger.warning("Ignoring unparseable FORWARDED_ALLOW_IPS entry %r", entry)
+    return networks
+
+
+def _peer_is_trusted_proxy(request: Request) -> bool:
+    """True when the TCP peer is a proxy we are configured to believe."""
+    if not request.client or not request.client.host:
+        return False
+    try:
+        peer = ipaddress.ip_address(request.client.host.split("%")[0])
+    except ValueError:
+        return False
+    return any(peer in network for network in _trusted_proxy_networks())
+
+
 def client_key(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    return (
-        (forwarded.split(",")[0].strip() if forwarded else None)
-        or (request.client.host if request.client else "unknown")
-    )
+    """The identity a rate limit is counted against.
+
+    `X-Forwarded-For` is attacker-controlled. Trusting it unconditionally means
+    a caller rotates the header per request and gets a fresh bucket every
+    time, which turns every limit in this module into a suggestion. So the
+    header is only read when the request actually arrived from a configured
+    proxy; otherwise the socket address is the identity, full stop.
+
+    uvicorn must be started with a matching `--forwarded-allow-ips`, or it will
+    rewrite `request.client` from the same untrusted header and this check
+    becomes theatre. See the Dockerfile and docs/DEPLOYMENT.md.
+    """
+    if _peer_is_trusted_proxy(request):
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            candidate = forwarded.split(",")[0].strip()
+            try:
+                ipaddress.ip_address(candidate.split("%")[0])
+            except ValueError:
+                pass  # Not an address; fall through to the socket.
+            else:
+                return candidate
+    return request.client.host if request.client else "unknown"
 
 
 def rate_limit(

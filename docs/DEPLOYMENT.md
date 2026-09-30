@@ -284,3 +284,65 @@ The crawler identifies itself honestly in its user agent and respects
 `robots.txt`. A site owner can see SPARTON in their logs, contact you, or block
 you. That is the intended behaviour — please do not disable it to raise crawl
 volume.
+
+### More than one API replica: run migrations once
+
+The container CMD runs `alembic upgrade head` before uvicorn. That is right for
+a single replica, and wrong for several: three replicas starting together run
+three concurrent `upgrade head` against one database, and the losers fail on a
+duplicate revision or a lock timeout — usually as a crash loop during a deploy,
+which is the worst time to be reading a migration error.
+
+With `--scale api=2` or more, take migrations out of the start command and run
+them as a **one-off step** before scaling up:
+
+```bash
+# 1. Migrate once, from a single container.
+docker compose run --rm api sh -c "alembic upgrade head"
+
+# 2. Then start the replicas. The CMD still migrates; it is now a no-op,
+#    because the schema is already at head.
+docker compose up -d --scale api=3
+```
+
+The no-op is the point. Alembic is idempotent at head, so leaving the CMD in
+place is safe; what you must avoid is the *simultaneous* first run. If your
+platform supports a pre-deploy or init job, move the migration there instead
+and set `ALEMBIC_ON_BOOT=false` for the API service.
+
+Schema changes and code changes must not land in the same rollout for the same
+reason: an old replica still serving requests against a migrated schema is the
+other half of the same failure.
+
+### `FORWARDED_ALLOW_IPS`
+
+Who is allowed to set `X-Forwarded-For`. Defaults to `127.0.0.1`, which is
+correct for the common case: the app runs behind a reverse proxy on the same
+host, and nothing else may speak for a client's address.
+
+The value goes to two places, and they must agree:
+
+- `FORWARDED_ALLOW_IPS` — the app's own setting, used to decide whether to
+  believe the header when computing a rate-limit identity
+  (`app/core/security/rate_limit.py`).
+- `--forwarded-allow-ips` — uvicorn's flag, which decides whether to rewrite
+  `request.client` from that header. The Dockerfile passes the same variable.
+
+Set it when a proxy sits in front:
+
+```bash
+# nginx on the same host
+FORWARDED_ALLOW_IPS=127.0.0.1
+# a load balancer on another host or subnet
+FORWARDED_ALLOW_IPS=127.0.0.1,10.0.0.0/8
+```
+
+Do not set it to `*`. With a wildcard, any caller can assert any client
+address: rate limits key on an attacker-chosen value, so rotating the header
+per request produces a fresh bucket every time and every limit in the app
+becomes a suggestion. The same applies to the uvicorn flag — with `*`, it
+overwrites `request.client` before the app ever sees the real peer, which also
+breaks the audit log.
+
+If the app is published directly to the internet with no proxy, leave it at the
+default. The socket address is then the truth and no header is consulted.

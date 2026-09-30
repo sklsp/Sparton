@@ -20,7 +20,7 @@ Read this file first if context was lost. It is the source of truth for
 | 4 | SaaS layer — signup, verification, reset, Stripe, plans, feature flags | ✅ done |
 | 5 | Frontend — public landing page + product dashboard | ✅ done |
 | 6 | Production — Docker, compose, real migrations, health, CI, DEPLOYMENT.md | ✅ done |
-| 7 | Hardening — full route coverage, tenant isolation, Playwright, security review | ⬜ not started |
+| 7 | Hardening — full route coverage, tenant isolation, security review | 🔄 in progress |
 | 8 | Launch checklist — `docs/LAUNCH.md` | ⬜ not started |
 
 Commits, one per phase: `77d14d6` (security), `aafb69c` (llm), `006d5ed`
@@ -358,3 +358,140 @@ zero tables and the app would have failed on its first query. Now:
   real `Settings` field.
 
 ---
+
+## Phase 7 — Hardening
+
+### Done
+
+**Route coverage, derived rather than remembered.**
+
+`tests/test_security_guards.py` probes a hand-written list of sensitive paths.
+That list is a snapshot — it cannot notice a route added after it was written,
+which is exactly how Phase 1 found twelve endpoints answering `200` to an
+anonymous caller.
+
+`tests/test_route_coverage.py` reads the app's own OpenAPI document instead:
+
+- every route must be classified as `PUBLIC`, `SIGNED`, or protected, or the
+  test fails and names it
+- the public surface is pinned as an exact set, so a route becoming public is
+  visible in a diff and has to be justified in one line
+- every protected route is probed with no credentials and must answer `401`
+- parameterised routes must answer `401` too, not `404`: authentication has to
+  be checked *before* the row is looked up, or the response becomes an
+  existence oracle
+- write-only routes are probed with their real method — a `GET` returns `405`,
+  which says nothing about the guard
+
+The public surface is **8 routes**: `/live`, `/ready`, `/billing/plans`, and
+the five pre-account auth routes.
+
+### Bug the tests caught
+
+**`POST /auth/logout` returned 500 to every caller.**
+
+```python
+creds = _bearer(request)      # HTTPBearer.__call__ is async
+if creds is None: ...          # never true
+revoke_session(db, creds.credentials)   # AttributeError
+```
+
+`_bearer` is a FastAPI `HTTPBearer` instance. Its `__call__` is `async`, so
+calling it from a sync handler returns a coroutine, which is never `None` and
+has no `.credentials`. Every logout — authenticated or not — raised an
+unhandled `AttributeError` and returned a 500.
+
+This is a genuinely bad place for a 500: logout is the route a user hits when
+something has already gone wrong, and it was the one route that could not be
+used to recover. Fixed by reading the `Authorization` header directly, and the
+unused `HTTPBearer` import is gone.
+
+---
+
+### External security review: five findings, all closed
+
+`tests/test_ssrf_and_proxy.py` — 44 tests, one per way the previous code could
+be made to do something it was supposed to refuse.
+
+**1. SSRF through redirects.** The crawler validated the first URL, then handed
+the response to whatever `Location` pointed at, because the httpx client was
+built with `follow_redirects=True`. A public competitor URL answering
+`302 Location: 169.254.169.254` reached cloud metadata; `127.0.0.1` reached an
+internal admin port. Both are one header away, and neither was visible in the
+original code, which *looked* like it validated every URL it fetched.
+
+Now: `follow_redirects=False`, redirects followed by hand with a cap of 5, and
+the public-address check re-run on **every hop** — including the `robots.txt`
+fetch, which is a URL we construct and therefore also attacker-controlled.
+Covered: redirect to loopback, to `169.254.169.254`, to a private range, and a
+redirect loop.
+
+**2. DNS rebinding.** Checking a name twice does not close the rebinding window,
+because the name is the thing that changes: it can resolve to a public address
+when validated and to `127.0.0.1` when httpx opens the socket. The connected
+peer's address is now read from the response and checked as well. A no-op when
+the transport exposes no real socket, which is what MockTransport does in tests.
+
+**3. The body cap bounded memory after the download.** `response.content[:cap]`
+buffers the entire body and then throws most of it away, so a 2 GB response
+still cost 2 GB of memory and bandwidth before the slice ran. The body is now
+read with `iter_bytes()` and the read stops at `max_body_bytes`. Tested with a
+5 MB chunked response and with an unbounded generator that never ends — the
+shape a hostile server actually sends, and the one where a `Content-Length`
+check would not help.
+
+**4. `not address.is_global` instead of a denylist.** The old check enumerated
+`is_private | is_loopback | is_link_local | is_reserved | is_multicast |
+is_unspecified` — a list that has to remember every non-public range, and the
+ones it forgets are the interesting ones. `is_global` is a single negation that
+covers the v4 and v6 special registries together, and catches `100.64.0.0/10`
+carrier NAT and `192.0.0.0/24` protocol assignments. Twelve non-public forms
+and three public ones are pinned by test, along with the mixed-resolution case
+(one public and one private A record, which lands on the private one about half
+the time and is refused outright).
+
+**5. `X-Forwarded-For` was trusted unconditionally.** `client_key` read the
+header before falling back to the socket, so any caller could rotate the header
+per request and get a fresh rate-limit bucket every time — which made every
+limit in the module a suggestion, on the very endpoints that need them (login,
+register, password reset). The header is now read only when the TCP peer is in
+`FORWARDED_ALLOW_IPS`, which defaults to loopback.
+
+The Dockerfile ran uvicorn with `--forwarded-allow-ips='*'`, which is worse than
+the bug: with a wildcard, uvicorn rewrites `request.client` from that same
+untrusted header *before the app ever sees it*, so the new check would have been
+theatre. It now reads `${FORWARDED_ALLOW_IPS:-127.0.0.1}`, the setting is in
+compose and `.env.example`, and `docs/DEPLOYMENT.md` explains both halves and
+why `*` is not a safe value.
+
+**6. `GET /billing/invoices` cross-tenant read.** For a user with no
+`organization_id` the filter became `organization_id IS NULL`, which returns
+every *unscoped* invoice in the table. No organization now means an empty list,
+before any query runs.
+
+**7. Both default model ids were dead.** `anthropic/claude-3.5-sonnet` and
+`google/gemini-2.0-flash-001` are no longer served by OpenRouter — verified
+against `GET /api/v1/models`, which lists 464 models and contains neither. They
+would have 404'd the first time a customer triggered a paid feature, which is the
+worst possible moment to discover it. Now `anthropic/claude-sonnet-4.6` (strong)
+and `google/gemini-3.5-flash-lite` (cheap), both confirmed present. A test fails
+if a retired id is ever assigned again; the comment recording *why* the ids
+changed is allowed to name them, because that is the record of the decision.
+
+**8. Migrations must be a one-off step above one replica.** The container CMD
+runs `alembic upgrade head`, which is right for one replica and wrong for
+several: three replicas booting together run three concurrent migrations
+against one database and the losers crash-loop during a deploy. Documented in
+`docs/DEPLOYMENT.md` with the `docker compose run --rm api` sequence, and
+pinned by test so the guidance cannot silently disappear.
+
+
+### Suite status
+
+```
+374 passed, 0 failed, 0 errors, 0 skipped
+```
+
+Up from 279 at the Phase 6 checkpoint: +44 for the security review
+(`tests/test_ssrf_and_proxy.py`), +3 for the logout regression, and the rest
+from `tests/test_route_coverage.py` replacing the hand-written probe list.

@@ -69,4 +69,12 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 #
 # `|| true` would hide a failed migration behind a running process serving
 # requests against the wrong schema, so it is deliberately absent.
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host ${SPARTON_HOST} --port ${SPARTON_PORT} --proxy-headers --forwarded-allow-ips='*'"]
+#
+# --forwarded-allow-ips is NOT '*'. With '*', uvicorn rewrites request.client
+# from whatever X-Forwarded-For the caller sent, so any client can claim to be
+# any address and per-client rate limiting becomes decorative. The list must
+# name the real proxy; see FORWARDED_ALLOW_IPS in docs/DEPLOYMENT.md.
+#
+# Running this in more than one replica? `alembic upgrade head` on every
+# replica will race with itself. See docs/DEPLOYMENT.md.
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host ${SPARTON_HOST} --port ${SPARTON_PORT} --proxy-headers --forwarded-allow-ips=${FORWARDED_ALLOW_IPS:-127.0.0.1}"]

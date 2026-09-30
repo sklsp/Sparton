@@ -106,13 +106,19 @@ class Settings(BaseSettings):
     # self-hosted vLLM/Together/LiteLLM proxy works by changing one value.
     openai_base_url: str = "https://openrouter.ai/api/v1"
     openai_api_key: str | None = None
+    # Model ids below are real on OpenRouter, verified against GET /api/v1/models.
+    # The previous defaults (anthropic/claude-3.5-sonnet,
+    # google/gemini-2.0-flash-001) are no longer served: they would 404 the first
+    # time a customer triggered a paid feature, which is the worst place to find
+    # out. Re-verify before changing them; `tests/test_security_guards.py` pins
+    # that the configured ids still exist in the published catalogue.
     # Backwards-compatible single-model setting. `llm_model_strong` wins when set.
-    openai_model: str = "anthropic/claude-3.5-sonnet"
+    openai_model: str = "anthropic/claude-sonnet-4.6"
     # Model routing: the agent and the weekly report need reasoning quality and
     # run once per shop per week; structured extraction runs on every crawled
     # page and needs to be cheap (see docs/DECISIONS.md D-006).
-    llm_model_strong: str = "anthropic/claude-3.5-sonnet"
-    llm_model_cheap: str = "google/gemini-2.0-flash-001"
+    llm_model_strong: str = "anthropic/claude-sonnet-4.6"
+    llm_model_cheap: str = "google/gemini-3.5-flash-lite"
     # OpenRouter asks every app to identify itself on the HTTP-Referer and
     # X-Title headers; it uses them for its leaderboard and abuse contact.
     openrouter_site_url: str = "http://localhost:8000"
@@ -237,6 +243,12 @@ class Settings(BaseSettings):
     # When set, rate limits are shared across API replicas via Redis.
     # Leave empty for single-process local development (in-process limiter).
     redis_url: str | None = None
+    # Which peers may set X-Forwarded-For. Defaults to loopback only.
+    #
+    # This is the same list uvicorn needs in `--forwarded-allow-ips`, and both
+    # must be set. `*` is not a safe value: it lets any caller assert any client
+    # address, which defeats per-client rate limiting entirely.
+    forwarded_allow_ips: str = "127.0.0.1"
 
     # --- Observability ------------------------------------------------------------
     # Tracing is optional: with OTEL_ENABLED=false the app runs identically
