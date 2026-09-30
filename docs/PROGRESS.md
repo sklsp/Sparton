@@ -495,3 +495,138 @@ pinned by test so the guidance cannot silently disappear.
 Up from 279 at the Phase 6 checkpoint: +44 for the security review
 (`tests/test_ssrf_and_proxy.py`), +3 for the logout regression, and the rest
 from `tests/test_route_coverage.py` replacing the hand-written probe list.
+
+### Browser validation, and two bugs only a browser could find
+
+`tests/test_browser_smoke.py` — 17 tests driving real Chrome against a real
+uvicorn on a real port. Everything up to here tested the API; the customer-facing
+half of SPARTON is static HTML and ES modules that no API test ever executes.
+
+It immediately found two shipping bugs, both on the conversion path.
+
+**The landing page never showed a price.** `landing.js` does
+`import { h, fill } from "./ui.js"`, but the root route serves only
+`landing.css`, `landing.js` and `styles.css` — `ui.js` is mounted under `/app`
+with the dashboard. A module whose import 404s fails to parse, so the *entire*
+script was dead and `#plans` kept its "Loading plans…" placeholder forever.
+
+This is the worst kind of failure to ship: the page is static HTML, so it looks
+finished and well-designed with JavaScript disabled, and the one thing that
+*cannot* be static — the pricing table, because the server must be the only
+source of prices — was silently absent. `ui.js` is now served at `/`, and a
+test fails on any 404 in a landing-page response, which catches the general
+case rather than this one instance.
+
+**"Start free" landed on a sign-in form.** Every CTA on the marketing page
+points at `/app/#signup`, and `boot()` ignored the hash and always rendered the
+login form. A visitor with no account got a login form, with the only way
+forward a small secondary link reading "Create one". `boot()` now honours
+`#signup`/`#register`, and a test asserts the registration form -- not the login
+form -- is what the marketing CTA produces.
+
+Neither is reachable by an API test: the routes existed, the links were correct,
+the responses were 200, and the HTML was complete. The failures were entirely in
+the browser's hands.
+
+Also covered, and all passing: the pricing table loads from the public
+`/billing/plans`, the three legal pages render, an unknown path does not 500,
+signup reaches the dashboard shell, the session survives a reload, the
+navigation lists the product views, and the full product loop runs in-browser --
+add shop, add competitor, read both back, fetch reports.
+
+**Tenant isolation in two browsers.** Two accounts, two browser contexts, two
+real sessions with separate cookies and separate `localStorage` tokens. Tenant B
+cannot see tenant A's shops in the list, and `GET /shops/{id}` is refused
+outright rather than merely omitted. Playwright's sync API is bound to its
+creating thread, so the two tenants run sequentially with independent contexts
+rather than in parallel threads.
+
+The file skips, loudly, when Playwright or a browser is absent, so the suite
+still passes on a machine with neither. A `browser` job in CI installs Chromium
+and runs it, so these two bugs cannot come back.
+
+---
+
+## Phase 8 — Launch checklist
+
+### Done
+
+**`docs/LAUNCH.md`** (301 lines). DEPLOYMENT.md says how to build and run the
+thing; LAUNCH.md is the go-live document — the values you must supply, the
+ordering that matters, and the evidence you must produce before telling anyone
+it is ready. Each item names the failure it prevents, because "set the secrets"
+is not a checklist.
+
+The parts that are not obvious from the code:
+
+- **Register the Stripe webhook before enabling paid plans.** Webhook events are
+  the only authority that grants a paid plan. Enable pricing first and a customer
+  pays and receives nothing.
+- **Set `STRIPE_WEBHOOK_SECRET` in the same deploy as the registration.** With no
+  secret, the endpoint returns `503` rather than accepting unsigned events, which
+  is correct and still means payments silently do not apply.
+- **The outbox is a secret store.** With `SMTP_HOST` unset, mail is written to
+  `data/outbox/*.eml` instead of being sent — right for development, and in
+  production it looks like it worked while nobody receives anything. Those files
+  contain live reset tokens.
+- **Verify the model ids before building.** They were retired once already; the
+  previous defaults 404'd the first time a customer used a paid feature. The
+  check is a `curl` against OpenRouter's catalogue, and there is now a test too.
+- **A backup you have never restored is a hypothesis.** Restore one into a
+  scratch database and query it before you need it.
+- **The LLM is not in the failure path.** Change detection is arithmetic and
+  reports degrade to deterministic text when the provider is down, so a provider
+  outage should not page anyone at 3am.
+
+The **go-live smoke test** in section 9 is a person-in-a-browser checklist, and
+every item on it is a bug that has actually happened here: the pricing table
+that never loaded, the CTA that landed on a login form, the logout that returned
+500.
+
+### The checklist is itself tested
+
+`TestTheLaunchChecklistIsReal` in `tests/test_ssrf_and_proxy.py` asserts that the
+document has not drifted from the application: that `/live`, `/ready` and the
+three legal pages it names actually exist and return 200, that it states the
+anonymous `/shops` probe, that it covers secrets, SMTP, Stripe, OpenRouter,
+migrations, backups, rollback, monitoring and legal, that it contains no
+real-looking secret, and that **the test count it quotes is the count that ran**.
+
+That last one is the useful one. A stale number in a definition of done is a
+small lie that outlives the change that made it true, so if the suite grows and
+`LAUNCH.md` is not updated, the suite fails.
+
+### CI
+
+A `browser` job installs Chromium and runs `tests/test_browser_smoke.py`, so the
+two browser-only bugs cannot return. Four jobs now: `test`, `browser`,
+`frontend`, `image`.
+
+### Not proven here, and honestly listed in the document
+
+- **The Docker image has never been built.** No Docker daemon is available in
+  this environment. The Dockerfile is verified structurally (every instruction
+  is real, every `COPY` path exists, non-root, migrations before the server,
+  healthcheck points at a real route) but not by a build. This is the largest
+  remaining gap and it is listed first in the definition of done.
+- A real Stripe charge, a real SMTP delivery, and a real rollback have not been
+  performed, because they require accounts and money. Section 9 turns each into
+  an explicit human step.
+
+---
+
+## Final suite status
+
+```
+397 passed, 0 failed, 0 errors, 0 skipped
+```
+
+380 API tests and 17 real-browser tests, in one run. The progression across the
+project: 226 (end of Phase 4) → 279 (Phase 6 checkpoint) → 374 (the security
+review) → 397 (browser validation and the launch checklist).
+
+The last 23 are the interesting ones. None of them can fail on a route, a status
+code or a database row; they fail on a rendered page, a module that 404s, a
+button that leads somewhere useless, or a document that has drifted from the
+code it describes. Those are the failures a customer finds first and the suite
+used to find last.

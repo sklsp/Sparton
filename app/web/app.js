@@ -316,14 +316,23 @@ addEventListener("keydown", (event) => {
 });
 
 async function boot() {
-  if (!token.get()) return renderAuth();
+  // The landing page sends every prospective customer to `/app/#signup`. If
+  // that hash is ignored, the primary call to action on the marketing page
+  // lands on a sign-in form for someone who has no account yet, and the
+  // switch to "Create one" is a small secondary link they may never find.
+  if (!token.get()) return renderAuth({ mode: signupRequested() ? "register" : "login" });
   try {
     state.user = await api.me();
     mountShell();
   } catch {
     token.clear();
-    renderAuth();
+    renderAuth({ mode: signupRequested() ? "register" : "login" });
   }
+}
+
+/** True when the URL asks for the registration form rather than sign-in. */
+function signupRequested() {
+  return /^#\/?(signup|register)$/i.test(location.hash);
 }
 
 boot();

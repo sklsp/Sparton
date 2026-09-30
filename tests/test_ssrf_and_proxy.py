@@ -488,3 +488,77 @@ class TestTheRunbookCoversTheSharpEdges:
         assert re.search(r"one[- ]off|once|separately|single instance", docs, re.I), (
             "no guidance on running migrations once across replicas"
         )
+
+
+class TestTheLaunchChecklistIsReal:
+    """docs/LAUNCH.md is the file a person reads at 1am before pressing go.
+
+    A checklist that has drifted from the application is worse than no
+    checklist, so the things it asserts about the product are asserted here
+    against the product.
+    """
+
+    @pytest.fixture(scope="class")
+    def launch(self) -> str:
+        path = ROOT / "docs" / "LAUNCH.md"
+        assert path.exists(), "docs/LAUNCH.md does not exist"
+        return path.read_text(encoding="utf-8")
+
+    def test_it_covers_every_system_that_can_break_a_launch(self, launch):
+        for topic, needle in (
+            ("secrets", "STRIPE_WEBHOOK_SECRET"),
+            ("SMTP", "SMTP_HOST"),
+            ("Stripe webhook registration", "checkout.session.completed"),
+            ("OpenRouter", "OPENROUTER"),
+            ("migrations", "alembic"),
+            ("backups", "pg_dump"),
+            ("rollback", "downgrade"),
+            ("monitoring", "/ready"),
+            ("legal pages", "/legal/privacy"),
+            ("go-live smoke", "go-live"),
+        ):
+            assert needle.lower() in launch.lower(), f"{topic} is undocumented"
+
+    def test_the_health_endpoints_it_names_are_real(self, launch):
+        from app.main import create_app
+
+        paths = create_app().openapi()["paths"]
+        for path in ("/live", "/ready"):
+            assert path in launch, f"{path} is not in the checklist"
+            assert path in paths, f"{path} does not exist"
+
+    def test_the_legal_paths_it_names_are_real(self, launch):
+        from app.main import create_app
+        from fastapi.testclient import TestClient
+
+        client = TestClient(create_app())
+        for path in ("/legal/privacy", "/legal/terms", "/legal/dpa"):
+            assert path in launch, f"{path} is not in the checklist"
+            response = client.get(path)
+            assert response.status_code == 200, f"{path} returns {response.status_code}"
+
+    def test_the_checklist_names_the_anonymous_probe(self, launch):
+        """The single most important line on the page: `/shops` must be 401 on
+        the deployed host, not only in the suite."""
+        assert "/shops" in launch
+        assert "401" in launch
+
+    def test_the_quoted_test_count_matches_the_suite(self, launch):
+        """A stale count in a definition of done is a small lie that outlives
+        the change that made it true."""
+        import re
+
+        quoted = re.search(r"(\d+) passed", launch)
+        assert quoted, "the checklist does not state a test count"
+        report = ROOT / "report.xml"
+        if not report.exists():
+            pytest.skip("no report.xml from the current run")
+        actual = re.search(r'tests="(\d+)"', report.read_text(encoding="utf-8"))
+        assert actual, "could not read the test count from report.xml"
+        assert int(quoted.group(1)) == int(actual.group(1)), (
+            f"LAUNCH.md says {quoted.group(1)} passed, the suite ran {actual.group(1)}"
+        )
+
+    def test_it_does_not_contain_a_real_secret(self, launch):
+        for pattern in (r"sk-[A-Za-z0-9]{20,}", r"whsec_[A-Za-z0-9]{20,}", r"sk_live_"):
+            assert not re.search(pattern, launch), "a real-looking secret is committed"

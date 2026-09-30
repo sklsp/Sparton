@@ -51,6 +51,42 @@ jobs:
           path: report.xml
           if-no-files-found: ignore
 
+  browser:
+    name: Browser smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # The API suite cannot see the product. These are the only checks that run
+    # the dashboard's own JavaScript in a real rendering engine, and they are
+    # what caught the landing page's pricing table never loading and the
+    # primary "Start free" CTA landing on a sign-in form.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Browser smoke
+        # Runs against a real uvicorn on a real port, which the suite starts
+        # itself. No services, no network.
+        run: pytest tests/test_browser_smoke.py -q --junitxml=browser-report.xml
+
+      - name: Publish results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-report
+          path: browser-report.xml
+          if-no-files-found: ignore
   frontend:
     name: Frontend
     runs-on: ubuntu-latest

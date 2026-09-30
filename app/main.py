@@ -148,10 +148,16 @@ def create_app() -> FastAPI:
     # directory as the dashboard, which is mounted at `/app`. Without these the
     # page renders unstyled and its script 404s. Serving them explicitly keeps
     # the dashboard's own `/app/...` paths untouched.
+    #
+    # `ui.js` belongs here too: `landing.js` imports it for `h`/`fill`, and a
+    # module whose import 404s fails to parse, so the *whole* script is dead and
+    # the pricing table silently never appears. Found by driving a browser --
+    # the page looked fine, because the static copy renders without JavaScript.
     for _asset, _media in (
         ("landing.css", "text/css"),
         ("landing.js", "text/javascript"),
         ("styles.css", "text/css"),
+        ("ui.js", "text/javascript"),
     ):
         def _serve(_asset: str = _asset, _media: str = _media):
             path = WEB_DIR / _asset
