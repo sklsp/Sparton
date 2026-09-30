@@ -67,6 +67,10 @@ class TestMigrationIsNotEmpty:
                     "batch.add_column",
                     "batch_op.create_table",
                     "batch.create_table",
+                    # A type change is a real migration too: the money columns
+                    # moved from Float to Numeric without being added or dropped.
+                    "op.alter_column",
+                    "batch.alter_column",
                 )
             )
             assert mutating, f"{path.name} has an empty upgrade()"

@@ -34,9 +34,10 @@ outer check is the one whose absence would be our bug.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
-from decimal import Decimal
-from typing import Any
+from decimal import Decimal, InvalidOperation
+from typing import Any, Callable
 
 from app.core.config import settings
 from app.core.observability.metrics import inc
@@ -47,6 +48,10 @@ logger = logging.getLogger(__name__)
 #: Data sources, in descending order of exactness. The values are stored in the
 #: database and shown to the customer, so they are part of the product's
 #: vocabulary, not an internal detail.
+#: The scale prices are stored at, matching Numeric(12, 4). Quantising once
+#: here means every value is the same shape before it reaches the database.
+MONEY_QUANTUM = Decimal("0.0001")
+
 SOURCE_FEED = "feed"
 SOURCE_JSONLD = "jsonld"
 SOURCE_HTML = "html"
@@ -86,8 +91,35 @@ def shopfeed_available() -> bool:
         return False
 
 
-def _fetcher(*, allow_private: bool, transport: Any | None = None):
+#: The gap between two requests to the same host. One second is what the HTML
+#: crawler's delay floor uses, and a single feed read makes several requests
+#: (robots.txt, the currency probe, then a page per 250 products), so without
+#: this a single crawl hammers a shop with a burst.
+FEED_MIN_INTERVAL_SECONDS = 1.0
+
+
+def _fetcher(
+    *,
+    allow_private: bool,
+    transport: Any | None = None,
+    sleep: Callable[[float], None] | None = None,
+):
     """A shopfeed Fetcher wired to our politeness and size limits.
+
+    **The per-host delay is real, and it has to be.** This function used to pass
+    `sleep=_no_sleep` on the reasoning that "politeness is enforced by our
+    caller's throttle". That is false: `ResponsibleCrawler._throttle` is per
+    *crawl*, not per request, and the feed reader is a different HTTP client
+    that the crawler's throttle never sees. The result was that one `read_catalog`
+    fired robots.txt, the Shopify currency probe and every `products.json` page
+    back to back with no gap at all -- which is exactly the burst a polite
+    crawler exists to avoid, aimed at a competitor's server, from an IP that is
+    us.
+
+    So the default is `time.sleep` and the interval is enforced. `sleep` is
+    injectable purely so tests can record the waits instead of taking them; a
+    test that waited a real second per request would be unusable, and a test
+    that mocked the clock away would not notice the throttle being removed.
 
     `resolve` is left at shopfeed's own default, which is the strict one: only
     globally routable addresses. Sparton's crawler has an escape hatch for local
@@ -101,14 +133,14 @@ def _fetcher(*, allow_private: bool, transport: Any | None = None):
     from shopfeed.net import Fetcher
 
     return Fetcher(
-        min_interval=1.0,
+        min_interval=FEED_MIN_INTERVAL_SECONDS,
         max_bytes=8_000_000,
         max_redirects=5,
         timeout=20.0,
         transport=transport,
-        # The peer-address check in shopfeed needs a real socket, which a mock
-        # transport does not have, so it is a no-op there by design.
-        sleep=_no_sleep,
+        # A mock transport exposes no real socket, so shopfeed's peer-address
+        # check finds nothing to check and passes; that is its design, not ours.
+        sleep=sleep if sleep is not None else time.sleep,
         # shopfeed refuses any name that does not resolve to a globally routable
         # address, which is the right default and is left alone in production.
         # The escape hatch is for local development fixtures and tests, where
@@ -116,10 +148,6 @@ def _fetcher(*, allow_private: bool, transport: Any | None = None):
         # crawler uses, so "can I crawl this locally" has one answer, not two.
         resolve=(_allow_any if allow_private else _public_only),
     )
-
-
-def _no_sleep(_seconds: float) -> None:
-    """Politeness is enforced by our caller's throttle; do not double-wait."""
 
 
 def _allow_any(_hostname: str) -> bool:
@@ -133,21 +161,26 @@ def _public_only(_hostname: str) -> bool:
     return _public(_hostname)
 
 
-def _decimal(value: Decimal | None) -> float | None:
-    """Decimal -> float for our Float column, refusing NaN/Inf.
+def _money(value: Decimal | None) -> Decimal | None:
+    """The shop's Decimal, unchanged, or None if it is not a usable amount.
 
-    A NaN in a Float column is the kind of value that compares unequal to
-    itself and quietly poisons a diff. Reject it here rather than store it.
+    Kept as Decimal rather than converted to float. The whole claim of the feed
+    tier is that these are the exact numbers the shop charges, and a float
+    cannot hold 0.45 -- so converting here would undo the reason this tier
+    exists, one column away from where it is stored.
+
+    NaN and the infinities are rejected: a NaN compares unequal to itself, so it
+    would quietly poison every price diff it took part in.
     """
     if value is None:
         return None
     try:
-        as_float = float(value)
-    except (TypeError, ValueError, OverflowError):
+        amount = Decimal(str(value))
+    except (TypeError, ValueError, ArithmeticError, InvalidOperation):
         return None
-    if as_float != as_float or as_float in (float("inf"), float("-inf")):
+    if not amount.is_finite():
         return None
-    return round(as_float, 4)
+    return amount.quantize(MONEY_QUANTUM)
 
 
 def _to_extracted(product, *, source: str) -> ExtractedProduct | None:
@@ -157,7 +190,7 @@ def _to_extracted(product, *, source: str) -> ExtractedProduct | None:
     product, and writing a row for it would show up as a phantom "product
     removed" on the next crawl.
     """
-    price = _decimal(product.price)
+    price = _money(product.price)
     if not product.title and price is None:
         return None
     return ExtractedProduct(
@@ -175,7 +208,7 @@ def _to_extracted(product, *, source: str) -> ExtractedProduct | None:
         attributes={
             "sku": product.sku or "",
             "external_id": product.id or "",
-            "compare_at": _decimal(product.compare_at),
+            "compare_at": _money(product.compare_at),
             "variants": product.variants or 1,
             "gtin": product.gtin or "",
             "data_source": source,
@@ -208,6 +241,7 @@ def read_feed_catalog(
     max_products: int = 200,
     transport: Any | None = None,
     allow_private: bool = False,
+    sleep: Callable[[float], None] | None = None,
 ) -> FeedResult:
     """Try the platform feed, then JSON-LD via the sitemap.
 
@@ -227,7 +261,9 @@ def read_feed_catalog(
             [], SOURCE_HTML, error="Blocked: Sparton's own SSRF guard refused the URL"
         )
 
-    fetcher = _fetcher(allow_private=allow_private, transport=transport)
+    fetcher = _fetcher(
+        allow_private=allow_private, transport=transport, sleep=sleep
+    )
     try:
         # `sitemap_pages=0` on the platform path: the feed is the cheap answer,
         # and the sitemap tier is a different function's job (below). Leaving it

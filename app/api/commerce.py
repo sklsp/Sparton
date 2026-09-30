@@ -144,6 +144,10 @@ def _change_dict(row: ChangeEvent) -> dict[str, Any]:
         "competitor": row.competitor_name or row.competitor_domain,
         "competitor_domain": row.competitor_domain,
         "product": row.product_name,
+        # Decimals become JSON numbers, not strings: the dashboard does
+        # arithmetic on these to render "down €4.20", and a quoted number
+        # would need parsing at every use. Pydantic's JSON encoder already
+        # handles Decimal, so this is a pass-through.
         "previous_price": row.previous_price,
         "new_price": row.new_price,
         "currency": row.currency,

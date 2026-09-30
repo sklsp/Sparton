@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from decimal import Decimal
 from datetime import datetime
 from typing import Any
 
@@ -63,7 +64,9 @@ def normalize_name(value: str) -> str:
     return _NON_WORD.sub(" ", (value or "").lower()).strip()
 
 
-def _plausible_price(price: float | None) -> bool:
+def _plausible_price(price: Decimal | None) -> bool:
+    # Decimal compares against int and float exactly enough for a range check,
+    # so a value from either tier is accepted here.
     return price is not None and 0 < price <= PLAUSIBLE_MAX_PRICE
 
 
@@ -104,8 +107,10 @@ class DetectedChange:
     source_url: str
     title: str
     summary: str
-    previous_price: float | None = None
-    new_price: float | None = None
+    #: Decimal, not float. See MONEY in app/core/database/base.py: a float
+    #: cannot hold 0.45, and this is the number a customer acts on.
+    previous_price: Decimal | None = None
+    new_price: Decimal | None = None
     currency: str = "EUR"
     competitor_name: str = ""
     competitor_domain: str = ""
@@ -113,16 +118,20 @@ class DetectedChange:
     detail: dict[str, Any] | None = None
 
     @property
-    def delta(self) -> float | None:
+    def delta(self) -> Decimal | None:
         if self.previous_price is None or self.new_price is None:
             return None
-        return round(self.new_price - self.previous_price, 2)
+        return (self.new_price - self.previous_price).quantize(Decimal('0.01'))
 
     @property
-    def delta_pct(self) -> float | None:
+    def delta_pct(self) -> Decimal | None:
+        """A percentage, so a float is right -- but computed in Decimal and
+        converted once at the end, so the division does not inherit float
+        error from the prices."""
         if not self.previous_price or self.new_price is None:
             return None
-        return round((self.new_price - self.previous_price) / self.previous_price * 100, 2)
+        change = (self.new_price - self.previous_price) / self.previous_price * 100
+        return float(round(change, 2))
 
 
 def diff_captures(
@@ -175,8 +184,10 @@ def diff_captures(
                         f"({'down' if dropped else 'up'} {money(abs(delta), currency)})."
                     ),
                     detail={
-                        "delta": round(delta, 2),
-                        "delta_pct": round(delta_pct, 2),
+                        # A Decimal, serialised faithfully by the engine's
+                        # JSON encoder (see app/core/database/base.py).
+                        "delta": delta,
+                        "delta_pct": delta_pct,
                         "previous_captured_at": _iso(previous.captured_at),
                         "captured_at": _iso(current.captured_at),
                     },

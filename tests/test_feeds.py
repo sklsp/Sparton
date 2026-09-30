@@ -14,6 +14,7 @@ one that is slightly less precise.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 import httpx
@@ -238,8 +239,23 @@ def no_feed_transport() -> httpx.MockTransport:
     return httpx.MockTransport(handler)
 
 
+class _NoWait:
+    """Used by tests that are not about pacing.
+
+    The production default really sleeps between requests, which is correct and
+    would make this file take minutes. The pacing itself is asserted in
+    TestTheFeedReaderIsPolite, with a sleep that records rather than waits.
+    """
+
+    def __call__(self, seconds: float) -> None:
+        return None
+
+
 def read(transport, url: str = SHOP, **kwargs):
-    return read_feed_catalog(url, transport=transport, allow_private=True, **kwargs)
+    kwargs.setdefault("sleep", _NoWait())
+    return read_feed_catalog(
+        url, transport=transport, allow_private=True, **kwargs
+    )
 
 
 class TestTheShopifyFeed:
@@ -259,10 +275,10 @@ class TestTheShopifyFeed:
         arithmetic and we should hand it on unchanged."""
         result = read(shopify_transport())
         by_name = {p.name: p for p in result.products}
-        assert by_name["Cast Iron Skillet"].price == 24.99
-        assert by_name["Copper Kettle"].price == 0.45
+        assert by_name["Cast Iron Skillet"].price == Decimal("24.99")
+        assert by_name["Copper Kettle"].price == Decimal("0.45")
         for product in result.products:
-            assert float(f"{product.price:.2f}") == product.price, product.name
+            assert isinstance(product.price, Decimal), product.name
 
     def test_the_currency_comes_from_the_shop(self):
         result = read(shopify_transport(currency="SEK"))
@@ -276,8 +292,8 @@ class TestTheShopifyFeed:
 
         on_sale = read(shopify_transport(on_sale=True))
         skillet = next(p for p in on_sale.products if p.name == "Cast Iron Skillet")
-        assert skillet.price == 19.99
-        assert skillet.attributes["compare_at"] == 29.99
+        assert skillet.price == Decimal("19.99")
+        assert skillet.attributes["compare_at"] == Decimal("29.99")
 
     def test_a_compare_at_below_the_price_is_discarded(self):
         """Some feeds publish a compare_at under the price. Recording it would
@@ -336,8 +352,8 @@ class TestTheWooCommerceFeed:
         assert result.source == SOURCE_FEED
         assert result.platform == "woocommerce"
         board = result.products[0]
-        assert board.price == 12.99
-        assert board.attributes["compare_at"] == 14.99
+        assert board.price == Decimal("12.99")
+        assert board.attributes["compare_at"] == Decimal("14.99")
         assert board.currency == "GBP"
 
 
@@ -360,7 +376,7 @@ class TestJsonLdOnAPage:
         assert len(products) == 1
         mug = products[0]
         assert mug.name == "Enamel Mug"
-        assert mug.price == 8.50
+        assert mug.price == Decimal("8.50")
         assert mug.currency == "GBP"
         assert mug.attributes["data_source"] == SOURCE_JSONLD
         assert mug.attributes["compare_at"] is None  # schema.org has no "was" price
@@ -462,6 +478,7 @@ class TestTheCrawlPrefersTheShopFeed:
             crawler=crawler,
             feed_transport=transport,
             allow_private=True,
+            sleep=_NoWait(),
         )
 
     def test_a_feed_crawl_records_no_llm_usage(self, db_session, competitor, llm):
@@ -499,8 +516,8 @@ class TestTheCrawlPrefersTheShopFeed:
             .filter_by(competitor_id=competitor.id, name="Cast Iron Skillet")
             .one()
         )
-        assert row.price == 19.99
-        assert row.compare_at_price == 29.99
+        assert row.price == Decimal("19.99")
+        assert row.compare_at_price == Decimal("29.99")
         assert row.data_source == SOURCE_FEED
 
     def test_the_prices_survive_the_round_trip_through_the_database(
@@ -515,8 +532,8 @@ class TestTheCrawlPrefersTheShopFeed:
             .filter_by(competitor_id=competitor.id, name="Copper Kettle")
             .one()
         )
-        assert row.price == 0.45
-        assert f"{row.price:.2f}" == "0.45"
+        assert row.price == Decimal("0.45")
+        assert str(row.price.quantize(Decimal("0.01"))) == "0.45"
 
     def test_the_competitor_records_which_tier_won(self, db_session, competitor, llm):
         """So the competitor view can say the numbers are exact."""
@@ -578,8 +595,8 @@ class TestTheCrawlPrefersTheShopFeed:
             .all()
         )
         assert drops, "a markdown from 24.99 to 19.99 was not detected"
-        assert drops[0].previous_price == 24.99
-        assert drops[0].new_price == 19.99
+        assert drops[0].previous_price == Decimal("24.99")
+        assert drops[0].new_price == Decimal("19.99")
         assert _usage_count(db_session) == before_usage
         assert _llm_calls(llm) == [], _llm_calls(llm)
 
@@ -619,3 +636,170 @@ class TestShopfeedIsDeclaredTheRightWay:
         assert result.found is False
         assert result.source == SOURCE_HTML
         assert feeds.read_jsonld_products("<html></html>", "https://shop.test") == []
+
+
+class RecordingSleep:
+    """A fake `sleep` that records what it was asked to wait for.
+
+    The point of the exercise: a test that really slept would take a second per
+    request, and a test that mocked the clock entirely would not notice the
+    throttle being removed. Recording the requested waits tests the real
+    behaviour in milliseconds.
+    """
+
+    def __init__(self) -> None:
+        self.waits: list[float] = []
+        self.calls = 0
+
+    def __call__(self, seconds: float) -> None:
+        self.calls += 1
+        self.waits.append(seconds)
+
+    @property
+    def total(self) -> float:
+        return sum(self.waits)
+
+    @property
+    def min_wait(self) -> float:
+        return min(self.waits) if self.waits else 0.0
+
+    def assert_spaced(self, interval: float) -> None:
+        """Every gap is a real wait for roughly the interval.
+
+        Not `>= interval`, and the difference is worth recording: shopfeed
+        sleeps the *remaining* time to the next allowed moment
+        (`last + interval - now`), so each wait is a fraction of a millisecond
+        under the interval because the request itself took that long. Asserting
+        `>= interval` would fail on correct code.
+        """
+        assert self.waits, "no request was paced at all"
+        slowest_gap = max(self.waits)
+        assert slowest_gap >= interval * 0.5, (
+            f"requests are not meaningfully spaced: waits were {self.waits}, "
+            f"expected roughly {interval}s between them"
+        )
+
+
+class TestTheFeedReaderIsPolite:
+    """One `read_catalog` makes several requests -- robots.txt, the Shopify
+    currency probe, then a page per 250 products -- and they must not go out as
+    a burst.
+
+    This used to pass `sleep=_no_sleep` on the reasoning that Sparton's own
+    crawler throttles us. It does not: `ResponsibleCrawler._throttle` is per
+    *crawl*, and the feed reader is a different HTTP client that throttle never
+    sees. So the burst was real, aimed at a competitor's server, from an IP that
+    is us.
+    """
+
+    def test_the_production_default_actually_sleeps(self):
+        """Not a property of the test: the fetcher's sleep must be time.sleep."""
+        import time as time_module
+
+        from app.ecommerce.feeds import _fetcher
+
+        fetcher = _fetcher(allow_private=True, transport=shopify_transport())
+        try:
+            assert fetcher._sleep is time_module.sleep, (
+                "production is not sleeping between requests to a host"
+            )
+        finally:
+            fetcher.close()
+
+    def test_the_per_host_interval_is_one_second(self):
+        from app.ecommerce.feeds import FEED_MIN_INTERVAL_SECONDS, _fetcher
+
+        assert FEED_MIN_INTERVAL_SECONDS == 1.0
+        fetcher = _fetcher(allow_private=True, transport=shopify_transport())
+        try:
+            assert fetcher.min_interval == 1.0
+        finally:
+            fetcher.close()
+
+    def test_a_feed_read_waits_between_requests_to_the_same_host(self):
+        """The property itself: a real read records more than one wait, and
+        every one of them is the full interval rather than a token amount."""
+        from app.ecommerce.feeds import FEED_MIN_INTERVAL_SECONDS, read_feed_catalog
+
+        sleep = RecordingSleep()
+        result = read_feed_catalog(
+            SHOP,
+            transport=shopify_transport(),
+            allow_private=True,
+            sleep=sleep,
+        )
+        assert result.found
+        # robots.txt, the currency probe, products.json page 1: at least three
+        # requests, so at least two gaps between them.
+        assert sleep.calls >= 2, (
+            f"a feed read made several requests but waited {sleep.calls} times: "
+            "they are going out as a burst"
+        )
+        sleep.assert_spaced(FEED_MIN_INTERVAL_SECONDS)
+
+    def test_a_second_read_of_the_same_host_also_waits(self):
+        from app.ecommerce.feeds import FEED_MIN_INTERVAL_SECONDS, read_feed_catalog
+
+        sleep = RecordingSleep()
+        for _ in range(2):
+            read_feed_catalog(
+                SHOP, transport=shopify_transport(), allow_private=True, sleep=sleep
+            )
+        assert sleep.calls >= 4, (
+            "consecutive crawls of the same competitor did not throttle: "
+            "a weekly schedule times many is still a lot of traffic"
+        )
+        sleep.assert_spaced(FEED_MIN_INTERVAL_SECONDS)
+
+    def test_the_woocommerce_path_is_throttled_too(self):
+        from app.ecommerce.feeds import read_feed_catalog
+
+        sleep = RecordingSleep()
+        result = read_feed_catalog(
+            SHOP, transport=woocommerce_transport(), allow_private=True, sleep=sleep
+        )
+        assert result.found
+        assert sleep.calls >= 1, "the WooCommerce path bypasses the delay"
+        sleep.assert_spaced(1.0)
+
+    def test_a_shop_with_no_feed_is_still_polite_while_discovering_that(self):
+        """The negative path makes requests too -- robots.txt, then the two
+        platform probes -- and those are the ones that reach a host that has
+        nothing to give us."""
+        from app.ecommerce.feeds import read_feed_catalog
+
+        sleep = RecordingSleep()
+        read_feed_catalog(
+            SHOP, transport=no_feed_transport(), allow_private=True, sleep=sleep
+        )
+        assert sleep.calls >= 1, (
+            "probing a shop for a feed fires several requests and must not "
+            "burst them"
+        )
+
+    def test_injecting_sleep_does_not_change_the_result(self):
+        """Recording the waits must not change what we read."""
+        from app.ecommerce.feeds import read_feed_catalog
+
+        real = read_feed_catalog(
+            SHOP, transport=shopify_transport(), allow_private=True, sleep=RecordingSleep()
+        )
+        assert real.found
+        assert real.source == SOURCE_FEED
+        assert {p.name for p in real.products} == {"Cast Iron Skillet", "Copper Kettle"}
+
+    def test_the_crawl_passes_the_sleep_through(self, db_session):
+        """The hook has to reach the fetcher the crawl actually builds, or the
+        suite would take a real second per request on every competitor."""
+        import inspect
+
+        from app.ecommerce import crawl as crawl_module
+
+        signature = inspect.signature(crawl_module.crawl_competitor)
+        assert "sleep" in signature.parameters, (
+            "crawl_competitor cannot inject a sleep, so the feed tests would "
+            "really wait"
+        )
+        assert "sleep" in inspect.signature(
+            crawl_module.read_feed_catalog
+        ).parameters

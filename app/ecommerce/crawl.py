@@ -26,7 +26,8 @@ import logging
 import time
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Any
+from decimal import Decimal, InvalidOperation
+from typing import Any, Callable
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -122,6 +123,28 @@ def default_crawl_policy(max_pages: int | None = None) -> CrawlPolicy:
     )
 
 
+def as_money(value: Any) -> Decimal | None:
+    """Coerce a price to Decimal, whatever the source gave us.
+
+    The three tiers produce different Python types for the same idea: the feed
+    reader hands back Decimal (it must -- that is the point of reading the
+    shop's own numbers), while HTML extraction and the LLM produce float, and a
+    Decimal read back out of the database stays Decimal. Coercing at this one
+    boundary means every price entering a capture is the same type, so the
+    arithmetic in `changes.py` never mixes Decimal with float -- which raises
+    TypeError rather than quietly rounding.
+    """
+    if value is None or value == "":
+        return None
+    try:
+        amount = Decimal(str(value))
+    except (TypeError, ValueError, ArithmeticError, InvalidOperation):
+        return None
+    if not amount.is_finite():
+        return None
+    return amount.quantize(Decimal("0.0001"))
+
+
 def capture_fields(product: ExtractedProduct, fallback_url: str) -> dict[str, Any]:
     """Map an extracted page product onto our capture columns."""
     availability = (product.availability or "unknown").lower()
@@ -134,13 +157,13 @@ def capture_fields(product: ExtractedProduct, fallback_url: str) -> dict[str, An
         "normalized_name": normalize_name(product.name),
         "brand": (product.brand or "")[:200],
         "category": (product.category or "")[:160],
-        "price": product.price,
+        "price": as_money(product.price),
         "currency": (product.currency or "").upper()[:8] or "EUR",
         "availability": availability,
         "in_stock": in_stock,
         "image_url": product.image_url or "",
         "description": (product.description or "")[:2000],
-        "compare_at_price": product.attributes.get("compare_at"),
+        "compare_at_price": as_money(product.attributes.get("compare_at")),
         "data_source": product.attributes.get("data_source") or SOURCE_HTML,
         "variant_count": int(product.attributes.get("variants") or 1),
         "extraction_method": product.method,
@@ -321,6 +344,10 @@ def crawl_competitor(
     #: None and the feed reader makes its own polite, SSRF-checked requests.
     feed_transport: Any | None = None,
     allow_private: bool | None = None,
+    #: Test seam for the feed reader's per-host delay. `None` means the real
+    #: `time.sleep`, which is what production must use -- see
+    #: app/ecommerce/feeds.py, where this was briefly disabled by mistake.
+    sleep: Callable[[float], None] | None = None,
 ) -> CrawlOutcome:
     """Crawl one competitor, write captures, and record any changes.
 

@@ -609,7 +609,7 @@ two browser-only bugs cannot return. Four jobs now: `test`, `browser`,
 ## Final suite status
 
 ```
-432 passed, 0 failed, 0 errors, 1 skipped
+507 passed, 0 failed, 0 errors, 1 skipped
 ```
 
 412 API tests and 20 real-browser tests, in one run. The progression across the
@@ -729,3 +729,146 @@ the `upgrade()` body, and a new test asserts the **upgrade → downgrade →
 upgrade** round trip, so a migration that cannot be reversed is caught rather
 than assumed reversible. The test was renamed accordingly: it no longer implies
 there is only one revision.
+
+---
+
+## Phase 10 — Fixes from the first real Docker build
+
+Four problems, each found by actually building the image and running the stack
+rather than by a test.
+
+### 1. The worker was never healthy
+
+Fixed and committed separately (`8138e01`): the image's `HEALTHCHECK` curls the
+API's `/live`, and the worker inherited it while serving no HTTP. It now has its
+own probe, `python -m workers.healthcheck`, which checks the database, checks
+Redis, and reads a heartbeat the worker writes on every poll. The heartbeat
+matters most: the first two stay green while the loop is wedged, which is the
+failure a worker actually has.
+
+### 2. The image was 9.8 GB -> 82.5 MB
+
+Measured, not estimated:
+
+| | Before | After |
+|---|---|---|
+| Image size | 9.8 GB | **82.5 MB** (86,554,591 bytes) |
+
+Measured with `docker image inspect sparton:size-test --format {{.Size}}` after
+`docker build -t sparton:size-test .`.
+
+The cause was not only the dependency list. `requirements.txt` carried
+`sentence-transformers` and `faiss-cpu` (which pull the whole PyTorch stack, CUDA
+runtime included) for the feature-flagged `documents`, `generation`, `datasets`
+and `training` domains -- none of which the shipped product imports. And it
+could not simply be deleted, because **`app/main.py` imported those routers
+unconditionally**, so `import app.main` reached faiss whether or not a single
+document route was mounted. Deleting the dependency without fixing the import
+would have produced an image that could not start.
+
+Three changes:
+
+- `app/main.py` imports `create` and `knowledge` inside their feature-flag
+  branches, not at module level.
+- `app/api/__init__.py` no longer re-exports them. This one is easy to miss and
+  it silently undid the first: `from app.api import health` executes the package
+  `__init__` first, so a re-export there loads faiss no matter how carefully
+  main.py is written.
+- The routers are now genuinely lazy. A disabled domain is not mounted *and*
+  not imported.
+
+`requirements.txt` is the product set; `requirements-experimental.txt` holds the
+extras and `-r requirements.txt`, so it extends rather than duplicates. The
+Dockerfile installs only the product set, with `--build-arg
+INSTALL_EXPERIMENTAL=1` to opt back in.
+
+**Verified in the built image**, not just locally:
+
+```
+ROUTES 46
+faiss_loaded False
+sentence_transformers_loaded False
+shopfeed_available False          # private local dep, degrades to HTML crawl
+fallback_source html found False
+loopback_refused True             # the SSRF guard is still ours
+private_refused True
+```
+
+18 tests in `tests/test_product_dependencies.py`. The load-bearing one runs
+`import app.main` in a subprocess where faiss, torch, sentence-transformers,
+PIL, pypdf and docx are *unimportable* -- simulating a machine that does not
+have them rather than trusting that this one happens not to use them -- and
+asserts the product's own routes still exist. There is also a test for the test:
+the blocker is asserted to actually block, and asserted to use `find_spec`
+rather than the `find_module`/`load_module` protocol that Python 3.12 removed.
+The first version of that blocker used the legacy protocol and silently allowed
+everything, which would have made every subprocess test vacuous.
+
+Enabling `documents` without the extras now fails at import with a message
+naming the missing package, rather than starting an app whose RAG routes 500 on
+first use.
+
+### 3. The feed reader was bursting a competitor's server
+
+`app/ecommerce/feeds.py` passed `sleep=_no_sleep` to shopfeed's `Fetcher`, with
+a comment claiming "politeness is enforced by our caller's throttle". That was
+false. `ResponsibleCrawler._throttle` is per *crawl*, not per request, and the
+feed reader is a different HTTP client the crawler's throttle never sees. So one
+`read_catalog` fired robots.txt, the Shopify currency probe and every
+`products.json` page back to back -- a burst, aimed at a competitor's server,
+from an IP that is us.
+
+The default is now `time.sleep` with a 1 s per-host interval, and `sleep` is
+injectable purely so tests can record the waits rather than take them. A test
+that really slept would take a minute per file; a test that mocked the clock
+away would not have noticed the throttle being removed at all.
+
+`crawl_competitor` gained the same seam, so the integration tests drive it too.
+
+The recording fake also corrected a wrong assertion of mine: shopfeed sleeps the
+*remaining* time to the next allowed moment, so each wait is a fraction of a
+millisecond under the interval, because the request itself took that long.
+`assert wait >= 1.0` fails on correct code. The test now asserts the gaps are
+real rather than pretending to a precision that is not there.
+
+### 4. Prices are Decimal, not float
+
+`price`, `compare_at_price`, `previous_price`, `new_price` and `delta` are now
+`Numeric(12, 4)` with `asdecimal=True` (migration `f1b7c4e2a9d3`), and Decimal
+from end to end: the feed reader no longer converts to float, and
+`capture_fields` coerces the HTML and LLM tiers' floats at the single boundary
+where a capture is built.
+
+The reason is the one the product is sold on. A float cannot hold 0.45, so a
+Float column turns "exact" into "exact to about fourteen decimal places" -- in a
+number a customer acts on, and in the comparison that decides whether we alert.
+`delta_pct` stays a float: it is a ratio, and four decimal places of a percentage
+would be a misleading claim of precision.
+
+Nullable-safe: the columns are nullable, `existing_nullable=True`, and
+PostgreSQL gets an explicit `USING ... ::numeric(12, 4)` so the stored floats are
+reinterpreted as values rather than as bytes.
+
+**A real bug this surfaced.** `DetectedChange.detail` embeds the delta in a
+JSON column, and a JSON column cannot hold a Decimal -- so the first run of the
+price-drop test died with `TypeError: Object of type Decimal is not JSON
+serializable`. The typed columns beside it already carry the value, so the
+detail blob (a human-readable copy) stores a float deliberately, and says so.
+
+Two of my own tests were also wrong in ways worth recording. `isinstance(type,
+Numeric)` passes for a *float* column, because SQLAlchemy's `Float` subclasses
+`Numeric` -- so the check now looks at `asdecimal` and the type name. And the
+first draft of the feed assertions compared `Decimal("0.45") == 0.45`, which is
+False; comparing against float literals would have reintroduced exactly the
+error the column exists to prevent.
+
+### Suite after the build fixes
+
+```
+507 passed, 0 failed, 0 errors, 1 skipped
+```
+
+Up from 455. The additions are the worker healthcheck (23), the product
+dependency guard (18), the money/Decimal tests (17) and the feed pacing
+tests (8). The skip is still the launch-checklist test comparing the quoted
+count against the previous run's report.xml.

@@ -23,6 +23,7 @@ Design notes that matter more than the column list:
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -38,7 +39,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database.base import Base, JSONType
+from app.core.database.base import MONEY, Base, JSONType
 from app.core.database.models import utcnow
 
 
@@ -237,7 +238,10 @@ class CompetitorProduct(Base):
     brand: Mapped[str] = mapped_column(String(200), default="")
     category: Mapped[str] = mapped_column(String(160), default="", index=True)
 
-    price: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
+    #: Money is Decimal end to end: see MONEY in app/core/database/base.py.
+    #: A float cannot hold 0.45, and this column is what we tell a
+    #: customer a competitor charges.
+    price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True, index=True)
     currency: Mapped[str] = mapped_column(String(8), default="EUR")
     availability: Mapped[str] = mapped_column(String(40), default="unknown", index=True)
     in_stock: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
@@ -247,7 +251,9 @@ class CompetitorProduct(Base):
     #: The "was" price when the shop is running a sale, and the real price when
     #: it is not. `None` means "not on sale" -- which is itself worth recording,
     #: because a discount that disappears is a change customers care about.
-    compare_at_price: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
+    compare_at_price: Mapped[Decimal | None] = mapped_column(
+        MONEY, nullable=True, index=True
+    )
     #: Platform feed / jsonld / html -- where this row's numbers came from.
     #: "feed" is the shop's own public API (exact and complete), "jsonld" is
     #: schema.org markup on a single page (exact), "html" means we parsed the
@@ -302,10 +308,10 @@ class ChangeEvent(Base):
     competitor_name: Mapped[str] = mapped_column(String(200), default="")
     competitor_domain: Mapped[str] = mapped_column(String(255), default="", index=True)
 
-    previous_price: Mapped[float | None] = mapped_column(Float, nullable=True)
-    new_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    previous_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    new_price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     currency: Mapped[str] = mapped_column(String(8), default="EUR")
-    delta: Mapped[float | None] = mapped_column(Float, nullable=True)
+    delta: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
     delta_pct: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
 
     title: Mapped[str] = mapped_column(String(300))

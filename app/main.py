@@ -25,12 +25,18 @@ from app.api import (
     auth,
     billing,
     commerce,
-    create,
     ecommerce,
     health,
     intelligence,
-    knowledge,
 )
+
+# `create` (generation/datasets/training) and `knowledge` (documents) are
+# imported inside the feature-flag branches below, not here. Both pull in
+# sentence-transformers and faiss, which is roughly nine gigabytes of PyTorch,
+# and importing them unconditionally meant the *product* could not start
+# without them -- including in a container that will never serve a single
+# document route. A disabled domain having no routes is not much of a feature
+# if it still has to be installed.
 from app.core.config import settings
 from app.core.database.base import Base, engine
 from app.core.features import Domain, is_enabled
@@ -126,10 +132,14 @@ def create_app() -> FastAPI:
     if is_enabled(Domain.RESEARCH):
         app.include_router(intelligence.router)
     if is_enabled(Domain.DOCUMENTS):
+        from app.api import knowledge  # lazy: see the import note above
+
         app.include_router(knowledge.router)
     if is_enabled(Domain.GENERATION) or is_enabled(Domain.DATASETS) or is_enabled(
         Domain.TRAINING
     ):
+        from app.api import create  # lazy: see the import note above
+
         app.include_router(create.router)
 
     # Dashboard. Mounted last so every API route above wins on a path clash.

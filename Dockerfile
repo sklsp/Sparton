@@ -14,10 +14,21 @@ FROM python:3.12-slim AS builder
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Build only the wheels we need, then copy them out.
+# The product's dependencies, and only those. `requirements-experimental.txt`
+# holds sentence-transformers, faiss and the PyTorch stack for the feature-
+# flagged documents/generation/datasets/training domains; installing them by
+# default is what made this image 9.8 GB, for code a default deployment cannot
+# reach. Those routers are imported inside their feature-flag branches, so
+# nothing the product imports touches them.
+#
+# Pass --build-arg INSTALL_EXPERIMENTAL=1 to get them anyway (a ~9 GB image).
+ARG INSTALL_EXPERIMENTAL=0
 WORKDIR /build
-COPY requirements.txt .
-RUN pip install --prefix=/install -r requirements.txt
+COPY requirements.txt requirements-experimental.txt ./
+RUN pip install --prefix=/install -r requirements.txt \
+ && if [ "$INSTALL_EXPERIMENTAL" = "1" ]; then \
+      pip install --prefix=/install -r requirements-experimental.txt; \
+    fi
 
 # shopfeed reads a webshop's own product feed instead of parsing HTML: exact
 # prices and no LLM tokens. It is a PRIVATE repository, so there is no git URL to
@@ -51,7 +62,7 @@ COPY workers/ ./workers/
 COPY migrations/ ./migrations/
 COPY scripts/ ./scripts/
 COPY alembic.ini .
-COPY requirements.txt .
+COPY requirements.txt requirements-experimental.txt ./
 
 # Run as an unprivileged user. The app writes only to /app/data (the email
 # outbox) and needs no other write access.

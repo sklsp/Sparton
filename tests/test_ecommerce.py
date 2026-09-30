@@ -11,6 +11,7 @@ the report writer.
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from dataclasses import replace
 from datetime import timedelta
 
@@ -658,7 +659,12 @@ class TestReports:
         facts = report.facts
         assert facts["total_changes"] == 1
         assert facts["largest_price_move"]["product"] == "Linen Table Runner"
-        assert facts["largest_price_move"]["new_price"] == 27.5
+        # Prices are Decimal, and a Decimal cannot survive a JSON column as a
+        # float -- so the engine's encoder writes it as a string (see
+        # app/core/database/base.py). A string is the faithful form: reading it
+        # back as a float would reintroduce exactly the error the Numeric column
+        # exists to prevent.
+        assert Decimal(facts["largest_price_move"]["new_price"]) == Decimal("27.50")
 
     def test_low_severity_changes_are_in_the_inbox_but_not_the_narrative(
         self, db_session, org_id, shop, rival

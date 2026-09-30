@@ -271,7 +271,7 @@ item is a real user action; every one of them was a bug at least once.
 Do not call it launched until every one of these is proven by a command you ran,
 not by a test someone said passed.
 
-- [ ] `pytest` is green: **432 passed, 0 failed** (412 API + 20 browser).
+- [ ] `pytest` is green: **507 passed, 0 failed** (487 API + 20 browser).
 - [ ] `pytest tests/test_browser_smoke.py` is green in CI with a real Chromium.
 - [ ] The image builds and runs non-root, and `/live` answers from the running
       container.
@@ -338,3 +338,37 @@ Two things worth knowing about the behaviour:
   Without it the price before and after is identical and the change is silent.
 - **Robots.txt still applies.** A shop that disallows crawling gets no data from
   any tier. The report says so rather than inventing numbers.
+
+### The image is 82.5 MB, and why that is worth checking
+
+Measured on the built image, not estimated:
+
+| | Before | After |
+|---|---|---|
+| `docker image inspect --format {{.Size}}` | 9.8 GB | **86,554,591 bytes (82.5 MB)** |
+
+The saving is the PyTorch stack, pulled in by `sentence-transformers` and
+`faiss-cpu` for the feature-flagged documents/RAG, generation, datasets and
+training domains. Those are off by default and are not what a customer pays for.
+
+If you build the image and it is gigabytes again, something has re-imported an
+experimental router at module scope. `app/main.py` and `app/api/__init__.py` both
+have to stay free of `create` and `knowledge` at import time --
+`tests/test_product_dependencies.py` fails if either does, by running the import
+with those libraries made unimportable.
+
+To build with the experimental domains:
+
+```bash
+docker build --build-arg INSTALL_EXPERIMENTAL=1 -t sparton:full .
+```
+
+Expect ~9 GB. A default deployment should never need it, and if you find
+yourself reaching for it, the flag on the *app* is probably the thing to set:
+`ENABLED_DOMAINS=...,documents,...`.
+
+`shopfeed` is not in the image either: it is private and installed from a local
+path. Without it the product still crawls -- the HTML path, which costs tokens
+and labels its prices "extracted from the page" rather than "exact". The image
+verifies this on startup, so a missing feed degrades the data's provenance
+rather than the product's availability.

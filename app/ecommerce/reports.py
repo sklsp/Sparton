@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter, defaultdict
+from decimal import Decimal
 from datetime import datetime, timedelta
 from typing import Any, Sequence
 
@@ -134,7 +135,9 @@ def build_facts(
         if c.kind in (ChangeKind.PRICE_INCREASE, ChangeKind.PRICE_DECREASE)
     ]
     # Biggest absolute move first: that is the one worth the seller's attention.
-    price_moves.sort(key=lambda m: abs(m.get("delta") or 0), reverse=True)
+    # Sorted on the Decimal, not on the rendered string, and the key is dropped
+    # before the blob is serialised.
+    price_moves.sort(key=lambda m: abs(m.get("delta") or Decimal(0)), reverse=True)
 
     assortment = [
         {
