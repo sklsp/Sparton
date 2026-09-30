@@ -346,3 +346,56 @@ breaks the audit log.
 
 If the app is published directly to the internet with no proxy, leave it at the
 default. The socket address is then the truth and no header is consulted.
+
+### The worker has its own healthcheck, and why it needs one
+
+The image carries a `HEALTHCHECK` that curls the API's `/live`. That is correct
+for the `api` service. The `worker` runs the same image with a different
+command, and **inherits the probe** -- which curls a port it never opens. The
+worker serves no HTTP at all, so it was reported `unhealthy` within a minute of
+starting and stayed that way for the life of the container.
+
+That is worse than a missing check. A health column that is always red trains
+everyone to ignore it, which is precisely how a genuinely dead worker gets
+missed. So the worker overrides the probe:
+
+```yaml
+healthcheck:
+  test: ["CMD", "python", "-m", "workers.healthcheck"]
+  interval: 30s
+  timeout: 10s
+  start_period: 40s
+  retries: 3
+```
+
+`python -m workers.healthcheck` (`workers/healthcheck.py`) answers three
+questions, and each catches something the others cannot:
+
+| Check | Fails when | Catches |
+|---|---|---|
+| `SELECT 1` on the database | the DB is unreachable | a worker that cannot query, which would otherwise look healthy while failing every job |
+| `PING` on Redis | Redis is unreachable | no queue means no work, and `claim()` would throw on every poll |
+| worker heartbeat | no beat, or one older than 90 s | the process is up but the **loop is wedged** -- hung on a socket, spinning in a retry |
+
+The third is the one that matters, and it needs the worker to cooperate: it
+writes `sparton:worker:heartbeat:<hostname>` to Redis on every poll
+(`app/core/jobs/heartbeat.py`), refreshed every 15 s against a 90 s TTL. The
+refresh sits **outside** the job-handling path, so a worker with an empty queue
+still looks alive -- which is the common case, and exactly when a wedged worker
+and an idle one are hardest to tell apart.
+
+Notes:
+
+- **The key has a TTL.** A beat with no expiry outlives the process that wrote
+  it, so a killed worker would report healthy forever.
+- **It is keyed by hostname**, not by the worker's uuid, because the healthcheck
+  is a separate process in the same container and cannot know that uuid.
+- **`start_period` is 40 s**, above the 30 s interval. A shorter one reports a
+  booting worker as unhealthy, which is how a correct probe becomes a red
+  dashboard.
+- **With no `REDIS_URL`** the heartbeat check reports "cannot check a heartbeat
+  without redis" and exits 1. That is deliberate: in that configuration the API
+  runs jobs inline and the worker service should not be running at all.
+
+If you add another process to this image, it needs its own probe. A container
+that does not serve HTTP cannot satisfy a probe that curls HTTP.

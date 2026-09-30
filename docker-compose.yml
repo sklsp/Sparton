@@ -113,6 +113,24 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # The image's HEALTHCHECK curls the API's /live. This service serves no
+    # HTTP at all, so it inherited a probe that can only ever fail and Docker
+    # reported the worker unhealthy forever -- a permanently "failing" service
+    # trains everyone to ignore the health column, which is how a genuinely
+    # dead worker goes unnoticed.
+    #
+    # So the worker gets its own: reach the database, reach Redis, and confirm
+    # the worker loop is still beating. Only the last of those catches a worker
+    # that is alive but wedged, which is the failure a worker actually has.
+    healthcheck:
+      test: ["CMD", "python", "-m", "workers.healthcheck"]
+      interval: 30s
+      timeout: 10s
+      # Generous: the worker boots, imports the app, and connects to Redis
+      # before its first beat. A short start_period marks it unhealthy during
+      # normal startup.
+      start_period: 40s
+      retries: 3
 
 volumes:
   db-data:
