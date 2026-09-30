@@ -13,6 +13,12 @@ os.environ["DATABASE_URL"] = _DATABASE_URL
 os.environ["LLM_PROVIDER"] = "test"
 os.environ["AGENT_RUN_INLINE"] = "true"
 os.environ["EMBEDDED_WORKER"] = "false"
+# Settings also read a developer's local .env. Real credentials there must never
+# reach the suite: tests that assert "no key -> not available" would fail, and
+# anything that slipped past the deterministic provider could spend real money.
+# Environment variables win over .env, so blanking them here is enough.
+for _secret in ("OPENAI_API_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "SMTP_PASSWORD", "API_KEY"):
+    os.environ[_secret] = ""
 # Force the offline hash embedding backend. Without this the RAG tests fall
 # through to sentence-transformers and block on a HuggingFace download, which
 # made `pytest` hang forever rather than fail (see docs/DECISIONS.md D-025).

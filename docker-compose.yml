@@ -41,8 +41,8 @@ x-app-env: &app-env
   LLM_PROVIDER: ${LLM_PROVIDER:-openai_compatible}
   OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-  LLM_MODEL_STRONG: ${LLM_MODEL_STRONG:-anthropic/claude-3.5-sonnet}
-  LLM_MODEL_CHEAP: ${LLM_MODEL_CHEAP:-google/gemini-2.0-flash-001}
+  LLM_MODEL_STRONG: ${LLM_MODEL_STRONG:-anthropic/claude-sonnet-4.6}
+  LLM_MODEL_CHEAP: ${LLM_MODEL_CHEAP:-google/gemini-3.5-flash-lite}
   OPENROUTER_SITE_URL: ${APP_URL:-http://localhost:8000}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   EMBEDDING_BACKEND: ${EMBEDDING_BACKEND:-auto}
