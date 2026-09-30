@@ -609,10 +609,10 @@ two browser-only bugs cannot return. Four jobs now: `test`, `browser`,
 ## Final suite status
 
 ```
-397 passed, 0 failed, 0 errors, 0 skipped
+432 passed, 0 failed, 0 errors, 1 skipped
 ```
 
-380 API tests and 17 real-browser tests, in one run. The progression across the
+412 API tests and 20 real-browser tests, in one run. The progression across the
 project: 226 (end of Phase 4) → 279 (Phase 6 checkpoint) → 374 (the security
 review) → 397 (browser validation and the launch checklist).
 
@@ -621,3 +621,111 @@ code or a database row; they fail on a rendered page, a module that 404s, a
 button that leads somewhere useless, or a document that has drifted from the
 code it describes. Those are the failures a customer finds first and the suite
 used to find last.
+
+---
+
+## Phase 9 — Exact competitor data from shop feeds
+
+### What changed and why
+
+The crawl used to read prices out of rendered HTML. That is a guess wearing a
+number's clothes: which of the six prices on a product page is the real one, is
+the struck-through figure a "was" price or a second variant, and how much of that
+did a language model infer? The answer also cost tokens, once per crawled page.
+
+Almost every webshop already publishes the same facts as machine-readable data.
+So the crawl now tries, in order:
+
+| Tier | Source | `data_source` | Exact? | LLM tokens |
+|---|---|---|---|---|
+| 1 | The shop's own feed (Shopify `/products.json`, WooCommerce `/wp-json/…`) | `feed` | Yes -- the price they charge | 0 |
+| 2 | `schema.org` JSON-LD on a product page | `jsonld` | Yes, for that page | 0 |
+| 3 | The rendered page, parsed | `html` | Best effort | only here |
+
+This is simultaneously more accurate and cheaper, which is rare enough to be
+worth stating plainly: the tiers we would *prefer* to use are also the tiers
+that cost nothing.
+
+### Defence in depth on SSRF
+
+`shopfeed` has its own checks — non-public addresses refused on every redirect
+hop, and the connected peer verified so DNS rebinding does not get through. But
+Sparton's own crawler guard remains the **outer** gate, applied before
+`shopfeed` is called at all. The inner library is a dependency we did not write;
+if it is ever swapped or turns out to be less strict than advertised, the outer
+check is the one whose absence would be our bug. `app/ecommerce/feeds.py` also
+refuses a URL when Sparton's guard would, rather than relying on the library to
+reach the same conclusion.
+
+Per-plan limits are unchanged: the feed read is given the same `max_products`
+budget the HTML crawl would have spent, so a feed cannot quietly cost more than
+the thing it replaces.
+
+### Recording the source, per capture and per competitor
+
+Two new columns on `competitor_products` (`data_source`, `compare_at_price`,
+`variant_count`) and one on `competitors` (`last_source`).
+
+`compare_at_price` matters on its own. Without it a sale is invisible: the
+effective price is identical before and after a markdown ends, and only the
+was-price tells you the discount was withdrawn. That is a change a customer pays
+for.
+
+The tier is shown in the competitor view, and the wording is deliberately
+asymmetric:
+
+- **"exact prices from the shop's feed"** — green
+- **"exact prices from the page's structured data"** — green
+- **"extracted from the page"** — neutral
+
+A parsed price that looks like a verified one is the failure that matters: the
+customer would act on it. So the parsed tier is never dressed up, and an
+uncrawled competitor shows no source at all rather than claiming one.
+
+Migration `c4d91f2ab7e3` adds the columns, all nullable or defaulted, so it is
+safe against a live table: existing rows read as `html` / `1` / `NULL`, which is
+exactly what is known about them.
+
+### Tests: 28 in `tests/test_feeds.py`
+
+Unit level, against a fake Shopify, a fake WooCommerce store, a JSON-LD-only shop
+and a shop with nothing at all (all `httpx.MockTransport`, no network):
+
+- exact `Decimal` prices, including **0.45**, which has no exact binary
+  representation — the case that would expose any accumulated float delta
+- a sale appearing as `compare_at`, and a bogus `compare_at` *below* the price
+  being discarded rather than reported as a markdown
+- WooCommerce minor units (1299 → 12.99); storing the raw integer would be out by
+  100× and would be a *confident* wrong number
+- currency, stock, SKU and variant count taken from the shop
+- a non-Shopify/non-Woo site falling through to the HTML crawler
+- broken JSON-LD skipped rather than losing the page
+
+Integration level, through the real `crawl_competitor`:
+
+- **a feed crawl writes no `LLMUsage` row and never calls the provider** — the
+  property the whole feature exists for, and one that would stay invisible in the
+  price if it ever broke, because the number would be identical
+- the same for a JSON-LD crawl
+- prices survive the round trip through the database
+- a feed-driven markdown is detected as a price change, still with zero tokens
+- the HTML fallback is labelled as *not* exact
+
+`tests/test_browser_smoke.py` gained three checks that the API and the view agree
+on the label, and that an uncrawled competitor does not claim a source it has not
+earned.
+
+### Also fixed: the migration stub test was too literal
+
+`test_the_only_shipped_revision_is_not_a_stub` asserted that each migration's
+`upgrade()` contains one of `op.create_table`, `op.execute` or `op.add_column`
+*as a literal substring*. The new migration uses
+`batch.add_column(...)` -- the batch form of the same operation -- and the test
+failed, correctly reporting that the stub check had not kept up with the code it
+guards.
+
+The fix is to match the call on either side of the dot and to scope the search to
+the `upgrade()` body, and a new test asserts the **upgrade → downgrade →
+upgrade** round trip, so a migration that cannot be reversed is caught rather
+than assumed reversible. The test was renamed accordingly: it no longer implies
+there is only one revision.

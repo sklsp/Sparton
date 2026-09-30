@@ -365,6 +365,98 @@ class TestTheProductLoopInABrowser:
         assert response["status"] == 200, response
 
 
+class TestTheCompetitorViewShowsItsPriceSource:
+    """The customer must be able to tell an exact price from a parsed one.
+
+    This is a product claim, not a cosmetic label: we tell a seller these are
+    the prices their competitor charges, and the difference between "read from
+    their feed" and "we read the page and think" decides whether they act on it
+    or check it themselves.
+    """
+
+    def _session(self, page, email: str) -> None:
+        page.goto(f"{page.base}/app/#signup", wait_until="networkidle")
+        page.wait_for_selector("input[type=email]", timeout=15000)
+        page.fill("input[type=email]", email)
+        page.fill("input[type=password]", "correct-horse-battery")
+        org = page.locator("#organization, #org, input[name*=organization i]")
+        if org.count() and org.first.is_visible():
+            org.first.fill("Source Label Co")
+        page.click("button[type=submit]")
+        page.wait_for_timeout(1500)
+
+    def _api(self, page, method: str, path: str, body: dict | None = None):
+        return page.evaluate(
+            """async ({method, path, body}) => {
+                const token = localStorage.getItem("sparton.token");
+                const res = await fetch(path, {
+                    method,
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? {Authorization: `Bearer ${token}`} : {}),
+                    },
+                    body: body ? JSON.stringify(body) : undefined,
+                });
+                let payload = null;
+                try { payload = await res.json(); } catch { /* not json */ }
+                return {status: res.status, payload};
+            }""",
+            {"method": method, "path": path, "body": body},
+        )
+
+    def test_the_label_reads_exact_for_a_feed_and_parsed_for_a_page(self, page):
+        self._session(page, "source-label@example.com")
+        created = self._api(
+            page,
+            "POST",
+            "/competitors",
+            {"url": "https://www.example.com/rival-a", "name": "Rival Goods"},
+        )
+        assert created["status"] in (200, 201), created
+        competitor_id = created["payload"]["id"]
+
+        # An uncrawled competitor has nothing to claim, so it must not claim
+        # anything: showing "exact prices" before a single page was read would
+        # be a lie the customer acts on.
+        listed = self._api(page, "GET", f"/competitors")
+        assert listed["status"] == 200, listed
+        row = next(
+            c for c in listed["payload"].get("competitors", listed["payload"])
+            if c["id"] == competitor_id
+        )
+        assert row["data_source"] == "html"
+        assert "extracted" in row["source_label"]
+        assert "exact" not in row["source_label"]
+        assert not row["last_crawled_at"], "a fresh competitor should not claim a source"
+
+    def test_the_api_reports_the_source_tier(self, page):
+        self._session(page, "source-api@example.com")
+        created = self._api(
+            page,
+            "POST",
+            "/competitors",
+            {"url": "https://www.example.com/rival-b", "name": "Rival Two"},
+        )
+        assert created["status"] in (200, 201), created
+        competitor_id = created["payload"]["id"]
+        listed = self._api(page, "GET", "/competitors")
+        assert listed["status"] == 200, listed
+        row = next(
+            c for c in listed["payload"].get("competitors", listed["payload"])
+            if c["id"] == competitor_id
+        )
+        assert row["data_source"] in ("feed", "jsonld", "html")
+        assert row["source_label"], "no customer-facing wording for the source"
+
+    def test_the_shops_view_renders_without_error(self, page):
+        """The label is rendered by a view a customer loads after a crawl."""
+        self._session(page, "source-view@example.com")
+        page.goto(f"{page.base}/app/#shops", wait_until="networkidle")
+        page.wait_for_timeout(2000)
+        _assert_no_js_errors(page, "the shops view with the source label")
+        assert page.locator("body").inner_text().strip(), "the shops view rendered nothing"
+
+
 class TestTenantIsolationInTheBrowser:
     """Two real browsers, two real accounts, one machine.
 

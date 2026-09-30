@@ -44,17 +44,47 @@ def migrated_db(tmp_path):
 
 
 class TestMigrationIsNotEmpty:
-    def test_the_only_shipped_revision_is_not_a_stub(self):
+    def test_no_shipped_revision_is_a_stub(self):
         """Guard the original defect directly. An empty `upgrade()` passes every
         other test here, because they read the same empty result."""
         versions = list((REPO_ROOT / "migrations" / "versions").glob("*.py"))
         assert versions, "no migrations at all"
         for path in versions:
             source = path.read_text(encoding="utf-8", errors="replace")
-            body = source.split("def upgrade", 1)[-1]
-            assert "op.create_table" in body or "op.execute" in body or "op.add_column" in body, (
-                f"{path.name} has an empty upgrade()"
+            body = source.split("def upgrade", 1)[-1].split("def downgrade", 1)[0]
+            # `batch_alter_table(...).add_column(...)` is the same operation as
+            # `op.add_column`, so the check has to look for the call on either
+            # side of the dot rather than only the bare form.
+            mutating = any(
+                token in body
+                for token in (
+                    "op.create_table",
+                    "op.execute",
+                    "op.add_column",
+                    "op.drop_column",
+                    "op.create_index",
+                    "batch_op.add_column",
+                    "batch.add_column",
+                    "batch_op.create_table",
+                    "batch.create_table",
+                )
             )
+            assert mutating, f"{path.name} has an empty upgrade()"
+
+    def test_the_latest_revision_can_be_upgraded_and_downgraded(self, tmp_path):
+        """A migration that only goes forwards leaves no way back.
+
+        Not every change is reversible, but a column that was added can be
+        dropped again, and this one can -- so the round trip is asserted rather
+        than assumed.
+        """
+        db = tmp_path / "roundtrip.db"
+        up = _alembic(db, "upgrade", "head")
+        assert up.returncode == 0, up.stderr[-2000:]
+        down = _alembic(db, "downgrade", "-1")
+        assert down.returncode == 0, down.stderr[-2000:]
+        back = _alembic(db, "upgrade", "head")
+        assert back.returncode == 0, back.stderr[-2000:]
 
 
 class TestSchemaIsBuilt:

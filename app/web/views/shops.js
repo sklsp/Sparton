@@ -120,6 +120,14 @@ export default function shopsView(host) {
     listHost);
 
   /* --------------------------------------------------------------- render */
+  // One sentence per tier, on hover. The label itself is short enough to read
+  // at a glance; this is for the customer who wants to know what the words mean.
+  const SOURCE_EXPLAIN = {
+    feed: "Read from the shop's own product feed: the exact price they charge, no interpretation.",
+    jsonld: "Read from schema.org structured data on the product page: exact, machine-readable.",
+    html: "Read from the rendered page: a best effort, and occasionally wrong.",
+  };
+
   function competitorRow(competitor) {
     return h("li.competitor",
       h("div.competitor-main",
@@ -137,6 +145,15 @@ export default function shopsView(host) {
           ? badge(competitor.last_status, crawlTone(competitor.last_status))
           : badge("pending", "neutral"),
         h("span.competitor-count", `${competitor.product_count} products`),
+        // How the prices were read. "Exact, from their feed" is a materially
+        // stronger claim than "we read the page", and the customer is entitled
+        // to know which one they are looking at before they act on a number.
+        competitor.last_crawled_at && competitor.source_label
+          ? h("span.competitor-source", {
+              class: `source-${competitor.data_source || "html"}`,
+              title: SOURCE_EXPLAIN[competitor.data_source] || "",
+            }, competitor.source_label)
+          : null,
         h("div.row-actions",
           button("Crawl now", {
             size: "sm",

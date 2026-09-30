@@ -47,6 +47,7 @@ from app.ecommerce.discovery import (
     suggest_competitors,
 )
 from app.ecommerce.urls import InvalidShopUrl, normalize_url
+from app.ecommerce.feeds import source_label
 from app.ecommerce.reports import report_to_dict
 
 router = APIRouter(tags=["intelligence"])
@@ -123,6 +124,11 @@ def _competitor_dict(row: Competitor) -> dict[str, Any]:
         "product_count": row.product_count,
         "last_crawled_at": row.last_crawled_at.isoformat() if row.last_crawled_at else None,
         "last_status": row.last_status,
+        # Which tier the last crawl used, and the wording to show for it. The
+        # UI renders `source_label`; `data_source` is there so a client can
+        # branch on it without parsing English.
+        "data_source": row.last_source or "html",
+        "source_label": source_label(row.last_source or "html"),
         "created_at": row.created_at.isoformat() if row.created_at else None,
     }
 

@@ -184,6 +184,11 @@ class Competitor(Base):
         DateTime(timezone=True), nullable=True, index=True
     )
     last_status: Mapped[str] = mapped_column(String(24), default="")
+    #: How the most recent crawl read this competitor: "feed" (its own public
+    #: API), "jsonld" (schema.org on the page), or "html" (parsed page). Shown
+    #: to the customer, because "exact, from their feed" is a materially
+    #: stronger claim than "we read the page and think this is the price".
+    last_source: Mapped[str] = mapped_column(String(16), default="", index=True)
     product_count: Mapped[int] = mapped_column(Integer, default=0)
 
     created_at: Mapped[datetime] = mapped_column(
@@ -239,6 +244,17 @@ class CompetitorProduct(Base):
     image_url: Mapped[str] = mapped_column(Text, default="")
     description: Mapped[str] = mapped_column(Text, default="")
 
+    #: The "was" price when the shop is running a sale, and the real price when
+    #: it is not. `None` means "not on sale" -- which is itself worth recording,
+    #: because a discount that disappears is a change customers care about.
+    compare_at_price: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
+    #: Platform feed / jsonld / html -- where this row's numbers came from.
+    #: "feed" is the shop's own public API (exact and complete), "jsonld" is
+    #: schema.org markup on a single page (exact), "html" means we parsed the
+    #: rendered page. Shown in the UI so a customer knows which they are reading.
+    data_source: Mapped[str] = mapped_column(String(16), default="html", index=True)
+    #: Number of purchasable variants, when the source reports one.
+    variant_count: Mapped[int] = mapped_column(Integer, default=1)
     #: json-ld / opengraph / html — how confidently we read the price.
     extraction_method: Mapped[str] = mapped_column(String(24), default="unknown")
     confidence: Mapped[float] = mapped_column(Float, default=0.0)

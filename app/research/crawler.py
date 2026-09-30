@@ -114,6 +114,35 @@ class CrawlResult:
     content_hash: str | None = None
 
 
+def _extract_with_fallback(html: str, url: str):
+    """Products for one page: exact structured data first, parsing second.
+
+    Nearly every webshop embeds schema.org JSON-LD on its product pages, and when
+    it is there the price, currency, availability and SKU are the shop's own
+    values. Parsing the same page cannot match that, and the difference is
+    token cost on top of it.
+
+    So: try the structured data, and only if it yields nothing fall back to the
+    existing extraction. The returned products carry `data_source` so the caller
+    can tell the customer which one they are looking at.
+
+    The import is local and the failure is silent by design. `app.research` is
+    the generic crawling layer and must not depend on the ecommerce domain, so
+    the hook is resolved at call time and a missing integration leaves the
+    original behaviour exactly as it was.
+    """
+    try:
+        from app.ecommerce.feeds import read_jsonld_products
+    except ImportError:  # pragma: no cover - only if the domain is absent
+        return extract_page(html, url)
+    exact = read_jsonld_products(html, url)
+    if exact:
+        # Links and metadata still come from the parser: the structured data
+        # describes the product, not the page it sits on.
+        _products, links, metadata = extract_page(html, url)
+        return exact, links, metadata
+    return extract_page(html, url)
+
 class ResponsibleCrawler:
     def __init__(self, policy: CrawlPolicy | None = None, client: httpx.Client | None = None) -> None:
         self.policy = policy or CrawlPolicy()
@@ -299,7 +328,7 @@ class ResponsibleCrawler:
                 observe("crawler_request_duration_seconds", time.monotonic() - started)
                 raw = bytes(body)
                 html = raw.decode(response.encoding or "utf-8", errors="replace")
-                products, links, metadata = extract_page(html, final_url)
+                products, links, metadata = _extract_with_fallback(html, final_url)
                 result = CrawlResult(
                     final_url, response.status_code, products, links, metadata,
                     content_hash=hashlib.sha256(raw).hexdigest(),

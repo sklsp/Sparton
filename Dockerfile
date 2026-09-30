@@ -19,6 +19,12 @@ WORKDIR /build
 COPY requirements.txt .
 RUN pip install --prefix=/install -r requirements.txt
 
+# shopfeed reads a webshop's own product feed instead of parsing HTML: exact
+# prices and no LLM tokens. It is a PRIVATE repository, so there is no git URL to
+# put in requirements.txt -- it is installed from a local path, and the
+# application degrades to the HTML crawl if it is missing. See docs/LAUNCH.md.
+# RUN pip install --prefix=/install -e /opt/shopfeed
+
 # ---------------------------------------------------------------- runtime
 FROM python:3.12-slim AS runtime
 

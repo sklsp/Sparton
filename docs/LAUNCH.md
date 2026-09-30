@@ -271,7 +271,7 @@ item is a real user action; every one of them was a bug at least once.
 Do not call it launched until every one of these is proven by a command you ran,
 not by a test someone said passed.
 
-- [ ] `pytest` is green: **397 passed, 0 failed** (380 API + 17 browser).
+- [ ] `pytest` is green: **432 passed, 0 failed** (412 API + 20 browser).
 - [ ] `pytest tests/test_browser_smoke.py` is green in CI with a real Chromium.
 - [ ] The image builds and runs non-root, and `/live` answers from the running
       container.
@@ -299,3 +299,42 @@ not by a test someone said passed.
   and capped, rather than trusted to a single check.
 - The crawler respects robots.txt. A competitor who disallows us produces no
   data, and the report says so rather than inventing numbers.
+
+### `shopfeed` -- the local, private dependency
+
+`app/ecommerce/feeds.py` reads competitor catalogs through the **`shopfeed`**
+library: the shop's own public feed when there is one, then `schema.org`
+JSON-LD, and only then the existing HTML crawl. A feed price is the exact number
+the shop charges; an HTML-parsed price is our best reading of a rendering, and
+the competitor view says which of the two you are looking at.
+
+`shopfeed` is **private** and is not installed from a git URL. Install it from
+the local checkout:
+
+```bash
+pip install -e W:/shopfeed
+```
+
+In the image, add that line to the builder stage of the `Dockerfile` (alongside
+`pip install -r requirements.txt`) and add `shopfeed` to the `COPY` paths.
+
+**It is optional at runtime.** If the import fails, `read_feed_catalog` returns
+an empty result and the crawl falls back to the HTML path: slower, costs tokens,
+and the prices are marked `extracted from the page` instead of `exact`. Nothing
+breaks and no crawl is lost -- the feature is an improvement, not a dependency.
+The `tests/test_feeds.py` file skips when it is absent.
+
+Verify after installing:
+
+```bash
+python -c "import shopfeed; print(shopfeed.__file__)"
+# then, on a real Shopify competitor, the crawl should report
+# data_source == "feed" and record no LLM usage
+```
+
+Two things worth knowing about the behaviour:
+
+- **A sale is recorded as `compare_at`**, so a markdown that *ends* is visible.
+  Without it the price before and after is identical and the change is silent.
+- **Robots.txt still applies.** A shop that disallows crawling gets no data from
+  any tier. The report says so rather than inventing numbers.

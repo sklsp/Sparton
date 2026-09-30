@@ -1080,3 +1080,29 @@ dialog[open]::backdrop { animation: fadeIn 200ms var(--ease) both; }
   .metric-value { font-size: 24px; }
 }
 
+
+/* Where a competitor's prices came from. Exact (feed / jsonld) gets a
+   positive tint; a parsed page is neutral, because it is a best effort and
+   should not look like a verified figure. */
+.competitor-source {
+  display: inline-block;
+  margin-top: 0.2rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  border: 1px solid transparent;
+}
+
+.source-feed,
+.source-jsonld {
+  color: #0b6b3a;
+  background: rgba(11, 107, 58, 0.08);
+  border-color: rgba(11, 107, 58, 0.22);
+}
+
+.source-html {
+  color: var(--muted, #667);
+  background: rgba(102, 102, 102, 0.08);
+  border-color: rgba(102, 102, 102, 0.2);
+}

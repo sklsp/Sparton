@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
@@ -48,6 +48,13 @@ from app.ecommerce.changes import (
     previous_capture,
     record_changes,
     removed_product_change,
+)
+from app.ecommerce.feeds import (
+    SOURCE_FEED,
+    SOURCE_HTML,
+    SOURCE_JSONLD,
+    read_feed_catalog,
+    source_label,
 )
 from app.research.crawler import CrawlPolicy, ResponsibleCrawler
 from app.research.extraction import ExtractedProduct
@@ -74,6 +81,8 @@ class CrawlOutcome:
     error: str = ""
     duration_ms: int = 0
     skipped: bool = False
+    #: "feed" | "jsonld" | "html" -- which tier produced these products.
+    data_source: str = SOURCE_HTML
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -89,6 +98,8 @@ class CrawlOutcome:
             "error": self.error,
             "duration_ms": self.duration_ms,
             "skipped": self.skipped,
+            "data_source": self.data_source,
+            "source_label": source_label(self.data_source),
         }
 
 
@@ -129,6 +140,9 @@ def capture_fields(product: ExtractedProduct, fallback_url: str) -> dict[str, An
         "in_stock": in_stock,
         "image_url": product.image_url or "",
         "description": (product.description or "")[:2000],
+        "compare_at_price": product.attributes.get("compare_at"),
+        "data_source": product.attributes.get("data_source") or SOURCE_HTML,
+        "variant_count": int(product.attributes.get("variants") or 1),
         "extraction_method": product.method,
         "confidence": product.confidence,
     }
@@ -195,6 +209,106 @@ def _previous_crawl_urls(db: Session, competitor_id: int, before: datetime) -> s
     }
 
 
+def _finish_crawl(
+    db: Session,
+    competitor: Competitor,
+    outcome: CrawlOutcome,
+    started: float,
+    captured_at: datetime,
+    shop_id: int | None,
+    crawl_id: int | None,
+    products: list[ExtractedProduct],
+) -> CrawlOutcome:
+    """Write every capture, then diff -- identically for all three tiers.
+
+    The tier only decides where the products came from. Once we hold a
+    list of them, "exact from a feed" and "parsed from a page" need the
+    same handling, and the one guarantee that matters is that the two are
+    never confused afterwards: every capture records its own data_source
+    next to the number, so a feed price can never be presented as a guess
+    or the other way round.
+
+    Captures are committed before any diff runs, so a crash mid-crawl
+    leaves a consistent prefix of data rather than half-applied change
+    events that would report phantom price drops.
+    """
+    outcome.products_found = len(products)
+    # The tier is whichever one actually produced the rows. A page crawl can
+    # find JSON-LD on some pages and nothing on others; reporting the crawl's
+    # provisional "html" would understate how much of this is exact, and
+    # overstating it is the failure that matters -- a customer would believe a
+    # parsed price is a number the shop charges. So the strongest source among
+    # the captured rows wins, and only if every row agrees.
+    sources = {p.attributes.get("data_source") for p in products}
+    sources.discard(None)
+    if sources:
+        order = [SOURCE_JSONLD, SOURCE_FEED, SOURCE_HTML]
+        outcome.data_source = min(
+            sources, key=lambda s: order.index(s) if s in order else len(order)
+        )
+    current_urls: set[str] = set()
+
+    # --- 1. write every capture, commit --------------------------------
+    rows: list[CompetitorProduct] = []
+    for product in products:
+        row = CompetitorProduct(
+            organization_id=competitor.organization_id,
+            competitor_id=competitor.id,
+            crawl_id=crawl_id,
+            captured_at=captured_at,
+            **capture_fields(product, competitor.url or competitor.domain),
+        )
+        db.add(row)
+        rows.append(row)
+    db.commit()
+    for row in rows:
+        db.refresh(row)
+    outcome.captures_written = len(rows)
+
+    # --- 2. now diff, against a database that already has the captures --
+    detected = []
+    for row in rows:
+        before = _last_capture(
+            db, competitor.id, row.source_url, row.normalized_name, captured_at
+        )
+        if before is None:
+            detected.append(new_product_change(row, competitor=competitor))
+        else:
+            detected.extend(diff_captures(before, row, competitor=competitor))
+        current_urls.add(row.source_url)
+
+    # Removals need the *previous crawl's whole URL set*, not just the ones
+    # that still exist: a product that is gone is, by definition, not in
+    # `rows`. Comparing only against the matched set would find nothing.
+    previous_urls = _previous_crawl_urls(db, competitor.id, captured_at)
+    for url in sorted(previous_urls - current_urls)[:200]:
+        last = _last_capture(db, competitor.id, url, "", captured_at)
+        if last is not None:
+            detected.append(removed_product_change(last, competitor=competitor))
+
+    created = record_changes(
+        db,
+        organization_id=competitor.organization_id,
+        shop_id=shop_id,
+        competitor_id=competitor.id,
+        changes=detected,
+        detected_at=captured_at,
+    )
+    outcome.changes = len(created)
+    outcome.new_products = sum(1 for c in created if c.kind == ChangeKind.NEW_PRODUCT)
+    outcome.removed_products = sum(
+        1 for c in created if c.kind == ChangeKind.REMOVED_PRODUCT
+    )
+
+    # First ever crawl: everything is "new", which is not news. Say so once,
+    # as a baseline, instead of flooding the customer's inbox.
+    if competitor.last_crawled_at is None and created:
+        _demote_to_baseline(db, created, competitor, len(rows))
+
+    outcome.status = CrawlStatus.COMPLETED
+    return _finish(db, competitor, outcome, started)
+
+
 def crawl_competitor(
     db: Session,
     competitor: Competitor,
@@ -203,6 +317,10 @@ def crawl_competitor(
     max_pages: int | None = None,
     crawler: ResponsibleCrawler | None = None,
     crawl_id: int | None = None,
+    #: Test seam: the transport the feed reader uses. Production leaves it
+    #: None and the feed reader makes its own polite, SSRF-checked requests.
+    feed_transport: Any | None = None,
+    allow_private: bool | None = None,
 ) -> CrawlOutcome:
     """Crawl one competitor, write captures, and record any changes.
 
@@ -216,7 +334,20 @@ def crawl_competitor(
         competitor_id=competitor.id, domain=competitor.domain, status=CrawlStatus.RUNNING
     )
     owns_crawler = crawler is None
-    crawler = crawler or ResponsibleCrawler(policy=default_crawl_policy(max_pages))
+    # The `allow_private` override reaches the HTML policy too, so
+    # "can this environment reach a loopback fixture" has one answer
+    # across the feed path and the crawl path. A test that could reach
+    # the feed but not the HTML fallback would be testing a fiction.
+    crawler = crawler or ResponsibleCrawler(
+        policy=replace(
+            default_crawl_policy(max_pages),
+            allow_private_addresses=(
+                settings.crawler_allow_private_addresses
+                if allow_private is None
+                else allow_private
+            ),
+        )
+    )
     # One timestamp for the whole crawl, so "the previous capture" is a clean
     # inequality rather than a race against our own inserts.
     captured_at = utcnow()
@@ -227,6 +358,39 @@ def crawl_competitor(
             return _finish(db, competitor, outcome, started)
 
         start_url = competitor.url or f"https://{competitor.domain}"
+        # Tier 1: the shop's own data. One request for the whole catalog,
+        # exact prices, no tokens. When it works we never touch the HTML
+        # path or the LLM, and the competitor is stamped with which tier won
+        # so the UI can say the number is exact rather than parsed.
+        feed = read_feed_catalog(
+            start_url,
+            # The same page budget the HTML crawl would have spent, so a feed
+            # cannot quietly cost more than the thing it replaces.
+            max_products=(max_pages or settings.crawler_max_pages_per_shop or DEFAULT_MAX_PAGES),
+            transport=feed_transport,
+            allow_private=(
+                settings.crawler_allow_private_addresses
+                if allow_private is None
+                else allow_private
+            ),
+        )
+        if feed.found:
+            outcome.data_source = feed.source
+            outcome.pages_fetched = 1
+            return _finish_crawl(
+                db, competitor, outcome, started, captured_at, shop_id, crawl_id,
+                feed.products,
+            )
+
+        # Tier 2/3: no feed. Crawl the page, and take JSON-LD from it when the
+        # shop embeds it. Only this path can reach the LLM, and only this path
+        # produces a price we inferred rather than read.
+        # Provisional: the crawl below may find JSON-LD on the page and
+        # upgrade this. What it cannot do is make an HTML-parsed price
+        # look exact, so the default is the weaker claim.
+
+        outcome.data_source = SOURCE_HTML
+
         results = crawler.crawl([start_url])
         outcome.pages_fetched = len(results)
         if not results or all(r.error for r in results):
@@ -235,71 +399,10 @@ def crawl_competitor(
             outcome.error = next((r.error for r in results if r.error), "no pages fetched")
             return _finish(db, competitor, outcome, started)
 
-        products = dedupe_products([p for r in results for p in r.products])
-        outcome.products_found = len(products)
-        current_urls: set[str] = set()
-
-        # --- 1. write every capture, commit ------------------------------
-        rows: list[CompetitorProduct] = []
-        for product in products:
-            fields = capture_fields(product, start_url)
-            row = CompetitorProduct(
-                organization_id=competitor.organization_id,
-                competitor_id=competitor.id,
-                crawl_id=crawl_id,
-                captured_at=captured_at,
-                **fields,
-            )
-            db.add(row)
-            rows.append(row)
-        db.commit()
-        for row in rows:
-            db.refresh(row)
-        outcome.captures_written = len(rows)
-
-        # --- 2. now diff, against a database that already has the captures --
-        detected = []
-        for row in rows:
-            before = _last_capture(
-                db, competitor.id, row.source_url, row.normalized_name, captured_at
-            )
-            if before is None:
-                detected.append(new_product_change(row, competitor=competitor))
-            else:
-                detected.extend(diff_captures(before, row, competitor=competitor))
-            current_urls.add(row.source_url)
-
-        # Removals need the *previous crawl's whole URL set*, not just the ones
-        # that still exist — a product that is gone is, by definition, not in
-        # `rows`. Comparing against only the matched set would find nothing.
-        previous_urls = _previous_crawl_urls(db, competitor.id, captured_at)
-        for url in sorted(previous_urls - current_urls)[:200]:
-            last = _last_capture(db, competitor.id, url, "", captured_at)
-            if last is not None:
-                detected.append(removed_product_change(last, competitor=competitor))
-
-        created = record_changes(
-            db,
-            organization_id=competitor.organization_id,
-            shop_id=shop_id,
-            competitor_id=competitor.id,
-            changes=detected,
-            detected_at=captured_at,
+        return _finish_crawl(
+            db, competitor, outcome, started, captured_at, shop_id, crawl_id,
+            dedupe_products([p for r in results for p in r.products]),
         )
-        outcome.changes = len(created)
-        outcome.new_products = sum(1 for c in created if c.kind == ChangeKind.NEW_PRODUCT)
-        outcome.removed_products = sum(
-            1 for c in created if c.kind == ChangeKind.REMOVED_PRODUCT
-        )
-
-        # First ever crawl: every product is "new", which is not news. Say so
-        # once, as a baseline, instead of flooding the customer's inbox.
-        if competitor.last_crawled_at is None and created:
-            _demote_to_baseline(db, created, competitor, len(rows))
-
-        outcome.status = CrawlStatus.COMPLETED
-        inc("crawl_competitors_total", outcome="completed")
-        return _finish(db, competitor, outcome, started)
 
     except Exception as exc:  # noqa: BLE001 — one competitor must not fail the week
         logger.exception("Crawl failed for %s", competitor.domain)
@@ -334,6 +437,11 @@ def _finish(
     observe("crawl_competitor_duration_seconds", outcome.duration_ms / 1000)
     try:
         competitor.last_status = outcome.status
+        # Which tier produced these numbers. The competitor view shows this,
+        # because "exact, from their feed" and "we read the page" are
+        # different claims and the customer is entitled to know which one
+        # they are looking at.
+        competitor.last_source = outcome.data_source
         competitor.last_crawled_at = utcnow()
         competitor.product_count = max(competitor.product_count, outcome.captures_written)
         db.commit()

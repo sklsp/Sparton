@@ -42,3 +42,18 @@ opentelemetry-exporter-otlp-proto-http>=1.25.0
 # --- Testing ---
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+
+# --- Competitor catalog feeds -------------------------------------------------
+# shopfeed reads a webshop's public catalog as exact data (Shopify / WooCommerce
+# feeds, then schema.org JSON-LD) instead of parsing rendered HTML: exact prices,
+# real compare-at values, and no LLM tokens. It is a private repository, so it
+# cannot be listed here as a git URL -- install it from the local checkout:
+#
+#     pip install -e W:/shopfeed
+#
+# It is genuinely optional at runtime: app/ecommerce/feeds.py returns the HTML
+# crawl when the import fails, so a deployment without it still works -- slower
+# and less exact, but correct. The feed tests skip when it is absent.
+#
+# (deliberately not pinned here: a version line would be fetched from an
+#  index, and this package is not on one.)
