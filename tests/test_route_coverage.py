@@ -1,4 +1,4 @@
-﻿"""Every route is classified, and every protected one refuses anonymous callers.
+"""Every route is classified, and every protected one refuses anonymous callers.
 
 `tests/test_security_guards.py` checks a hand-written list of sensitive paths.
 That list is a snapshot: it cannot notice a route added after it was written,
@@ -177,7 +177,7 @@ ALL_WRITES = (
 class TestTheInventoryIsComplete:
     def test_the_probe_list_matches_the_route_table(self):
         """If this fails, a route was added, classified as protected, and not
-        actually probed â€” the exact gap this file exists to close."""
+        actually probed — the exact gap this file exists to close."""
         probed = {_template(p) for p in ALL_PROTECTED}
         unprobed = sorted(
             _template(p) for p in _paths()
@@ -206,7 +206,7 @@ class TestAnonymousCallersAreRefused:
     @pytest.mark.parametrize("method,path", ALL_WRITES)
     def test_writes_are_refused(self, client, db_session, method, path):
         """401 means the guard ran. 422 is also acceptable: it can only be
-        reached after authentication passed, so it is not a leak â€” but 401 is
+        reached after authentication passed, so it is not a leak — but 401 is
         the correct answer and anything above 422 would mean the route ran
         without credentials."""
         caller = getattr(client, method)

@@ -1,21 +1,47 @@
-﻿# SPARTON â€” Intelligence for small e-commerce sellers
+# SPARTON — Intelligence for small e-commerce sellers
 
 **Sparton Intelligence** watches your competitors so you do not have to.
 
 Add your shop URL. SPARTON discovers the competitors you are actually competing
 with, crawls them on a schedule, diffs their catalogues week over week, and
-writes a plain-English report of what changed â€” with a link to the evidence for
+writes a plain-English report of what changed — with a link to the evidence for
 every claim.
 
-- **Price changes** â€” who moved, by how much, in which direction.
-- **New and removed products** â€” assortment growth and shrinkage.
-- **Stock and availability** â€” who is quietly out of their best sellers.
-- **A weekly AI-written report** â€” the numbers are computed by our diff engine;
+- **Price changes** — who moved, by how much, in which direction.
+- **New and removed products** — assortment growth and shrinkage.
+- **Stock and availability** — who is quietly out of their best sellers.
+- **A weekly AI-written report** — the numbers are computed by our diff engine;
   the AI writes the summary. It never invents a price.
 
-**Status: in development.** This README describes what the code does *today*.
-Work in progress is tracked in [docs/PROGRESS.md](docs/PROGRESS.md); the
-baseline state is in [docs/AUDIT.md](docs/AUDIT.md).
+**Status: feature-complete, pre-launch.** 397 tests pass, including 17 that drive
+a real browser through signup, the product loop and tenant isolation. What is left
+needs real accounts and money (a live Stripe charge, SMTP delivery, a production
+deploy) and is listed step by step in [docs/LAUNCH.md](docs/LAUNCH.md).
+
+## Plans
+
+| | Free | Pro | Business |
+|---|---|---|---|
+| Price | €0 | €29 / month | €79 / month |
+| Your shops | 1 | 3 | 10 |
+| Competitors tracked | 3 | 15 | 50 |
+| Crawl frequency | weekly | daily | twice a day |
+| Report history | 1 month | 12 months | 36 months |
+
+Plans are enforced server-side on every mutating route, and granted only by a
+signature-verified Stripe webhook, never by a browser redirect. Prices live in
+one place (`app/billing/plans.py`) and the landing page reads them from the API.
+
+## Security, briefly
+
+- **Tenant isolation** on every query; another account's data answers 404, not 403.
+- **The crawler can't be pointed inward:** public addresses only, re-checked on every
+  redirect hop and against the address the connection actually reached (DNS
+  rebinding), bodies streamed and capped, `robots.txt` honoured.
+- **Stripe webhooks:** HMAC over the raw body, replay window, idempotent events.
+- **Auth:** scrypt password hashes, hashed session tokens, rate-limited login, signup
+  and reset, with client IPs only taken from trusted proxies (`FORWARDED_ALLOW_IPS`).
+- Details and the reasoning behind each choice: [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ---
 
@@ -97,7 +123,7 @@ Everything is environment driven. Never commit a `.env`; `.env.example` and
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | `postgresql+psycopg://â€¦` in production, `sqlite:///./sparton.db` locally |
+| `DATABASE_URL` | `postgresql+psycopg://…` in production, `sqlite:///./sparton.db` locally |
 | `REDIS_URL` | Enables the Redis queue transport and cross-replica rate limits |
 | `LLM_PROVIDER` | `openai_compatible` (OpenRouter), `ollama`, or `test` |
 | `OPENAI_BASE_URL` | `https://openrouter.ai/api/v1` |
@@ -105,7 +131,8 @@ Everything is environment driven. Never commit a `.env`; `.env.example` and
 | `LLM_MODEL_STRONG` | Model for the agent and weekly reports |
 | `LLM_MODEL_CHEAP` | Model for structured extraction |
 | `APP_URL` | Public base URL, used for Stripe redirects and email links |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Billing (Phase 4) |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_BUSINESS` | Billing |
+| `FORWARDED_ALLOW_IPS` | The proxy/load balancer allowed to set the client IP (default `127.0.0.1`) |
 | `ENABLED_DOMAINS` | Feature flags; defaults to the product domains only |
 | `API_KEY` | Machine principal for server-to-server calls and Prometheus |
 
@@ -117,9 +144,9 @@ is how the test suite runs with no network and no API key.
 ## Architecture
 
 ```
-                      SPARTON â€” Intelligence
+                      SPARTON — Intelligence
                              |
-                    shop URL â”€â”´â”€â–º competitor discovery
+                    shop URL ─┴─► competitor discovery
                              |            |
                              |            v
                              |     scheduled crawls
@@ -129,7 +156,7 @@ is how the test suite runs with no network and no API key.
                              |      change detection
                              |     (price / assortment / stock)
                              |            |
-                             +------------+--â–º weekly AI report + alerts
+                             +------------+--► weekly AI report + alerts
 ```
 
 One FastAPI process serves the API and the static frontend. Long-running work
@@ -157,7 +184,7 @@ python -m workers.worker
 
 ## Frontend
 
-`app/web/` is a static ES-module SPA served directly by the API process â€”
+`app/web/` is a static ES-module SPA served directly by the API process —
 **no bundler, no `node_modules`, no build step**. Edit a file, reload the
 browser.
 
@@ -169,8 +196,17 @@ browser.
 pytest
 ```
 
-The suite runs against SQLite with the deterministic LLM provider and the
-offline hash embedding backend: no network, no API key, no GPU, no Ollama.
+The suite (397 tests) runs against SQLite with the deterministic LLM provider and
+the offline hash embedding backend: no network, no API key, no GPU, no Ollama.
+
+`tests/test_browser_smoke.py` drives real Chrome against a real server (landing
+page and prices, signup, the product loop, two accounts that must not see each
+other). It needs Playwright and skips loudly without it:
+
+```bash
+pip install playwright && playwright install chromium
+pytest tests/test_browser_smoke.py
+```
 
 ---
 

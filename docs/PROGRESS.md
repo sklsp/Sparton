@@ -33,19 +33,10 @@ Commits, one per phase: `77d14d6` (security), `aafb69c` (llm), `006d5ed`
 
 ## Environment notes (read before running anything)
 
-- The working virtualenv is **`W:\Sparton\Apollo\.venv`** (Python 3.14.5, has
-  fastapi/sqlalchemy/httpx/requests/faiss/pillow/pypdf/python-docx/redis/psycopg/
-  pytest). There is no `.venv` in this repo.
-- Run commands as
-  `& 'W:\Sparton\Apollo\.venv\Scripts\python.exe' -m pytest`
-  from the repo root.
-- **Shell commands time out at 30 s.** Run anything long in the background:
-  ```powershell
-  Start-Process -FilePath 'W:\Sparton\Apollo\.venv\Scripts\python.exe' `
-    -ArgumentList '-m','pytest' -WorkingDirectory (Get-Location).Path `
-    -RedirectStandardOutput 'logs_pytest.txt' -NoNewWindow
-  ```
-  then poll `logs_pytest.txt`.
+- Use a virtualenv with `requirements.txt` installed (Python 3.12+); there is no
+  `.venv` in the repo. Run the suite from the repo root with `python -m pytest`.
+- The full suite takes a few minutes; in a tool with short command timeouts, run it
+  in the background and redirect the output to a file.
 - The product runs on **OpenRouter** via `OpenAICompatibleProvider`
   (`OPENAI_BASE_URL=https://openrouter.ai/api/v1`). Never hardcode a key.
   Never commit a `.env`.
