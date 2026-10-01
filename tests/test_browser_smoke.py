@@ -231,7 +231,7 @@ class TestSignupToDashboard:
             "the signup form did not render: the organization field is register-only"
         )
         body = page.locator("body").inner_text()
-        assert "Create workspace" in body, f"not the registration form: {body[:200]}"
+        assert "Create account" in body, f"not the registration form: {body[:200]}"
         _assert_no_js_errors(page, "the signup form")
 
     def test_a_new_customer_can_sign_up_and_see_the_dashboard(self, page):
@@ -551,3 +551,70 @@ class TestTenantIsolationInTheBrowser:
         finally:
             context_b.close()
         assert not errors, f"JavaScript errors during the isolation check: {errors}"
+
+
+class TestLanguageAndShell:
+    """NL/EN switch and the mobile navigation: the two shell behaviours every view relies on."""
+
+    def _context_page(self, browser, live_server, **context_args):
+        context = browser.new_context(**context_args)
+        pg = context.new_page()
+        errors: list[str] = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.errors = errors  # type: ignore[attr-defined]
+        pg.base = live_server  # type: ignore[attr-defined]
+        return pg, context
+
+    def test_a_dutch_browser_gets_dutch_by_default(self, browser, live_server):
+        page, context = self._context_page(browser, live_server, locale="nl-NL")
+        try:
+            page.goto(f"{page.base}/app/#signup", wait_until="networkidle")
+            page.wait_for_selector("input[type=email]", timeout=15000)
+            assert page.evaluate("document.documentElement.lang") == "nl"
+            assert "Account aanmaken" in page.locator("body").inner_text()
+            _assert_no_js_errors(page, "the Dutch signup form")
+        finally:
+            context.close()
+
+    def test_the_language_switch_is_remembered(self, browser, live_server):
+        page, context = self._context_page(browser, live_server, locale="en-US")
+        try:
+            page.goto(f"{page.base}/app/#signup", wait_until="networkidle")
+            page.wait_for_selector("input[type=email]", timeout=15000)
+            assert "Create account" in page.locator("body").inner_text()
+            with page.expect_navigation():
+                page.click(".lang-switch button[lang=nl]")
+            page.wait_for_selector("input[type=email]", timeout=15000)
+            assert "Account aanmaken" in page.locator("body").inner_text()
+            assert page.evaluate("localStorage.getItem('sparton.lang')") == "nl"
+            page.reload(wait_until="networkidle")
+            page.wait_for_selector("input[type=email]", timeout=15000)
+            assert "Account aanmaken" in page.locator("body").inner_text(), "the choice was not remembered"
+            assert page.locator(".lang-switch button[lang=nl]").get_attribute("aria-pressed") == "true"
+            _assert_no_js_errors(page, "the language switch")
+        finally:
+            context.close()
+
+    def test_the_mobile_navigation_opens_and_navigates(self, browser, live_server):
+        page, context = self._context_page(browser, live_server, viewport={"width": 375, "height": 812})
+        try:
+            page.goto(f"{page.base}/app/#signup", wait_until="networkidle")
+            page.wait_for_selector("input[type=email]", timeout=15000)
+            page.fill("input[type=email]", "mobile-nav@example.com")
+            page.fill("input[type=password]", "correct-horse-battery")
+            page.fill("input[name=organization_name]", "Mobile Nav Co")
+            page.click("button[type=submit]")
+            page.wait_for_selector(".menu-btn", timeout=15000)
+            shops = page.locator(".nav-item[data-route=shops]")
+            assert not shops.is_visible(), "the drawer is open before it was asked for"
+            page.click(".menu-btn")
+            assert page.locator(".menu-btn").get_attribute("aria-expanded") == "true"
+            shops.wait_for(state="visible", timeout=3000)
+            shops.click()
+            page.wait_for_function("() => location.hash === '#/shops'", timeout=5000)
+            assert page.locator(".menu-btn").get_attribute("aria-expanded") == "false"
+            overflow = page.evaluate("() => document.documentElement.scrollWidth - innerWidth")
+            assert overflow <= 0, f"the dashboard scrolls sideways on a phone ({overflow}px)"
+            _assert_no_js_errors(page, "the mobile navigation")
+        finally:
+            context.close()

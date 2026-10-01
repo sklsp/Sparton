@@ -1,6 +1,8 @@
 // Rendering primitives. No framework: a tiny `h()` plus the handful of
 // stateful widgets (toasts, dialogs) the dashboard actually needs.
 
+import { t } from "./i18n.js";
+
 /* ------------------------------------------------------------- elements */
 
 /**
@@ -204,7 +206,7 @@ export const button = (label, { variant, size, iconName, onClick, disabled, type
   }, iconName ? icon(iconName, size === "sm" ? 14 : 16) : null, label);
 
 export const skeleton = (lines = 4) =>
-  h("div.sk-stack", { "aria-busy": "true", "aria-label": "Loading" },
+  h("div.sk-stack", { "aria-busy": "true", "aria-label": t("ui.loading") },
     Array.from({ length: lines }, (_, i) =>
       h("div.skeleton.sk-line", { style: { width: `${100 - (i % 3) * 18}%` } })));
 
@@ -221,14 +223,15 @@ export const empty = ({ iconName = "info", title: heading, message, action }) =>
     h("div.empty-icon", icon(iconName, 20)),
     h("h3", heading),
     message ? h("p", message) : null,
-    action || null);
+    // Views pass either a ready element or { label, onClick }.
+    action?.nodeType ? action : action ? button(action.label, { variant: "primary", onClick: action.onClick }) : null);
 
-export const errorState = ({ title: heading = "Something went wrong", message, onRetry }) =>
+export const errorState = ({ title: heading = t("ui.error"), message, onRetry }) =>
   h("div.error-state", { role: "alert" },
     h("div.empty-icon", icon("alert", 20)),
     h("h3", heading),
     message ? h("p", message) : null,
-    onRetry ? button("Try again", { iconName: "refresh", size: "sm", onClick: onRetry }) : null);
+    onRetry ? button(t("ui.retry"), { iconName: "refresh", size: "sm", onClick: onRetry }) : null);
 
 export const banner = (message, { tone: t = "info", action } = {}) =>
   h("div.banner", { "data-tone": t, role: t === "danger" ? "alert" : "status" },
@@ -254,7 +257,7 @@ export function toast(message, t = "info") {
   const el = h("div.toast", { "data-tone": t, role: "status" },
     h("span.toast-icon", icon(t === "success" ? "check" : t === "danger" ? "alert" : "info", 16)),
     h("div", message),
-    h("button.toast-close", { "aria-label": "Dismiss", onclick: () => close() }, icon("close", 14)));
+    h("button.toast-close", { "aria-label": t("ui.dismiss"), onclick: () => close() }, icon("close", 14)));
 
   const close = () => {
     if (el.dataset.closing) return;
@@ -273,7 +276,7 @@ export function dialog({ title: heading, body, actions, onClose }) {
   const el = h("dialog", { "aria-labelledby": "dlg-title" },
     h("header.dialog-head",
       h("h2#dlg-title", heading),
-      h("button.icon-btn", { "aria-label": "Close", type: "button", onclick: () => el.close() }, icon("close", 16))),
+      h("button.icon-btn", { "aria-label": t("ui.close"), type: "button", onclick: () => el.close() }, icon("close", 16))),
     h("div.dialog-body", body),
     actions ? h("footer.dialog-foot", actions) : null);
 
@@ -283,7 +286,7 @@ export function dialog({ title: heading, body, actions, onClose }) {
   return el;
 }
 
-export function confirmDialog({ title: heading, message, confirmLabel = "Confirm", variant = "primary" }) {
+export function confirmDialog({ title: heading, message, confirmLabel = t("ui.confirm"), variant = "primary" }) {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (value) => { if (!settled) { settled = true; resolve(value); } };
@@ -291,7 +294,7 @@ export function confirmDialog({ title: heading, message, confirmLabel = "Confirm
       title: heading,
       body: h("p", { style: { color: "var(--text-2)" } }, message),
       actions: [
-        button("Cancel", { variant: "ghost", onClick: () => { finish(false); el.close(); } }),
+        button(t("ui.cancel"), { variant: "ghost", onClick: () => { finish(false); el.close(); } }),
         button(confirmLabel, { variant, onClick: () => { finish(true); el.close(); } }),
       ],
       onClose: () => finish(false),

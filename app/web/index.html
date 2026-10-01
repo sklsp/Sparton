@@ -3,27 +3,27 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="color-scheme" content="light dark">
-  <meta name="description" content="SPARTON — unified control plane for Knowledge, Intelligence and Create.">
-  <title>SPARTON</title>
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#17191b">
+  <meta name="description" content="Sparton dashboard: what your competitors changed this week, with the evidence.">
+  <title>Sparton</title>
+  <link rel="preload" href="./fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="./styles.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%233b5bdb'/><text x='16' y='22' font-family='system-ui' font-size='15' font-weight='700' fill='white' text-anchor='middle'>S</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%2317191b'/><rect x='4' y='15.5' width='24' height='1' fill='%230b0c0d'/><text x='16' y='23' font-family='Arial Narrow,Arial' font-size='19' font-weight='700' fill='%23f5c518' text-anchor='middle'>S</text></svg>">
 </head>
 <body>
-  <div id="root">
-    <div class="auth-shell">
-      <div class="auth-brand">
-        <div class="brand-mark">SP</div>
-        <h1>SPARTON</h1>
-        <p>Loading the control plane…</p>
-      </div>
-    </div>
-  </div>
+  <!--
+  THESIS: The dashboard is a departure board for competitor prices: what moved since you last looked, in rows of products and shops, never tickers. Refuses the sidebar-plus-KPI-cards SaaS console.
+  OWN-WORLD: Concourse-grey wall (#e3e4e0), graphite boards (#17191b) with split-flap tiles in chalk (#f0ede4), station yellow (#f5c518) as the only action colour. Archivo condensed on the flaps, normal width for reading. Exact data on solid tiles, extracted data on hatched tiles, sold-out struck through.
+  STORY: The owner sees this week's moves first, trusts each number because its source and evidence link sit beside it, and acts or moves on in ten minutes.
+  FIRST VIEWPORT: Graphite board bar with SPARTON in flap tiles, nav, NL/EN switch; below it the week's change board fills the width.
+  FORM: The Price Board, 1st of 3 on the delegated shortlist; direction round key 43dc8938.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+  -->
+  <div id="root"></div>
   <script type="module" src="./app.js"></script>
   <noscript>
-    <p style="padding:24px;font:14px system-ui">
-      The SPARTON dashboard needs JavaScript. The REST API remains available at <a href="/docs">/docs</a>.
-    </p>
+    <p style="padding:24px;font:15px system-ui">Sparton needs JavaScript. / Sparton heeft JavaScript nodig.</p>
   </noscript>
 </body>
 </html>

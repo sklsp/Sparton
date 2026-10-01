@@ -68,3 +68,10 @@ err.txt
 report.xml
 run_tests.ps1
 COMMIT_MSG.txt
+
+# --- Frontend build: local QA output and the session lock ---
+qa_shots/
+.frontend-lock
+.claude/
+.impeccable/review/
+.impeccable/questions/

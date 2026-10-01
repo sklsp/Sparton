@@ -420,3 +420,36 @@ week" a window query, and makes each evidence link reproducible (*this* price,
 *at* this URL, *on* this date).
 
 **Cost.** More rows. Bounded by crawl cadence × product count.
+
+---
+
+## D-030 — Frontend visual world: The Price Board
+
+**Context.** The v1.0 frontend redesign. Jay delegated the pick between the three directions from the
+impeccable direction round (`.impeccable/decision-direction.json`): The Price Board, Shelf Label &
+Weekly Folder, Sliding Planes. Scored 1–5 (5 = best):
+
+| Direction | Fit with the shop owner | Difference from Prisync / Bigshopper | Prices + certainty shown natively | Feasible in code, no generated imagery | Total |
+|---|---|---|---|---|---|
+| **The Price Board** | 4 | 5 | 5 | 4 | **18** |
+| Shelf Label & Weekly Folder | 5 | 3 | 4 | 5 | 17 |
+| Sliding Planes | 3 | 4 | 2 | 3 | 12 |
+
+- *Price Board*: a board that shows what moved since you last looked is exactly the product. Solid
+  tiles for exact data, hatched tiles for extracted data and struck-through rows for sold-out make
+  certainty a mark, not a colour. Split-flap boards are pure CSS/JS. Risk: reading as a stock
+  ticker, so rows always speak in products and shops, never in tickers.
+- *Shelf Label*: the most familiar to a Dutch shop owner and the cheapest to build, but it looks like
+  the discount folders the owner competes with, and was/now labels say nothing about certainty.
+- *Sliding Planes*: strong Dutch identity, but prices and proof are not native to the form.
+
+**Decision.** The Price Board, with the raises from the round: certainty as a mark (solid / hatched /
+struck), an attract loop on the landing board before signup, whole-step flap motion only, one weekly
+time axis across views, and "your price solid, competitors dashed" in every price history.
+
+**Consequences.** Light "concourse wall" ground for the dashboard (owners use it on a phone during
+the day and on a laptop on Sunday evening, indoors, lit); graphite board panels carry the data.
+Station yellow is the single action colour. One self-hosted variable face (Archivo, wdth + wght):
+condensed for the flaps and headings, normal width for reading. The previous dark theme is dropped
+for v1.0 (one light world, the board itself is the dark element). Build path is code-led: no image
+generation (€0 rule), so every scene is CSS/SVG/canvas.

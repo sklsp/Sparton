@@ -4,7 +4,7 @@
 // Everything else is static HTML: the marketing copy does not need JavaScript,
 // and a visitor with JS disabled still gets the value proposition.
 
-import { h, fill } from "./ui.js";
+import { h, fill } from "/app/ui.js";
 
 const plansEl = document.getElementById("plans");
 
@@ -78,3 +78,6 @@ async function loadPlans() {
 }
 
 loadPlans();
+
+import { langSwitch } from "/app/i18n.js";
+document.querySelector(".lp-actions")?.prepend(langSwitch());
