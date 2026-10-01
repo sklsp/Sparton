@@ -10,3 +10,4 @@ Resume point for the scheduled frontend sessions. One line per milestone.
 ✅ M6 Alerts, reports, billing, settings with empty/loading/error states — 20cb4a4 — report prose English-only; email digest not built (D-032)
 ✅ M7 Sparton vs Prisync (NL+EN, sourced) — c44651e — single URL with language switch
 ✅ M8 NAMING.md (top 3: Flapbord, Peilbord, Klapbord) — 1a6ca78 — trademarks [unverified]
+✅ M9 Finish review (2 rounds, fixes applied), DESIGN.md, Lighthouse 100/100/100 landing+signup, full suite 530 passed — 5ed7e75 — reviewer's last 3 micro items applied unscored; report prose English-only
