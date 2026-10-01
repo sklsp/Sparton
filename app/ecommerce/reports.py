@@ -1,0 +1,433 @@
+from __future__ import annotations
+
+import logging
+from collections import Counter, defaultdict
+from decimal import Decimal
+from datetime import datetime, timedelta
+from typing import Any, Sequence
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.database.ecommerce_models import (
+    ChangeEvent,
+    ChangeKind,
+    ChangeSeverity,
+    Competitor,
+    Report,
+    ReportStatus,
+    Shop,
+)
+from app.core.database.models import as_utc, utcnow
+from app.core.observability.metrics import inc
+from app.ecommerce.changes import money
+
+logger = logging.getLogger(__name__)
+
+#: A weekly report by default. The headline cadence of the product.
+WEEK_DAYS = 7
+
+#: The most changes we put in front of the model at once. Beyond this the
+#: prompt gets long and the tail is noise; the counts still cover everything.
+MAX_CHANGES_IN_PROMPT = 60
+
+#: Low-severity rows are dropped from the *narrative* by default. The first
+#: crawl of a new competitor generates one "everything is new" row per product,
+#: which is baseline noise, not news.
+NARRATIVE_SEVERITIES = (ChangeSeverity.MEDIUM, ChangeSeverity.HIGH)
+
+SYSTEM_PROMPT = """\
+You are the analyst behind a competitor-intelligence product for small \
+e-commerce sellers. You write the weekly brief.
+
+You will be given FACTS: changes already detected by a diff engine, with exact \
+prices, deltas, and a source URL for each.
+
+Rules, in order of importance:
+1. Use ONLY numbers present in the FACTS. Never calculate, estimate, or invent \
+a figure. If a number is not in the FACTS, do not state it.
+2. Do not speculate about why a competitor did something. You observe; you do \
+not know their margin, their stock, or their intentions.
+3. Name competitors and products exactly as the FACTS spell them.
+4. Be brief and concrete. This is read on a phone between packing orders.
+5. If the FACTS show no meaningful change, say so in one sentence. Do not \
+manufacture urgency.
+
+Write in Markdown with this exact structure:
+
+## What changed
+Two to four sentences. The single most important thing that happened.
+
+## Price moves
+A Markdown table: Competitor | Product | Was | Now | Change. Omit if none.
+
+## Assortment
+A Markdown table: Competitor | Product | What happened. Omit if none.
+
+## What to do next
+Two or three specific, actionable suggestions a shop owner could take this \
+week. These must follow from the FACTS, not from general e-commerce advice.
+"""
+
+
+def period_bounds(days: int = WEEK_DAYS, end: datetime | None = None) -> tuple[datetime, datetime]:
+    finish = end or utcnow()
+    return finish - timedelta(days=days), finish
+
+
+def collect_changes(
+    db: Session,
+    organization_id: int | None,
+    start: datetime,
+    end: datetime,
+    shop_id: int | None = None,
+    *,
+    severities: Sequence[str] | None = None,
+) -> list[ChangeEvent]:
+    """Every change in the period, newest first."""
+    query = (
+        select(ChangeEvent)
+        .where(
+            ChangeEvent.organization_id == organization_id,
+            ChangeEvent.detected_at >= start,
+            ChangeEvent.detected_at <= end,
+        )
+        .order_by(ChangeEvent.detected_at.desc())
+    )
+    if shop_id is not None:
+        query = query.where(ChangeEvent.shop_id == shop_id)
+    if severities is not None:
+        query = query.where(ChangeEvent.severity.in_(list(severities)))
+    return list(db.execute(query).scalars().all())
+
+
+def build_facts(
+    changes: list[ChangeEvent],
+    shop: Shop | None = None,
+    competitors: list[Competitor] | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> dict[str, Any]:
+    """The structured payload. This is the source of truth for the report.
+
+    Built once, stored on the Report row, and given verbatim to the model. The
+    UI renders its table from the same dict, so the prose and the table can
+    never disagree.
+    """
+    by_kind: Counter[str] = Counter(c.kind for c in changes)
+    by_severity: Counter[str] = Counter(c.severity for c in changes)
+    by_competitor: dict[str, Counter[str]] = defaultdict(Counter)
+    for change in changes:
+        by_competitor[change.competitor_domain or "unknown"][change.kind] += 1
+
+    price_moves = [
+        {
+            "competitor": c.competitor_name or c.competitor_domain,
+            "product": c.product_name,
+            "previous_price": c.previous_price,
+            "new_price": c.new_price,
+            "delta": c.delta,
+            "delta_pct": c.delta_pct,
+            "currency": c.currency,
+            "evidence_url": c.evidence_url,
+        }
+        for c in changes
+        if c.kind in (ChangeKind.PRICE_INCREASE, ChangeKind.PRICE_DECREASE)
+    ]
+    # Biggest absolute move first: that is the one worth the seller's attention.
+    # Sorted on the Decimal, not on the rendered string, and the key is dropped
+    # before the blob is serialised.
+    price_moves.sort(key=lambda m: abs(m.get("delta") or Decimal(0)), reverse=True)
+
+    assortment = [
+        {
+            "competitor": c.competitor_name or c.competitor_domain,
+            "product": c.product_name,
+            "kind": c.kind,
+            "price": c.new_price or c.previous_price,
+            "currency": c.currency,
+            "evidence_url": c.evidence_url,
+        }
+        for c in changes
+        if c.kind in (ChangeKind.NEW_PRODUCT, ChangeKind.REMOVED_PRODUCT)
+    ]
+
+    return {
+        "shop": (
+            {"id": shop.id, "name": shop.name, "url": shop.url, "category": shop.category}
+            if shop
+            else None
+        ),
+        "competitors": [
+            {"id": c.id, "name": c.name, "domain": c.domain, "products": c.product_count}
+            for c in (competitors or [])
+        ],
+        "period": {
+            "start": start.isoformat() if start else "",
+            "end": end.isoformat() if end else "",
+        },
+        "total_changes": len(changes),
+        "by_kind": dict(by_kind),
+        "by_severity": dict(by_severity),
+        "by_competitor": {k: dict(v) for k, v in by_competitor.items()},
+        "price_moves": price_moves,
+        "assortment": assortment,
+        "largest_price_move": price_moves[0] if price_moves else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Deterministic rendering — the fallback that needs no model at all
+# ---------------------------------------------------------------------------
+_KIND_LABEL = {
+    ChangeKind.PRICE_DECREASE: "price cut",
+    ChangeKind.PRICE_INCREASE: "price rise",
+    ChangeKind.NEW_PRODUCT: "new listing",
+    ChangeKind.REMOVED_PRODUCT: "delisted",
+    ChangeKind.OUT_OF_STOCK: "out of stock",
+    ChangeKind.BACK_IN_STOCK: "back in stock",
+}
+
+
+def render_facts(facts: dict[str, Any]) -> str:
+    """A complete, correct report built from the facts with no LLM involved.
+
+    This is not a degraded path bolted on for when the API is down — it is the
+    guarantee that a customer always gets a usable report. The AI only ever
+    *improves the prose* on top of this.
+    """
+    shop = facts.get("shop") or {}
+    name = shop.get("name") or "your shop"
+    total = facts.get("total_changes", 0)
+    by_kind: dict[str, int] = facts.get("by_kind") or {}
+    moves = facts.get("price_moves") or []
+    assortment = facts.get("assortment") or []
+
+    lines = [f"# Competitor report — {name}", ""]
+
+    if total == 0:
+        lines += [
+            "## What changed",
+            "",
+            "Nothing moved this week. No competitor changed a price, added a "
+            "product, or went out of stock on anything we track.",
+            "",
+            "## What to do next",
+            "",
+            "No action needed. If you have just added competitors, the first "
+            "crawl builds a baseline and the next one is when changes appear.",
+        ]
+        return "\n".join(lines)
+
+    # --- narrative ------------------------------------------------------
+    largest = facts.get("largest_price_move")
+    counts = ", ".join(
+        f"{_KIND_LABEL.get(k, k)}: {v}" for k, v in sorted(by_kind.items()) if v
+    )
+    lines += ["## What changed", ""]
+    if largest:
+        lines.append(
+            f"**{largest['competitor']}** moved **{largest['product']}** from "
+            f"{money(largest.get('previous_price'), largest.get('currency', 'EUR'))} "
+            f"to {money(largest.get('new_price'), largest.get('currency', 'EUR'))} "
+            f"({largest.get('delta_pct') or 0:+.0f}%)."
+        )
+    lines.append("")
+    lines.append(f"{total} change(s) detected across "
+                 f"{len(facts.get('by_competitor') or {})} competitor(s) — {counts}.")
+
+    # --- price table ----------------------------------------------------
+    if moves:
+        lines += [
+            "",
+            "## Price moves",
+            "",
+            "| Competitor | Product | Was | Now | Change | Evidence |",
+            "|---|---|---|---|---|---|",
+        ]
+        for move in moves[:30]:
+            currency = move.get("currency", "EUR")
+            was = money(move.get("previous_price"), currency)
+            now = money(move.get("new_price"), currency)
+            pct = move.get("delta_pct")
+            change = f"{pct:+.0f}%" if pct is not None else "—"
+            link = move.get("evidence_url") or ""
+            evidence = f"[view]({link})" if link else "—"
+            lines.append(
+                f"| {move.get('competitor', '—')} | {move.get('product', '—')} "
+                f"| {was} | {now} | {change} | {evidence} |"
+            )
+        if len(moves) > 30:
+            lines.append(f"\n_…and {len(moves) - 30} more price moves._")
+
+    # --- assortment table ------------------------------------------------
+    if assortment:
+        lines += [
+            "",
+            "## Assortment",
+            "",
+            "| Competitor | Product | What happened | Evidence |",
+            "|---|---|---|---|",
+        ]
+        for item in assortment[:30]:
+            link = item.get("evidence_url") or ""
+            evidence = f"[view]({link})" if link else "—"
+            lines.append(
+                f"| {item.get('competitor', '—')} | {item.get('product', '—')} "
+                f"| {_KIND_LABEL.get(item.get('kind'), item.get('kind'))} | {evidence} |"
+            )
+        if len(assortment) > 30:
+            lines.append(f"\n_…and {len(assortment) - 30} more assortment changes._")
+
+    return "\n".join(lines)
+
+
+def build_prompt(facts: dict[str, Any]) -> str:
+    """The user message. Facts are embedded verbatim; the model may not add."""
+    import json
+
+    trimmed = dict(facts)
+    trimmed["price_moves"] = facts.get("price_moves", [])[:MAX_CHANGES_IN_PROMPT]
+    trimmed["assortment"] = facts.get("assortment", [])[:MAX_CHANGES_IN_PROMPT]
+    return (
+        "FACTS for the week. These were computed by the diff engine; every "
+        "number you use must come from here.\n\n"
+        f"```json\n{json.dumps(trimmed, indent=2, default=str)}\n```\n\n"
+        "Write the weekly brief in Markdown, following the structure you were "
+        "given. If `price_moves` and `assortment` are both empty, say so in one "
+        "sentence under 'What changed' and stop."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Generation
+# ---------------------------------------------------------------------------
+def generate_report(
+    db: Session,
+    *,
+    organization_id: int | None,
+    shop: Shop | None = None,
+    competitors: list[Competitor] | None = None,
+    days: int = WEEK_DAYS,
+    kind: str = "weekly",
+    use_llm: bool = True,
+) -> Report:
+    """Build (and persist) a report for the last `days`.
+
+    The report row is written and committed *before* the LLM is called, so a
+    slow or failed model call still leaves the customer with the deterministic
+    rendering. On model failure the report completes with the fallback text and
+    an `error` explaining why — it is never left in GENERATING forever.
+    """
+    start, end = period_bounds(days)
+    all_changes = collect_changes(db, organization_id, start, end, shop.id if shop else None)
+    narrative_changes = [
+        c for c in all_changes if c.severity in NARRATIVE_SEVERITIES
+    ] or all_changes
+
+    facts = build_facts(
+        narrative_changes, shop=shop, competitors=competitors, start=start, end=end
+    )
+    report = Report(
+        organization_id=organization_id,
+        shop_id=shop.id if shop else None,
+        kind=kind,
+        status=ReportStatus.GENERATING,
+        period_start=start,
+        period_end=end,
+        title=_report_title(shop, kind, start, end),
+        # Start with the deterministic version. If the model works, we replace
+        # it; if not, the customer still has a correct report.
+        markdown=render_facts(facts),
+        facts=facts,
+        change_ids=[c.id for c in narrative_changes[:200]],
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    if not use_llm:
+        report.status = ReportStatus.COMPLETED
+        report.completed_at = utcnow()
+        db.commit()
+        return report
+
+    try:
+        from app.llm import LLMError, get_llm_provider, set_usage_context
+
+        provider = get_llm_provider()
+        # Attribute the tokens to the customer, not to NULL: this is a billable
+        # call and the plan limits depend on it.
+        tokens = set_usage_context(organization_id)
+        try:
+            markdown = provider.complete(
+                [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": build_prompt(facts)},
+                ],
+                task="report",
+                temperature=0.3,
+            )
+        finally:
+            from app.llm import clear_usage_context
+
+            clear_usage_context(tokens)
+
+        if markdown and markdown.strip():
+            report.markdown = markdown.strip()
+        report.model = getattr(provider, "model", "") or ""
+        report.status = ReportStatus.COMPLETED
+        report.completed_at = utcnow()
+        report.error = None
+        inc("reports_total", outcome="completed")
+    except Exception as exc:  # noqa: BLE001 — the deterministic report stands on its own
+        logger.warning("Report generation fell back to deterministic text: %s", exc)
+        report.status = ReportStatus.COMPLETED
+        report.error = f"AI narrative unavailable: {exc}"[:500]
+        report.completed_at = utcnow()
+        inc("reports_total", outcome="fallback")
+
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+def _report_title(shop: Shop | None, kind: str, start: datetime, end: datetime) -> str:
+    label = (shop.name if shop else "All shops") or "All shops"
+    return f"{label} — {kind} report, {start:%d %b} to {end:%d %b %Y}"
+
+
+def report_to_dict(report: Report, include_markdown: bool = True) -> dict[str, Any]:
+    """API shape. The UI renders `facts` as the table and `markdown` as prose."""
+    payload: dict[str, Any] = {
+        "id": report.id,
+        "shop_id": report.shop_id,
+        "kind": report.kind,
+        "status": report.status,
+        "title": report.title,
+        "period_start": report.period_start.isoformat() if report.period_start else None,
+        "period_end": report.period_end.isoformat() if report.period_end else None,
+        "facts": report.facts or {},
+        "change_ids": report.change_ids or [],
+        "model": report.model,
+        "error": report.error,
+        "created_at": report.created_at.isoformat() if report.created_at else None,
+        "completed_at": report.completed_at.isoformat() if report.completed_at else None,
+    }
+    if include_markdown:
+        payload["markdown"] = report.markdown or ""
+    return payload
+
+
+__all__ = [
+    "NARRATIVE_SEVERITIES",
+    "SYSTEM_PROMPT",
+    "WEEK_DAYS",
+    "build_facts",
+    "build_prompt",
+    "collect_changes",
+    "generate_report",
+    "period_bounds",
+    "render_facts",
+    "report_to_dict",
+]

@@ -1,12 +1,14 @@
-// Route table. Views are lazy ES-module imports so the first paint only
-// pays for the shell plus the landing view.
+// Route table for the customer dashboard. Labels come from i18n (`nav.<id>`).
+// Views are lazy ES-module imports, so the first paint only pays for the shell.
 
 export const ROUTES = [
-  { id: "overview",     label: "Overview",     icon: "overview",     group: "Platform",     load: () => import("./views/overview.js") },
-  { id: "agent",        label: "Agent",        icon: "agent",        group: "Platform",     badge: true, load: () => import("./views/agent.js") },
-  { id: "knowledge",    label: "Knowledge",    icon: "knowledge",    group: "Domains",      load: () => import("./views/knowledge.js") },
-  { id: "intelligence", label: "Intelligence", icon: "intelligence", group: "Domains",      load: () => import("./views/intelligence.js") },
-  { id: "catalog",      label: "Catalog",      icon: "catalog",      group: "Domains",      load: () => import("./views/catalog.js") },
-  { id: "create",       label: "Create",       icon: "create",       group: "Domains",      load: () => import("./views/create.js") },
-  { id: "system",       label: "System",       icon: "system",       group: "Operations",   load: () => import("./views/system.js") },
+  { id: "overview", load: () => import("./views/overview.js") },
+  { id: "alerts",   load: () => import("./views/alerts.js") },
+  { id: "shops",    load: () => import("./views/shops.js") },
+  { id: "reports",  load: () => import("./views/reports.js") },
+  { id: "billing",  load: () => import("./views/billing.js") },
+  { id: "settings", load: () => import("./views/settings.js") },
+  // Onboarding: reached after signup and from empty states, not from the nav.
+  { id: "start", nav: false, load: () => import("./views/start.js") },
+  { id: "product", nav: false, parent: "overview", load: () => import("./views/product.js") },
 ];

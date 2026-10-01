@@ -20,6 +20,7 @@ import time
 import uuid
 
 from app.core.config import settings
+from app.core.jobs.heartbeat import write_heartbeat
 from app.core.jobs.transport import get_backend, get_handler
 from app.core.observability.logging_config import configure_logging, get_logger
 from app.core.observability.metrics import inc, observe
@@ -35,11 +36,15 @@ STALE_PROCESSING_SECONDS = 300.0
 BACKOFF_BASE_SECONDS = 5.0
 BACKOFF_CAP_SECONDS = 600.0
 MAX_ATTEMPTS = 3
+#: How often to refresh the liveness beat. Well under the key's TTL, so a
+#: single missed beat is never mistaken for a dead worker.
+HEARTBEAT_INTERVAL_SECONDS = 15.0
 
 
 class Worker:
     def __init__(self) -> None:
-        self.worker_id = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+        self.hostname = socket.gethostname()
+        self.worker_id = f"{self.hostname}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
         self._stop = False
         self.processed = 0
         self.failed = 0
@@ -55,8 +60,18 @@ class Worker:
         signal.signal(signal.SIGTERM, self.request_stop)
         backend = get_backend()
         last_reclaim = 0.0
+        last_beat = 0.0
+        # The liveness beat is what the container healthcheck reads, since the
+        # worker serves no HTTP. It is refreshed here rather than inside
+        # _work_once so that a worker with an empty queue still looks alive --
+        # which is the common case, and it is exactly when a wedged worker and
+        # an idle one are hardest to tell apart.
+        beat_client = getattr(backend, "client", None)
         while not self._stop:
             now = time.monotonic()
+            if beat_client is not None and now - last_beat >= HEARTBEAT_INTERVAL_SECONDS:
+                write_heartbeat(beat_client, self.hostname)
+                last_beat = now
             if now - last_reclaim >= RECLAIM_INTERVAL_SECONDS:
                 reclaimed = backend.reclaim_stale(STALE_PROCESSING_SECONDS)
                 if reclaimed:

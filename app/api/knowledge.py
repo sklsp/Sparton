@@ -6,7 +6,7 @@ import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.api.schemas import ChatRequest, ChatResponse, PromptTemplateCreate
 from app.core.auth.api import DbSession, current_user
@@ -96,12 +96,18 @@ def delete_document(
 
 
 @router.get("/rag/status")
-def rag_status() -> dict:
+def rag_status(
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     return get_document_service().rag.status()
 
 
 @router.get("/rag/debug-query")
-def rag_debug_query(q: str, top_k: int | None = None) -> dict:
+def rag_debug_query(
+    q: str,
+    top_k: int | None = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     return get_document_service().rag.query_debug(q, top_k=top_k)
 
 
@@ -220,10 +226,15 @@ def clear_conversation(
 # --- prompt templates ------------------------------------------------------------
 @router.get("/prompts")
 def list_prompts(db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
-    query = select(PromptTemplate)
+    # `organization_id IN (org, NULL)` never matches the NULL rows, because SQL
+    # three-valued logic makes any comparison with NULL unknown. Global templates
+    # were therefore invisible to every tenant. Use an explicit OR.
     org = _org_id(user)
+    query = select(PromptTemplate)
     if org is not None:
-        query = query.where(PromptTemplate.organization_id.in_([org, None]))
+        query = query.where(
+            or_(PromptTemplate.organization_id == org, PromptTemplate.organization_id.is_(None))
+        )
     rows = db.execute(query).scalars().all()
     return {
         "count": len(rows),

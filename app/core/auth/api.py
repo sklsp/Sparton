@@ -7,9 +7,9 @@ Resolves the caller's identity for every request:
    valid only when ``API_KEY`` is configured; maps to a synthetic admin
    user with no organization (sees all tenants).
 
-Requests with neither credential raise 401 unless the deployment runs
-without an ``API_KEY`` *and* anonymous access is explicitly allowed
-(local development only).
+Requests with neither credential raise 401. There is no anonymous fallback: an
+unset ``API_KEY`` disables the machine principal rather than opening the API
+(see docs/DECISIONS.md D-004).
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from app.core.auth.service import resolve_session
 from app.core.config import settings
 from app.core.database.base import get_db
 from app.core.database.identity import User
+from app.llm import set_usage_context
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -35,6 +36,10 @@ class MachineUser:
     tenant scoping checks ``is_machine`` / ``organization_id is None`` to
     grant cross-tenant visibility, and audit rows record machine actions
     without a user FK.
+
+    Use :meth:`create` rather than the constructor: a bare instance carries a
+    mutable ``email`` and sharing one class-level object across requests lets
+    one caller overwrite another's identity.
     """
 
     id = None
@@ -43,6 +48,10 @@ class MachineUser:
     organization_id = None
     is_active = True
     is_machine = True
+
+    def __init__(self, email: str = "machine@sparton.local") -> None:
+        # Instance attribute: shadowing the class default, not mutating it.
+        self.email = email
 
 
 def _extract_bearer_token(request: Request) -> str | None:
@@ -53,11 +62,77 @@ def _extract_bearer_token(request: Request) -> str | None:
     return None
 
 
+def _resolve_principal(request: Request, db: Session) -> User | MachineUser:
+    """Authenticate and bind tenant context. Raises 401 when anonymous."""
+    principal = _authenticate(request, db)
+    request.state.user = principal
+    set_usage_context(
+        getattr(principal, "organization_id", None), getattr(principal, "id", None)
+    )
+    return principal
+
+
 def current_user(
     request: Request,
     db: DbSession,
 ) -> User | MachineUser:
-    """Resolve the authenticated principal or raise 401."""
+    """Resolve the authenticated principal or raise 401.
+
+    Also binds the tenant into a context variable so LLM calls made deeper in
+    the stack are attributed to the right organization for billing, without
+    threading a user object through every call signature. This runs as a route
+    dependency, i.e. immediately before the handler, which is why it lives
+    here rather than in request middleware.
+
+    Requires a verified email. Recovery routes must use
+    :func:`unverified_user` instead — see the note there.
+    """
+    principal = _resolve_principal(request, db)
+    _require_verified(principal)
+    return principal
+
+
+def unverified_user(
+    request: Request,
+    db: DbSession,
+) -> User | MachineUser:
+    """Authenticated, but *not* required to have verified their email.
+
+    This exists because a verification gate applied to every ``current_user``
+    route is a lockout, not a safeguard: an unverified customer could not read
+    their own account, could not ask for a new link, and could not change the
+    password they were emailed about. They would be stuck outside their own
+    account with no way back in.
+
+    Use this only on routes whose entire job is recovery — reading who you are,
+    resending verification, changing a password. Everything that touches a
+    tenant's data stays behind :func:`current_user`.
+    """
+    return _resolve_principal(request, db)
+
+
+def _require_verified(principal) -> None:
+    """Refuse product access to an unverified account, in production only.
+
+    Deliberately *not* enforced at signup: a customer must be able to sign in,
+    see the banner and request a new link, or they are locked out of their own
+    account with no way to recover (D-010).
+    """
+    from app.core.auth import tokens
+
+    if tokens.is_verified(principal):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=(
+            "Confirm your email address to use Sparton. "
+            "Check your inbox, or request a new link from the dashboard."
+        ),
+    )
+
+
+def _authenticate(request: Request, db: Session) -> User | MachineUser:
+    """1. Interactive session, 2. shared machine key, 3. 401."""
     # 1. Interactive session.
     token = _extract_bearer_token(request)
     if token is not None:
@@ -80,14 +155,13 @@ def current_user(
             detail="Invalid API key",
         )
 
-    # 3. Open local development: no API key configured and no credentials
-    # presented. Anonymous requests act as a synthetic viewer-scoped admin
-    # of the default org so local workflows still function end to end.
-    if not settings.api_key:
-        anon = MachineUser()
-        anon.email = "anonymous@localhost"
-        return anon
-
+    # 3. No usable credential.
+    #
+    # There is deliberately NO "no API_KEY configured, so let everyone in"
+    # fallback. MachineUser.organization_id is None, which every query path
+    # reads as "sees all tenants" — so an unset API_KEY used to turn a
+    # forgotten env var into a public cross-tenant read/write window.
+    # Local development registers a user like any other client.
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Authentication required",

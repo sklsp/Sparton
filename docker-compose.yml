@@ -1,0 +1,138 @@
+# SPARTON — local production-shaped stack.
+#
+# This is what runs on the box, not a dev convenience: PostgreSQL, Redis, the
+# API and the queue worker, all on the real dependency versions. The only
+# difference from production is that secrets come from `.env` rather than a
+# secret manager, and TLS is terminated by whatever sits in front of it.
+#
+#   cp .env.example .env && docker compose up -d --build
+#   docker compose logs -f api
+#
+# `alembic upgrade head` runs in the api service's command (see Dockerfile), so
+# there is no separate migration step to forget.
+
+name: sparton
+
+x-app-env: &app-env
+  SPARTON_ENV: ${SPARTON_ENV:-production}
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sparton}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sparton}
+  REDIS_URL: redis://redis:6379/0
+  # Loopback by default: the compose stack publishes the API straight to the
+  # host, so there is no proxy in front of it to believe. Put your real
+  # proxy's address here if you add one (docs/DEPLOYMENT.md).
+  FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+  APP_URL: ${APP_URL:-http://localhost:8000}
+  CORS_ORIGINS: ${APP_URL:-http://localhost:8000}
+  # Stripe. Leaving these blank disables checkout rather than failing at boot,
+  # so a fresh clone runs and the billing screen explains itself.
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
+  STRIPE_PRICE_BUSINESS: ${STRIPE_PRICE_BUSINESS:-}
+  BILLING_ENABLED: ${BILLING_ENABLED:-true}
+  # Mail. Unset falls back to writing .eml files into /app/data/outbox.
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:-no-reply@sparton.io}
+  SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+  # The model provider.
+  LLM_PROVIDER: ${LLM_PROVIDER:-openai_compatible}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  LLM_MODEL_STRONG: ${LLM_MODEL_STRONG:-anthropic/claude-sonnet-4.6}
+  LLM_MODEL_CHEAP: ${LLM_MODEL_CHEAP:-google/gemini-3.5-flash-lite}
+  OPENROUTER_SITE_URL: ${APP_URL:-http://localhost:8000}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  EMBEDDING_BACKEND: ${EMBEDDING_BACKEND:-auto}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sparton}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-sparton}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      # The api container must not start against a database that is still
+      # initialising; `depends_on: service_healthy` is what enforces that.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sparton} -d ${POSTGRES_DB:-sparton}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Not published: only the api and worker need it.
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8000}:8000"
+    volumes:
+      # The email outbox, so a developer with no SMTP can read what would have
+      # been sent. Never mounted in a real deployment: it contains live reset
+      # links.
+      - outbox:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    restart: unless-stopped
+    # The same image, a different process: it drains the crawl and report queue.
+    # `depends_on: service_healthy` is intentionally absent — the worker is
+    # safe to restart independently and should not wait on the API.
+    command: ["python", "-m", "workers.worker"]
+    environment:
+      <<: *app-env
+    volumes:
+      - outbox:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # The image's HEALTHCHECK curls the API's /live. This service serves no
+    # HTTP at all, so it inherited a probe that can only ever fail and Docker
+    # reported the worker unhealthy forever -- a permanently "failing" service
+    # trains everyone to ignore the health column, which is how a genuinely
+    # dead worker goes unnoticed.
+    #
+    # So the worker gets its own: reach the database, reach Redis, and confirm
+    # the worker loop is still beating. Only the last of those catches a worker
+    # that is alive but wedged, which is the failure a worker actually has.
+    healthcheck:
+      test: ["CMD", "python", "-m", "workers.healthcheck"]
+      interval: 30s
+      timeout: 10s
+      # Generous: the worker boots, imports the app, and connects to Redis
+      # before its first beat. A short start_period marks it unhealthy during
+      # normal startup.
+      start_period: 40s
+      retries: 3
+
+volumes:
+  db-data:
+  redis-data:
+  outbox:

@@ -20,6 +20,11 @@ class RequestInstrumentation(BaseHTTPMiddleware):
 
     The ID is accepted from clients (X-Correlation-ID) or generated, stored on
     request.state for logging, echoed in the response, and counted in metrics.
+
+    It also binds the authenticated principal into a context variable so that
+    LLM calls made deeper in the stack can be attributed to the right
+    organization for billing without every call site having to thread a user
+    object through its signature.
     """
 
     async def dispatch(
@@ -49,4 +54,4 @@ class RequestInstrumentation(BaseHTTPMiddleware):
         return response
 
 
-__all__ = ["RequestInstrumentation", "CORRELATION_HEADER"]
+__all__ = ["CORRELATION_HEADER", "RequestInstrumentation"]

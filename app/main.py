@@ -13,16 +13,36 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import admin as admin_api
-from app.api import agent_api, auth, create, ecommerce, health, intelligence, knowledge
+from app.api import (
+    admin as admin_api,
+    agent_api,
+    auth,
+    billing,
+    commerce,
+    ecommerce,
+    health,
+    intelligence,
+)
+
+# `create` (generation/datasets/training) and `knowledge` (documents) are
+# imported inside the feature-flag branches below, not here. Both pull in
+# sentence-transformers and faiss, which is roughly nine gigabytes of PyTorch,
+# and importing them unconditionally meant the *product* could not start
+# without them -- including in a container that will never serve a single
+# document route. A disabled domain having no routes is not much of a feature
+# if it still has to be installed.
 from app.core.config import settings
 from app.core.database.base import Base, engine
+from app.core.features import Domain, is_enabled
 from app.core.observability.logging_config import configure_logging
 from app.core.observability.middleware import RequestInstrumentation
 
@@ -96,28 +116,152 @@ def create_app() -> FastAPI:
     # Correlation IDs + request metrics.
     app.add_middleware(RequestInstrumentation)
 
-    # Routers — one coherent surface, no per-project prefixes.
+    # Routers are registered conditionally. A disabled domain has NO routes at
+    # all rather than routes that 403 — strictly less attack surface
+    # (docs/DECISIONS.md D-020).
     app.include_router(health.router)
     app.include_router(auth.router)
-    app.include_router(knowledge.router)
-    app.include_router(agent_api.router)
-    app.include_router(intelligence.router)
-    app.include_router(ecommerce.router)
-    app.include_router(create.router)
     app.include_router(admin_api.router)
+    # Billing is part of the product: Checkout, the Portal and the webhook.
+    app.include_router(billing.router)
+
+    # The product.
+    if is_enabled(Domain.COMMERCE):
+        app.include_router(commerce.router)
+    if is_enabled(Domain.AGENT):
+        app.include_router(agent_api.router)
+    if is_enabled(Domain.INTELLIGENCE):
+        app.include_router(ecommerce.router)
+    if is_enabled(Domain.RESEARCH):
+        app.include_router(intelligence.router)
+    if is_enabled(Domain.DOCUMENTS):
+        from app.api import knowledge  # lazy: see the import note above
+
+        app.include_router(knowledge.router)
+    if is_enabled(Domain.GENERATION) or is_enabled(Domain.DATASETS) or is_enabled(
+        Domain.TRAINING
+    ):
+        from app.api import create  # lazy: see the import note above
+
+        app.include_router(create.router)
 
     # Dashboard. Mounted last so every API route above wins on a path clash.
     if WEB_DIR.is_dir():
-        app.mount("/dashboard", DashboardFiles(directory=WEB_DIR, html=True), name="dashboard")
+        app.mount("/app", DashboardFiles(directory=WEB_DIR, html=True), name="app")
 
     @app.get("/", include_in_schema=False)
-    async def root() -> RedirectResponse:
-        """Browsers get the dashboard; without it, the interactive API docs."""
-        return RedirectResponse(url="/dashboard/" if WEB_DIR.is_dir() else "/docs")
+    async def root() -> FileResponse:
+        """The public landing page. Everything a visitor needs before signup."""
+        landing = WEB_DIR / "landing.html"
+        if landing.is_file():
+            return FileResponse(landing, media_type="text/html")
+        return RedirectResponse(url="/app/")
+
+    # The landing page is served from `/`, but its assets live in the same
+    # directory as the dashboard, which is mounted at `/app`. Without these the
+    # page renders unstyled and its script 404s. Serving them explicitly keeps
+    # the dashboard's own `/app/...` paths untouched.
+    #
+    # `ui.js` belongs here too: `landing.js` imports it for `h`/`fill`, and a
+    # module whose import 404s fails to parse, so the *whole* script is dead and
+    # the pricing table silently never appears. Found by driving a browser --
+    # the page looked fine, because the static copy renders without JavaScript.
+    for _asset, _media in (
+        ("landing.css", "text/css"),
+        ("landing.js", "text/javascript"),
+        ("styles.css", "text/css"),
+        ("ui.js", "text/javascript"),
+    ):
+        def _serve(_asset: str = _asset, _media: str = _media):
+            path = WEB_DIR / _asset
+            if not path.is_file():
+                raise HTTPException(status_code=404, detail="Not found")
+            return FileResponse(path, media_type=_media)
+
+        app.add_api_route(
+            f"/{_asset}", _serve, methods=["GET"], include_in_schema=False
+        )
+
+    # Legal pages. The landing page links to these, so they are real routes
+    # rather than dead anchors: a pricing page that 404s on "Terms" is a
+    # signal to a prospective customer about how the rest is run.
+    for _page in ("privacy", "terms", "dpa"):
+        def _legal(_page: str = _page):
+            path = WEB_DIR / "legal" / f"{_page}.html"
+            if not path.is_file():
+                raise HTTPException(status_code=404, detail="Not found")
+            return FileResponse(path, media_type="text/html")
+
+        app.add_api_route(
+            f"/legal/{_page}", _legal, methods=["GET"], include_in_schema=False
+        )
+
+    # Public comparison pages: static HTML from the same directory as the landing page.
+    for _route, _file in (
+        ("/vs/prisync", "vs-prisync.html"),
+        ("/pricing", "pricing.html"),
+        ("/faq", "faq.html"),
+        ("/nl/prisync-alternatief", "nl/prisync-alternatief.html"),
+        ("/nl/concurrentieprijzen-shopify", "nl/concurrentieprijzen-shopify.html"),
+        ("/nl/concurrentieprijzen-woocommerce-lightspeed", "nl/concurrentieprijzen-woocommerce-lightspeed.html"),
+    ):
+        def _public(_file: str = _file):
+            path = WEB_DIR / _file
+            if not path.is_file():
+                raise HTTPException(status_code=404, detail="Not found")
+            return FileResponse(path, media_type="text/html")
+
+        app.add_api_route(_route, _public, methods=["GET"], include_in_schema=False)
+
+    # Search engines: every public page, absolute URLs on the configured APP_URL.
+    _PUBLIC_PAGES = ("/", "/pricing", "/faq", "/vs/prisync", "/nl/prisync-alternatief",
+                     "/nl/concurrentieprijzen-shopify", "/nl/concurrentieprijzen-woocommerce-lightspeed")
+
+    @app.get("/sitemap.xml", include_in_schema=False)
+    def sitemap() -> Response:
+        base = settings.app_url.rstrip("/")
+        urls = "".join(f"<url><loc>{base}{path}</loc></url>" for path in _PUBLIC_PAGES)
+        xml = f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
+        return Response(xml, media_type="application/xml")
+
+    @app.get("/robots.txt", include_in_schema=False)
+    def robots() -> Response:
+        base = settings.app_url.rstrip("/")
+        body = f"User-agent: *\nDisallow: /app/\nDisallow: /docs\nSitemap: {base}/sitemap.xml\n"
+        return Response(body, media_type="text/plain")
+
+    # The verification and reset emails link to these paths (app/core/email.py), but both flows
+    # live in the dashboard. Hand the token over in the fragment: a fragment is never sent to a
+    # server, so the token does not land in an access log on the next request.
+    for _path, _view in (("/verify-email", "verify"), ("/reset-password", "reset")):
+        def _email_link(token: str = "", _view: str = _view) -> RedirectResponse:
+            return RedirectResponse(url=f"/app/#/{_view}?token={quote(token, safe='')}", status_code=303)
+
+        app.add_api_route(_path, _email_link, methods=["GET"], include_in_schema=False)
 
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon() -> Response:
         return Response(status_code=204)
+
+    # Browsers get designed error pages; API clients keep their JSON. A browser is a GET that
+    # asks for text/html; fetch() from the dashboard sends */* and stays on the JSON path.
+    def _wants_html(request: Request) -> bool:
+        return request.method == "GET" and "text/html" in request.headers.get("accept", "")
+
+    @app.exception_handler(StarletteHTTPException)
+    async def html_not_found(request: Request, exc: StarletteHTTPException):
+        page = WEB_DIR / "404.html"
+        if exc.status_code == 404 and _wants_html(request) and page.is_file():
+            return FileResponse(page, status_code=404, media_type="text/html")
+        return await http_exception_handler(request, exc)
+
+    @app.exception_handler(Exception)
+    async def html_server_error(request: Request, exc: Exception):
+        # Starlette still re-raises after this, so logging and test clients see the error.
+        page = WEB_DIR / "500.html"
+        if _wants_html(request) and page.is_file():
+            return FileResponse(page, status_code=500, media_type="text/html")
+        return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError):

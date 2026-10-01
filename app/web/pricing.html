@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#17191b">
+  <title>Sparton plans — Free, Pro and Business</title>
+  <meta name="description" content="Sparton plans for small webshops: start free with one shop and three competitors. Prices from the live plan table, excluding VAT.">
+  <meta property="og:title" content="Sparton plans — Free, Pro and Business">
+  <meta property="og:description" content="Sparton plans for small webshops: start free with one shop and three competitors. Prices from the live plan table, excluding VAT.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="/app/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preload" href="/app/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/landing.css">
+  <link rel="icon" href="/app/favicon.svg" type="image/svg+xml">
+</head>
+<body class="landing">
+  <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
+
+  <header class="lp-bar">
+    <div class="lp-bar-inner">
+      <a class="brand" href="/">
+        <span class="flaps" role="img" aria-label="Sparton"><span class="flap">S</span><span class="flap">P</span><span class="flap">A</span><span class="flap">R</span><span class="flap">T</span><span class="flap">O</span><span class="flap">N</span></span>
+      </a>
+      <nav class="lp-nav" aria-label="Main" data-i18n-attr="aria-label:lp.nav">
+        <a href="/#story" data-i18n="lp.nav.how">How it works</a>
+        <a href="/pricing" data-i18n="lp.nav.plans">Plans</a>
+        <a href="/faq" data-i18n="lp.nav.faq">Questions</a>
+      </nav>
+      <div class="lp-tools" id="lp-tools">
+        <a class="lp-signin" href="/app/#login" data-i18n="auth.signin">Sign in</a>
+        <a class="btn btn-primary" href="/app/#signup" data-i18n="lp.cta">Start free</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="plans-section plans-page" aria-labelledby="plans-title">
+      <div class="lp-wrap">
+        <h1 id="plans-title" data-i18n="lp.plans.title">Plans</h1>
+        <p class="section-lede" data-i18n="lp.plans.lede">Start free. Upgrade when it earns its keep. Prices exclude VAT; cancel any time from the dashboard.</p>
+        <div class="plans" id="plans" aria-live="polite"><p class="plans-loading" data-i18n="lp.plans.loading">Loading plans…</p></div>
+        <p class="plans-more"><a href="/faq" data-i18n="pp.faq">Questions about plans and data</a> · <a href="/vs/prisync" data-i18n="pp.vs">Sparton vs Prisync</a></p>
+      </div>
+    </section>
+    <section class="close" aria-labelledby="close-title">
+      <div class="lp-wrap close-inner">
+        <h2 id="close-title" data-i18n="lp.close.title">Next Sunday, know what moved.</h2>
+        <a class="btn btn-primary btn-lg" href="/app/#signup" data-i18n="lp.cta">Start free</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lp-footer">
+    <div class="lp-wrap lp-footer-inner">
+      <p data-i18n="lp.footer.line">Sparton — competitor prices for small webshops in the Netherlands and Belgium.</p>
+      <nav aria-label="Legal" data-i18n-attr="aria-label:lp.footer.legal">
+        <a href="/legal/privacy" data-i18n="lp.footer.privacy">Privacy</a>
+        <a href="/legal/terms" data-i18n="lp.footer.terms">Terms</a>
+        <a href="/legal/dpa" data-i18n="lp.footer.dpa">Data processing</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script type="module">
+    import { t, translateDom, langSwitch } from "/app/i18n.js";
+    import { planBoard } from "/app/plans.js";
+    translateDom();
+    document.title = t("pp.title");
+    document.getElementById("lp-tools")?.prepend(langSwitch());
+    const host = document.getElementById("plans");
+    fetch("/billing/plans").then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(({ plans }) => {
+      host.replaceChildren(...plans.map((p) => {
+        const a = document.createElement("a");
+        a.className = `btn plan-cta${p.id === "pro" ? " btn-primary" : ""}`;
+        a.href = p.id === "free" ? "/app/#signup" : `/app/#signup?plan=${encodeURIComponent(p.id)}`;
+        a.textContent = p.id === "free" ? t("lp.cta") : t("plan.choose", { name: p.name });
+        return planBoard(p, { featured: p.id === "pro", action: a });
+      }));
+    }).catch(() => { host.textContent = t("lp.plans.error"); });
+  </script>
+</body>
+</html>

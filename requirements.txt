@@ -1,44 +1,71 @@
-# SPARTON backend dependencies
-# Consolidated from Apollo (AI Document Agent) + Ares (AI E-Commerce Agent)
+﻿# SPARTON -- the product.
+#
+# This file installs what the SHIPPED product needs, and nothing else. The image
+# is built from it, so every line here is a few hundred megabytes of a deploy,
+# and anything here that the product does not import is a mistake.
+#
+# The feature-flagged experimental domains (documents/RAG, generation, datasets,
+# training) have their own file: requirements-experimental.txt. They are off by
+# default (ENABLED_DOMAINS=intelligence,commerce,agent) and are not installed in
+# the image. Their heavy dependencies -- sentence-transformers and faiss-cpu,
+# which pull in the whole PyTorch stack -- were what made the image 9.8 GB.
+#
+# That was possible because app/main.py imported the experimental routers
+# unconditionally, so `import app.main` reached sentence_transformers and faiss
+# whether or not a single document route was mounted. Those imports are now
+# inside the feature-flag branches: a disabled domain has no routes and is not
+# even imported.
+#
+# To run the experimental domains locally:
+#     pip install -r requirements-experimental.txt
+#     ENABLED_DOMAINS=intelligence,commerce,agent,documents,generation,datasets,training
 
-# --- Web framework ---
+# --- web ---
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
 email-validator>=2.0.0        # pydantic EmailStr
+# Upload parsing. FastAPI raises at *route definition* time if a route declares
+# File/Form and this is missing, so it is a product dependency even though only
+# the experimental routers use it -- see app/main.py.
 python-multipart>=0.0.9
+python-dotenv>=1.0.0          # pydantic-settings reads .env through it
 
-# --- Database (Ares foundation: SQLAlchemy 2 + Alembic) ---
+# --- persistence ---
 sqlalchemy>=2.0.0
 alembic>=1.14.0
 psycopg[binary]>=3.1.0        # PostgreSQL driver (SQLite used for tests/local)
-
-# --- Redis (queue transport, distributed rate limiting) ---
 redis>=5.0.0
 
-# --- HTTP clients ---
-httpx>=0.27.0                 # crawler, integrations
-requests>=2.28.1              # Ollama / ComfyUI clients (Apollo)
+# --- outbound HTTP ---
+httpx>=0.27.0                 # crawler, feed reader
+requests>=2.28.1              # Stripe and OpenRouter clients
 
-# --- Documents & RAG (Apollo) ---
-pypdf>=4.0.0
-python-docx>=1.1.0
-numpy>=1.24.0
-faiss-cpu>=1.7.4
-sentence-transformers>=2.2.0  # embedding fallback when Ollama unavailable
+# --- product internals ---
+# numpy is NOT here: nothing the product imports uses it. It arrives with the
+# embedding extras, where the vector maths lives.
 
-# --- Images & datasets (Apollo) ---
-pillow>=10.0.0
-
-# --- Utilities ---
-python-dotenv>=1.0.0
-PyYAML>=6.0
-
-# --- Observability (optional, lazy-imported in Ares; declared here explicitly) ---
+# --- observability ---
 opentelemetry-sdk>=1.25.0
 opentelemetry-exporter-otlp-proto-http>=1.25.0
 
-# --- Testing ---
+# --- tests ---
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+PyYAML>=6.0                   # parses compose/CI in tests/test_deployment.py
+
+# --- Competitor catalog feeds -------------------------------------------------
+# shopfeed reads a webshop's public catalog as exact data (Shopify / WooCommerce
+# feeds, then schema.org JSON-LD) instead of parsing rendered HTML: exact prices,
+# real compare-at values, and no LLM tokens. It is a private repository, so it
+# cannot be listed here as a git URL -- install it from the local checkout:
+#
+#     pip install -e W:/shopfeed
+#
+# It is genuinely optional at runtime: app/ecommerce/feeds.py returns the HTML
+# crawl when the import fails, so a deployment without it still works -- slower
+# and less exact, but correct. The feed tests skip when it is absent.
+#
+# (deliberately not pinned here: a version line would be fetched from an
+#  index, and this package is not on one.)

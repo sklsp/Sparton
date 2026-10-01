@@ -1,6 +1,14 @@
 """Database models package."""
 
 from app.core.database.base import Base, JSONType, SessionLocal, engine, get_db
+from app.core.database.billing_models import (
+    AuthToken,
+    AuthTokenPurpose,
+    Invoice,
+    StripeEvent,
+    Subscription,
+    SubscriptionStatus,
+)
 from app.core.database.creation_models import (
     Conversation,
     ConversationMessage,
@@ -29,16 +37,37 @@ from app.core.database.domain_models import (
     Product,
     ProductSnapshot,
 )
+from app.core.database.ecommerce_models import (
+    ChangeEvent,
+    ChangeKind,
+    ChangeSeverity,
+    Competitor,
+    CompetitorProduct,
+    CrawlStatus,
+    Platform,
+    Report,
+    ReportStatus,
+    Shop,
+)
 from app.core.database.identity import AuditLog, Organization, Project, Session, User
+from app.core.database.usage_models import LLMUsage, tokens_used_today, usage_summary
 
 __all__ = [
     "AgentRun",
     "AgentStep",
     "ApprovalRequest",
     "AuditLog",
+    "AuthToken",
+    "AuthTokenPurpose",
     "Base",
+    "ChangeEvent",
+    "ChangeKind",
+    "ChangeSeverity",
+    "Competitor",
+    "CompetitorProduct",
     "Conversation",
     "ConversationMessage",
+    "CrawlStatus",
     "DatasetImage",
     "DatasetProject",
     "Document",
@@ -47,23 +76,34 @@ __all__ = [
     "ExternalStore",
     "GeneratedImage",
     "Inventory",
+    "Invoice",
     "JSONType",
     "Job",
+    "LLMUsage",
     "LoraAsset",
     "Opportunity",
     "OpportunityEvidence",
     "Order",
     "Organization",
+    "Platform",
     "Product",
     "ProductSnapshot",
     "Project",
     "PromptTemplate",
+    "Report",
+    "ReportStatus",
     "Session",
     "SessionLocal",
+    "Shop",
+    "StripeEvent",
+    "Subscription",
+    "SubscriptionStatus",
     "TrainingProject",
     "TrainingRun",
     "User",
     "Workflow",
     "engine",
     "get_db",
+    "tokens_used_today",
+    "usage_summary",
 ]

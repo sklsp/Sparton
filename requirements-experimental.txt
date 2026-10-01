@@ -1,0 +1,39 @@
+﻿# SPARTON -- the experimental domains, NOT installed in the image.
+#
+# These back the feature-flagged `documents` (RAG), `generation`, `datasets` and
+# `training` domains. They are off by default and are not what the customer is
+# paying for: competitor and pricing intelligence is `commerce` and
+# `intelligence`, neither of which imports anything from this file.
+#
+# Why they are separate: sentence-transformers pulls in the entire PyTorch
+# stack, including the CUDA runtime, and faiss-cpu is large as well. Together
+# they were the difference between a 9.8 GB image and a small one -- for code
+# that a default deployment never executes and cannot reach, because a disabled
+# domain is not mounted.
+#
+# To use them locally:
+#     pip install -r requirements-experimental.txt
+#     ENABLED_DOMAINS=intelligence,commerce,agent,documents,generation,datasets,training
+#
+# In a container, build with the extras installed explicitly:
+#     docker build --build-arg INSTALL_EXPERIMENTAL=1 .
+#
+# The Docker image does not do this by default, and that is a deliberate product
+# decision: a smaller image is a smaller patch surface, a faster pull, and a
+# deploy that does not carry nine gigabytes of GPU runtime to serve price
+# comparisons.
+
+-r requirements.txt
+
+# --- documents / RAG ---
+sentence-transformers>=2.2.0  # embedding fallback when Ollama is unavailable
+faiss-cpu>=1.7.4              # vector index
+numpy>=1.24.0                 # vector maths, used by the two above
+pypdf>=4.0.0                  # PDF ingestion
+python-docx>=1.1.0            # .docx ingestion
+
+# --- datasets / generation ---
+pillow>=10.0.0                # image handling
+
+# --- tests that only exist for the experimental domains ---
+pytest>=8.0.0

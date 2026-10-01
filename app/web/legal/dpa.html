@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex">
+  <title>Data processing (draft) · Sparton</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/landing.css">
+</head>
+<body class="landing legal-page">
+  <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
+  <header class="lp-bar"><div class="lp-bar-inner">
+    <a class="brand" href="/"><span class="flaps" role="img" aria-label="Sparton"><span class="flap">S</span><span class="flap">P</span><span class="flap">A</span><span class="flap">R</span><span class="flap">T</span><span class="flap">O</span><span class="flap">N</span></span></a>
+    <span class="lp-nav"></span><div class="lp-tools" id="lp-tools"></div>
+  </div></header>
+  <main id="main" class="legal">
+    <p class="draft-banner" role="note"><strong data-lang="en">DRAFT — needs legal review.</strong><strong data-lang="nl">CONCEPT — moet juridisch worden nagekeken.</strong>
+      <span data-lang="en">This is not final legal text. Do not rely on it.</span><span data-lang="nl">Dit is geen definitieve juridische tekst. Deze verwerkersovereenkomst is nog alleen in het Engels beschikbaar.</span></p>
+    <article lang="en">
+  <h1>Data processing</h1>
+  <p class="lp-updated">Last updated 29 September 2026.</p>
+
+  <p>
+    This summarises how Sparton processes personal data on your behalf. Our
+    <a href="/legal/privacy">privacy policy</a> covers what we do as a
+    controller for your own account; this page covers the processor role, which
+    applies when your organisation's data is what we are handling.
+  </p>
+
+  <h2>Roles</h2>
+  <p>
+    You are the controller of your account data. Sparton is the processor. We act
+    on your documented instructions &mdash; in practice, the shop and competitor
+    URLs you add, and the crawl schedule your plan sets.
+  </p>
+
+  <h2>Subject matter, duration and nature</h2>
+  <p>
+    Processing runs for as long as your account is active. The work performed is
+    the product: fetching public product pages, extracting price and stock
+    fields, diffing them over time, and generating alerts and reports.
+  </p>
+
+  <h2>Categories of data</h2>
+  <table>
+    <tr><th>Category</th><th>What it covers</th></tr>
+    <tr><td>Account data</td><td>Name, email, organisation, hashed password</td></tr>
+    <tr><td>Commercial data</td><td>Shops, competitors, product names, prices, stock, captures, alerts, reports</td></tr>
+    <tr><td>Technical data</td><td>IP addresses, request logs, session tokens</td></tr>
+    <tr><td>Special categories</td><td>None. We do not collect or infer health, biometric, racial, political or religious data, and you must not submit it.</td></tr>
+  </table>
+
+  <h2>Sub-processors</h2>
+  <p>
+    We use a small number of suppliers, each bound by contract to process data
+    only on our instructions:
+  </p>
+  <ul>
+    <li><strong>Stripe</strong> &mdash; payment processing and billing records.</li>
+    <li><strong>Postmark / your SMTP provider</strong> &mdash; transactional email delivery.</li>
+    <li><strong>Our hosting provider</strong> &mdash; database and application hosting, within the EU.</li>
+    <li><strong>Our model provider (OpenRouter)</strong> &mdash; report narrative text only. Numeric figures are computed locally and are never sent to a model.</li>
+  </ul>
+
+  <h2>Security measures</h2>
+  <p>
+    TLS in transit, hashed passwords, per-organisation row-level access control on
+    every query, and signed, idempotent webhooks for payment events. Access to
+    production data is limited to engineers who need it and is logged.
+  </p>
+
+  <h2>Sub-processors outside the EEA</h2>
+  <p>
+    Some suppliers process data outside the European Economic Area. Where they
+    do, transfers rely on the European Commission's Standard Contractual Clauses
+    or an adequacy decision. You may request a copy of the clauses we have
+    executed.
+  </p>
+
+  <h2>Your assistance and audit</h2>
+  <p>
+    We will help you respond to a data-subject request, and you may audit our
+    processing once per year. We prefer to resolve findings by correspondence
+    and will not charge for this unless your request is manifestly unfounded.
+  </p>
+
+  <h2>Deletion</h2>
+  <p>
+    On termination we delete your data within 30 days, except billing records,
+    which we must retain for tax purposes.
+  </p>
+
+  <h2>Contact</h2>
+  <p>dpo@sparton.io &mdash; for a signed data processing agreement, contact legal@sparton.io.</p>
+    </article>
+    <p class="legal-back"><a href="/" data-i18n="legal.back">Back to Sparton</a></p>
+  </main>
+  <script type="module" src="/app/legal.js"></script>
+</body>
+</html>

@@ -99,6 +99,20 @@ def register_all() -> None:
     register_handler("research", _handle_research)
     register_handler("comfy_generation", _handle_comfy_generation)
 
+    # Sparton Intelligence — the product. Imported lazily so a deployment with
+    # the domain disabled never pays for the import.
+    from app.ecommerce.jobs import (
+        crawl_one_competitor,
+        crawl_shop,
+        generate_report_job,
+        schedule_due_crawls,
+    )
+
+    register_handler("crawl_shop", crawl_shop)
+    register_handler("crawl_competitor", crawl_one_competitor)
+    register_handler("generate_report", generate_report_job)
+    register_handler("schedule_crawls", schedule_due_crawls)
+
 
 # Register on import so both the worker process and the embedded worker get them.
 register_all()

@@ -1,11 +1,19 @@
-"""System health, readiness, metrics, and tool introspection."""
+"""System health, readiness, metrics, and tool introspection.
+
+``/live`` and ``/ready`` are deliberately unauthenticated: orchestrators probe
+them without credentials. ``/health``, ``/metrics`` and ``/tools`` describe
+internal state, so they require a principal.
+"""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Response
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import text
 
 from app.agent.runner import build_registry
+from app.core.auth.api import current_user
 from app.core.config import settings
 from app.core.database.base import engine
 from app.core.observability.metrics import render as render_metrics
@@ -31,7 +39,7 @@ def ready() -> dict:
 
 
 @router.get("/health")
-def health() -> dict:
+def health(user: Annotated[object, Depends(current_user)] = None) -> dict:
     db_ok = False
     try:
         with engine.connect() as conn:
@@ -41,6 +49,8 @@ def health() -> dict:
         pass
 
     llm = get_llm_provider()
+    from app.core.features import describe as describe_features
+
     return {
         "status": "ok" if db_ok else "degraded",
         "database": {"ok": db_ok, "url_scheme": settings.database_url.split(":", 1)[0]},
@@ -50,16 +60,19 @@ def health() -> dict:
             "model": getattr(llm, "default_model", None) or getattr(llm, "model", None),
         },
         "agent_tools": len(build_registry()),
+        "features": describe_features(),
     }
 
 
 @router.get("/metrics")
-def metrics() -> Response:
+def metrics(user: Annotated[object, Depends(current_user)] = None) -> Response:
+    # Scraped by Prometheus with X-API-Key, or by a signed-in operator.
     return Response(content=render_metrics(), media_type="text/plain; version=0.0.4")
 
 
 @router.get("/tools")
-def tools() -> dict:
+def tools(user: Annotated[object, Depends(current_user)] = None) -> dict:
+    # Tool names, descriptions and full JSON schemas are internal surface.
     registry = build_registry()
     return {"count": len(registry), "tools": [t.to_info() for t in registry.list()]}
 

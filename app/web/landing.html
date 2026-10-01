@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#17191b">
+  <title>Sparton — see what your competitors changed this week</title>
+  <meta name="description" content="Sparton watches your competitors' webshops: price changes, sales, stock-outs and new products, with a weekly report in which every claim links to its evidence. For Shopify, WooCommerce and Lightspeed shops.">
+  <meta property="og:title" content="Sparton — see what your competitors changed this week">
+  <meta property="og:description" content="Competitor prices for small webshops. Exact data where the shop publishes it, clearly labelled where it doesn't. Free for one shop and three competitors.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="/app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preload" href="/app/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./landing.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%2317191b'/><rect x='4' y='15.5' width='24' height='1' fill='%230b0c0d'/><text x='16' y='23' font-family='Arial Narrow,Arial' font-size='19' font-weight='700' fill='%23f5c518' text-anchor='middle'>S</text></svg>">
+</head>
+<body class="landing">
+  <!--
+  THESIS: The landing page is a departure board for competitor prices. The first viewport is the board itself, flipping a demo week of real-shaped changes; it refuses the headline-screenshot-three-cards SaaS hero.
+  OWN-WORLD: Graphite board (#17191b) with chalk split-flap tiles and whole-word name strips, station yellow (#f5c518) for the one action, concourse-grey wall (#e3e4e0) for reading sections. Exact rows solid, extracted rows hatched, sold-out struck.
+  STORY: A shop owner sees which competitor moved which price, learns Sparton finds and matches competitors itself and says how sure each number is, then starts free.
+  FIRST VIEWPORT: Headline and "Start free" over a full-width board of six demo rows that flip every few seconds; DEMO plate on the board frame.
+  FORM: The Price Board, 1st of 3 on the delegated shortlist; direction round key 43dc8938. Scroll-story structure from scroll-world, rendered in code.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+  -->
+  <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
+
+  <header class="lp-bar">
+    <div class="lp-bar-inner">
+      <a class="brand" href="/">
+        <span class="flaps" role="img" aria-label="Sparton"><span class="flap">S</span><span class="flap">P</span><span class="flap">A</span><span class="flap">R</span><span class="flap">T</span><span class="flap">O</span><span class="flap">N</span></span>
+      </a>
+      <nav class="lp-nav" aria-label="Main" data-i18n-attr="aria-label:lp.nav">
+        <a href="#story" data-i18n="lp.nav.how">How it works</a>
+        <a href="#pricing" data-i18n="lp.nav.plans">Plans</a>
+        <a href="#faq" data-i18n="lp.nav.faq">Questions</a>
+      </nav>
+      <div class="lp-tools" id="lp-tools">
+        <a class="lp-signin" href="/app/#login" data-i18n="auth.signin">Sign in</a>
+        <a class="btn btn-primary" href="/app/#signup" data-i18n="lp.cta">Start free</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- 1. The board: the product, at the scale it has in life. -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <h1 id="hero-title" data-i18n="lp.hero.title">See what your competitors changed this week.</h1>
+        <p class="hero-lede" data-i18n="lp.hero.lede">Sparton finds the shops you compete with, reads their whole catalogue, and tells you every Sunday who moved a price, ran a sale or sold out. Each number links to the page it came from.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary btn-lg" href="/app/#signup" data-i18n="lp.hero.cta">Start free — no card</a>
+          <a class="btn btn-lg lp-ghost-dark" href="#story" data-i18n="lp.hero.secondary">See how it works</a>
+        </div>
+        <p class="hero-fine" data-i18n="lp.hero.fine">Free for 1 shop and 3 competitors. Shopify, WooCommerce and Lightspeed.</p>
+      </div>
+
+      <figure class="board" id="hero-board" aria-describedby="hero-board-caption">
+        <div class="board-head">
+          <span class="board-title" data-i18n="lp.board.title">Competitor prices · this week</span>
+          <span class="board-demo" data-i18n="lp.demo">Demo data</span>
+        </div>
+        <div class="board-cols" aria-hidden="true">
+          <span data-i18n="lp.board.col.shop">Shop</span>
+          <span data-i18n="lp.board.col.product">Product</span>
+          <span class="num" data-i18n="lp.board.col.was">Was</span>
+          <span class="num" data-i18n="lp.board.col.now">Now</span>
+          <span class="num" data-i18n="lp.board.col.change">Change</span>
+        </div>
+        <ol class="board-rows" id="hero-rows"></ol>
+        <figcaption class="board-legend" id="hero-board-caption">
+          <span class="legend-item"><span class="legend-tile mark-exact" aria-hidden="true"></span><span data-i18n="lp.legend.exact">Solid: exact, the shop's own product data</span></span>
+          <span class="legend-item"><span class="legend-tile mark-extracted" aria-hidden="true"></span><span data-i18n="lp.legend.extracted">Hatched: extracted from the page</span></span>
+          <span class="legend-item"><span class="legend-struck" aria-hidden="true">ABC</span><span data-i18n="lp.legend.soldout">Struck: sold out</span></span>
+        </figcaption>
+      </figure>
+    </section>
+
+    <!-- 2. The scroll story: the board stays pinned, the scene changes as you read. -->
+    <section class="story" id="story" aria-labelledby="story-title">
+      <h2 id="story-title" class="visually-hidden" data-i18n="lp.story.title">How Sparton works</h2>
+      <div class="story-stage" aria-hidden="true">
+        <div class="board board-stage" id="stage-board">
+          <div class="board-head">
+            <span class="board-title" id="stage-title">—</span>
+            <span class="board-demo" data-i18n="lp.demo">Demo data</span>
+          </div>
+          <ol class="board-rows" id="stage-rows"></ol>
+          <div class="stage-foot" id="stage-foot"></div>
+        </div>
+        <ol class="story-rail" id="story-rail"></ol>
+      </div>
+      <div class="story-steps">
+        <article class="step" data-scene="shop">
+          <h3 data-i18n="lp.s1.title">You give us one thing: your shop's address.</h3>
+          <p data-i18n="lp.s1.body">From your address Sparton works out what you sell, so it can go looking for the shops that sell the same.</p>
+        </article>
+        <article class="step" data-scene="discover">
+          <h3 data-i18n="lp.s2.title">It finds the shops you actually compete with.</h3>
+          <p data-i18n="lp.s2.body">No list of URLs to paste. Sparton suggests shops that sell what you sell, and you confirm the ones that matter. Nobody is watched until you say so.</p>
+        </article>
+        <article class="step" data-scene="match">
+          <h3 data-i18n="lp.s3.title">It reads every product they sell.</h3>
+          <p data-i18n="lp.s3.body">Names, prices, sale prices and stock, for the whole catalogue. On Shopify and WooCommerce it comes from the shop's own product feed, exact to the cent.</p>
+        </article>
+        <article class="step" data-scene="moves">
+          <h3 data-i18n="lp.s4.title">Then it watches. Every move lands on the board.</h3>
+          <p data-i18n="lp.s4.body">Price cuts, price rises, sales with their "was" price, products that sell out or come back, and new products. Weekly on Free, daily on Pro, twice a day on Business.</p>
+        </article>
+        <article class="step" data-scene="certainty">
+          <h3 data-i18n="lp.s5.title">And it tells you how sure it is.</h3>
+          <p data-i18n="lp.s5.body">Where a shop publishes its own product data, the number is exact and the tile is solid. Where Sparton has to read the page, the tile is hatched and the row says "extracted". You always know which is which.</p>
+        </article>
+        <article class="step" data-scene="report">
+          <h3 data-i18n="lp.s6.title">On Sunday you get the week in plain language.</h3>
+          <p data-i18n="lp.s6.body">A short report of what changed and what it means for you. The numbers come from the comparison, never from the AI; the AI only writes the sentences, and every claim links to its evidence.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- 3. Plans: prices come from the API, never from this page. -->
+    <section class="plans-section" id="pricing" aria-labelledby="plans-title">
+      <div class="lp-wrap">
+        <h2 id="plans-title" data-i18n="lp.plans.title">Plans</h2>
+        <p class="section-lede" data-i18n="lp.plans.lede">Start free. Upgrade when it earns its keep. Prices exclude VAT; cancel any time from the dashboard.</p>
+        <div class="plans" id="plans" aria-live="polite">
+          <p class="plans-loading" data-i18n="lp.plans.loading">Loading plans…</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Questions -->
+    <section class="faq-section" id="faq" aria-labelledby="faq-title">
+      <div class="lp-wrap faq-wrap">
+        <h2 id="faq-title" data-i18n="lp.faq.title">Questions</h2>
+        <div class="faq">
+          <details><summary data-i18n="lp.faq.q1">Is this allowed?</summary><p data-i18n="lp.faq.a1">Sparton only reads pages a shop has made public, identifies itself honestly, respects robots.txt and waits between requests. It never logs in, never bypasses anything and never touches a checkout.</p></details>
+          <details><summary data-i18n="lp.faq.q2">How exact are the prices?</summary><p data-i18n="lp.faq.a2">On Shopify and WooCommerce shops Sparton reads the shop's own product feed: the price to the cent, including the &quot;was&quot; price of a sale and whether it is in stock. Where a shop publishes no feed, Sparton reads the product data the shop puts in its own pages (schema.org), which counts as exact too. Only as a last resort does it extract the price from the page itself; those rows are labelled &quot;extracted&quot;.</p></details>
+          <details><summary data-i18n="lp.faq.q3">Does the AI make up numbers?</summary><p data-i18n="lp.faq.a3">No. Every number comes from comparing two readings of the same product. The AI only writes the sentences around those facts and may use no figure that is not in them. If the AI is unavailable you still get a correct report, just a plainer one.</p></details>
+          <details><summary data-i18n="lp.faq.q4">How often do you check?</summary><p data-i18n="lp.faq.a4">Weekly on Free, daily on Pro and twice a day on Business. The first check of a new competitor sets the baseline; changes appear from the second check on.</p></details>
+          <details><summary data-i18n="lp.faq.q5">Which shops can I watch?</summary><p data-i18n="lp.faq.a5">Any webshop with public product pages. Shopify and WooCommerce shops give exact data through their feeds; other platforms, Lightspeed included, are read from the product data on the page and labelled accordingly.</p></details>
+          <details><summary data-i18n="lp.faq.q6">Can I cancel?</summary><p data-i18n="lp.faq.a6">Any time, from the dashboard. No email, no call. You keep access until the end of the period you paid for.</p></details>
+          <details><summary data-i18n="lp.faq.q7">What happens to my data if I leave?</summary><p data-i18n="lp.faq.a7">You can delete your account at any time, which removes your shops, competitors, readings and reports.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. The close -->
+    <section class="close" aria-labelledby="close-title">
+      <div class="lp-wrap close-inner">
+        <h2 id="close-title" data-i18n="lp.close.title">Next Sunday, know what moved.</h2>
+        <a class="btn btn-primary btn-lg" href="/app/#signup" data-i18n="lp.cta">Start free</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lp-footer">
+    <div class="lp-wrap lp-footer-inner">
+      <p data-i18n="lp.footer.line">Sparton — competitor prices for small webshops in the Netherlands and Belgium.</p>
+      <nav aria-label="Legal" data-i18n-attr="aria-label:lp.footer.legal">
+        <a href="/legal/privacy" data-i18n="lp.footer.privacy">Privacy</a>
+        <a href="/legal/terms" data-i18n="lp.footer.terms">Terms</a>
+        <a href="/legal/dpa" data-i18n="lp.footer.dpa">Data processing</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script type="module" src="./landing.js"></script>
+</body>
+</html>

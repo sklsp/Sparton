@@ -1,0 +1,133 @@
+{
+  "title": "Choose Sparton's visual world",
+  "question": "The roll assigned the Price Board. Keep it, take an alternate, or re-roll.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "The Price Board",
+      "kicker": "THE ROLL",
+      "lineage": "split-flap quotation boards of the old exchange hall and the station concourse",
+      "thesis": "Every competitor price is a flap that turns; Sparton is the board that shows what moved since you last looked.",
+      "palette": ["#e9e4d8", "#1b1d1f", "#f2efe6", "#1f8a4c", "#d2402a"],
+      "materials": ["enamelled flap tiles in graphite", "cream wall of a concourse", "painted board frame"],
+      "viewport": "A full-width departure-style board of real-shaped competitor rows (demo data, labelled) whose prices flip in place while the headline and 'Start free' sit above it.",
+      "risk": "Reads as stock-trading if the rows speak in tickers instead of products and shops.",
+      "raised": [
+        {"from": "challenger-cutting-bench", "raise": "State is a mark, not a hue: exact rows are solid tiles, extracted rows hatched, sold-out struck through."},
+        {"from": "challenger-arcade", "raise": "An attract loop: before signup the landing board cycles a week of demo changes on its own."},
+        {"from": "challenger-one-bit", "raise": "Whole-step motion only: flaps turn in whole characters with a step easing, never a smooth tween."},
+        {"from": "challenger-deep-dive", "raise": "One time axis rules every view: changes, reports and crawls line up on the same weekly ruling."},
+        {"from": "challenger-sewing-pattern", "raise": "Your price is a solid line, competitors' dashed, in every price history."}
+      ],
+      "comp": ".impeccable/mocks/decision/assigned.webp"
+    },
+    {
+      "id": "model-pick",
+      "label": "Shelf Label & Weekly Folder",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "Dutch supermarket shelf labels and the weekly deals folder",
+      "thesis": "Competitor changes as the shelf labels every shop owner reads: was-price struck through, new price big, the deal flagged.",
+      "palette": ["#ffd21f", "#0b3d91", "#ffffff", "#e30613", "#101010"],
+      "materials": ["printed shelf strips", "newsprint folder", "sticker flags"],
+      "viewport": "A folder spread of this week's competitor moves as shelf labels, with the offer and 'Start free' on the cover strip.",
+      "risk": "The most familiar retail look; can read as cheap discounting instead of intelligence.",
+      "comp": ".impeccable/mocks/decision/model-pick.webp"
+    },
+    {
+      "id": "challenger-rietveld",
+      "label": "Sliding Planes",
+      "verdict": "competitive",
+      "lineage": "the Rietveld Schröder house",
+      "thesis": "One room of sliding primary planes: shops, competitors and changes are positions of the same space.",
+      "palette": ["#f4f4f1", "#1a1a1a", "#d62a1e", "#f3c11b", "#1f4fa3"],
+      "materials": ["painted planes", "black frame lines"],
+      "viewport": "White and grey planes with one red edge that slides to reveal this week's biggest competitor move.",
+      "case": "Strong Dutch identification; loses on clarity because prices and proof aren't native to the form.",
+      "risk": "Becomes De Stijl wallpaper if the planes don't actually move and carry data.",
+      "comp": ".impeccable/mocks/decision/challenger-rietveld.webp",
+      "hero": "https://impeccable.style/worlds/cards/design-canon-rietveld-sliding-house-hero.webp"
+    },
+    {
+      "id": "challenger-cutting-bench",
+      "label": "Cutting Bench Rail",
+      "verdict": "declined",
+      "lineage": "film editing bench",
+      "thesis": "Changes as frames on a rail, flagged where you stopped.",
+      "palette": ["#0c0c0c", "#f26a1b", "#f4f1ea"],
+      "materials": ["film grain", "tape flags"],
+      "viewport": "A perforated rail of this week's changes across an orange field.",
+      "case": "Shop owners don't live at an editing bench, and the rail hides the prices.",
+      "kept": "State as a mark, not a hue.",
+      "risk": "Alien to the audience.",
+      "hero": "https://impeccable.style/worlds/cards/operate-a-cutting-bench-select-rail-hero.webp"
+    },
+    {
+      "id": "challenger-one-bit",
+      "label": "One-bit Desktop",
+      "verdict": "declined",
+      "lineage": "early one-bit desktops",
+      "thesis": "Competitors as windows on a dithered desktop.",
+      "palette": ["#000000", "#ffffff"],
+      "materials": ["dither", "pixel chrome"],
+      "viewport": "Overlapping windows, one per competitor.",
+      "case": "Nostalgia for a different audience; prices lose their weight in pixel type.",
+      "kept": "Whole-step motion discipline.",
+      "risk": "Retro novelty.",
+      "hero": "https://impeccable.style/worlds/cards/medium-native-one-bit-desktop-hero.webp"
+    },
+    {
+      "id": "challenger-arcade",
+      "label": "Arcade Marquee Row",
+      "verdict": "declined",
+      "lineage": "arcade halls",
+      "thesis": "One cabinet per competitor down a dark aisle.",
+      "palette": ["#0a0a12", "#19e3ff", "#ff3dbb"],
+      "materials": ["backlit marquee", "airbrush"],
+      "viewport": "A dark aisle of glowing competitor marquees.",
+      "case": "Undermines trust in the numbers; wrong register for a pricing tool.",
+      "kept": "The attract loop before commitment.",
+      "risk": "Toy-like.",
+      "hero": "https://impeccable.style/worlds/cards/pop-culture-shelf-arcade-marquee-row-hero.webp"
+    },
+    {
+      "id": "challenger-deep-dive",
+      "label": "Deep Dive",
+      "verdict": "declined",
+      "lineage": "technical diving",
+      "thesis": "The week as a descent.",
+      "palette": ["#06142e", "#2fd0e0", "#f2f6f8"],
+      "materials": ["marine snow", "dive computer digits"],
+      "viewport": "A vertical dive profile of the week's changes.",
+      "case": "Beautiful metaphor with no link to shop owners' work.",
+      "kept": "One axis ruling every view.",
+      "risk": "Pure mood.",
+      "hero": "https://impeccable.style/worlds/cards/rivers-tides-ocean-depths-mesophotic-deep-dive-hero.webp"
+    },
+    {
+      "id": "challenger-sewing-pattern",
+      "label": "Sewing Pattern",
+      "verdict": "declined",
+      "lineage": "home sewing pattern envelopes",
+      "thesis": "Competitors as graded pattern lines.",
+      "palette": ["#e9dcc0", "#141414", "#c8322d"],
+      "materials": ["tissue", "drafting marks"],
+      "viewport": "A tissue sheet of nested price lines.",
+      "case": "Charming but indirect; owners would decode it before trusting it.",
+      "kept": "Your line solid, the others dashed.",
+      "risk": "Craft cosplay.",
+      "hero": "https://impeccable.style/worlds/cards/fashion-folded-worlds-sewing-pattern-envelope-hero.webp"
+    }
+  ],
+  "reroll": {"registers": ["safer", "bolder"]},
+  "buildPath": {"value": "code"},
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A clean SaaS landing page and dashboard, executed impeccably.",
+    "palette": ["#ffffff", "#0f172a", "#4f46e5"],
+    "materials": ["clean grid", "product screenshots"],
+    "viewport": "Headline, product screenshot, three feature blocks, pricing cards.",
+    "risk": "Indistinguishable from every other SaaS tool by design."
+  },
+  "steer": true
+}

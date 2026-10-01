@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#17191b">
+  <title>Sparton questions — how it reads prices, how often, and what it costs</title>
+  <meta name="description" content="Answers about Sparton: whether competitor monitoring is allowed, how exact the prices are, how often shops are checked, and cancelling.">
+  <meta property="og:title" content="Sparton questions — how it reads prices, how often, and what it costs">
+  <meta property="og:description" content="Answers about Sparton: whether competitor monitoring is allowed, how exact the prices are, how often shops are checked, and cancelling.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="/app/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preload" href="/app/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/landing.css">
+  <link rel="icon" href="/app/favicon.svg" type="image/svg+xml">
+</head>
+<body class="landing">
+  <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
+
+  <header class="lp-bar">
+    <div class="lp-bar-inner">
+      <a class="brand" href="/">
+        <span class="flaps" role="img" aria-label="Sparton"><span class="flap">S</span><span class="flap">P</span><span class="flap">A</span><span class="flap">R</span><span class="flap">T</span><span class="flap">O</span><span class="flap">N</span></span>
+      </a>
+      <nav class="lp-nav" aria-label="Main" data-i18n-attr="aria-label:lp.nav">
+        <a href="/#story" data-i18n="lp.nav.how">How it works</a>
+        <a href="/pricing" data-i18n="lp.nav.plans">Plans</a>
+        <a href="/faq" data-i18n="lp.nav.faq">Questions</a>
+      </nav>
+      <div class="lp-tools" id="lp-tools">
+        <a class="lp-signin" href="/app/#login" data-i18n="auth.signin">Sign in</a>
+        <a class="btn btn-primary" href="/app/#signup" data-i18n="lp.cta">Start free</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="faq-section" aria-labelledby="faq-title">
+      <div class="lp-wrap faq-wrap">
+        <h1 id="faq-title" data-i18n="lp.faq.title">Questions</h1>
+        <div class="faq">
+          <details><summary data-i18n="lp.faq.q1">Is this allowed?</summary><p data-i18n="lp.faq.a1">Sparton only reads pages a shop has made public, identifies itself honestly, respects robots.txt and waits between requests. It never logs in, never bypasses anything and never touches a checkout.</p></details>
+          <details><summary data-i18n="lp.faq.q2">How exact are the prices?</summary><p data-i18n="lp.faq.a2">On Shopify and WooCommerce shops Sparton reads the shop's own product feed: the price to the cent, including the &quot;was&quot; price of a sale and whether it is in stock. Where a shop publishes no feed, Sparton reads the product data the shop puts in its own pages (schema.org), which counts as exact too. Only as a last resort does it extract the price from the page itself; those rows are labelled &quot;extracted&quot;.</p></details>
+          <details><summary data-i18n="lp.faq.q3">Does the AI make up numbers?</summary><p data-i18n="lp.faq.a3">No. Every number comes from comparing two readings of the same product. The AI only writes the sentences around those facts and may use no figure that is not in them. If the AI is unavailable you still get a correct report, just a plainer one.</p></details>
+          <details><summary data-i18n="lp.faq.q4">How often do you check?</summary><p data-i18n="lp.faq.a4">Weekly on Free, daily on Pro and twice a day on Business. The first check of a new competitor sets the baseline; changes appear from the second check on.</p></details>
+          <details><summary data-i18n="lp.faq.q5">Which shops can I watch?</summary><p data-i18n="lp.faq.a5">Any webshop with public product pages. Shopify and WooCommerce shops give exact data through their feeds; other platforms, Lightspeed included, are read from the product data on the page and labelled accordingly.</p></details>
+          <details><summary data-i18n="lp.faq.q6">Can I cancel?</summary><p data-i18n="lp.faq.a6">Any time, from the dashboard. No email, no call. You keep access until the end of the period you paid for.</p></details>
+          <details><summary data-i18n="lp.faq.q7">What happens to my data if I leave?</summary><p data-i18n="lp.faq.a7">You can delete your account at any time, which removes your shops, competitors, readings and reports.</p></details>
+        </div>
+    </section>
+    <section class="close" aria-labelledby="close-title">
+      <div class="lp-wrap close-inner">
+        <h2 id="close-title" data-i18n="lp.close.title">Next Sunday, know what moved.</h2>
+        <a class="btn btn-primary btn-lg" href="/app/#signup" data-i18n="lp.cta">Start free</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lp-footer">
+    <div class="lp-wrap lp-footer-inner">
+      <p data-i18n="lp.footer.line">Sparton — competitor prices for small webshops in the Netherlands and Belgium.</p>
+      <nav aria-label="Legal" data-i18n-attr="aria-label:lp.footer.legal">
+        <a href="/legal/privacy" data-i18n="lp.footer.privacy">Privacy</a>
+        <a href="/legal/terms" data-i18n="lp.footer.terms">Terms</a>
+        <a href="/legal/dpa" data-i18n="lp.footer.dpa">Data processing</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script type="module">
+    import { t, translateDom, langSwitch } from "/app/i18n.js";
+    translateDom();
+    document.title = t("fq.title");
+    document.getElementById("lp-tools")?.prepend(langSwitch());
+  </script>
+</body>
+</html>
