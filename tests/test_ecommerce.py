@@ -937,3 +937,42 @@ class TestFeatureFlags:
         features = client.get("/health", headers=auth_headers).json()["features"]
         assert "commerce" in features["enabled"]
         assert "documents" in features["disabled"]
+
+
+class TestPriceHistory:
+    """`GET /changes/{id}/history`: the product page's captures, oldest first, for the chart."""
+
+    def test_a_price_cut_has_a_two_point_history(
+        self, client, auth_headers, db_session, shop, rival, store, monkeypatch
+    ):
+        competitor = db_session.get(Competitor, rival["id"])
+        run_crawl(db_session, competitor, shop["id"], store, monkeypatch)
+        clear_changes(db_session)
+        store.set_price("Linen Table Runner", "27.50")
+        run_crawl(db_session, competitor, shop["id"], store, monkeypatch)
+        cut = next(
+            c for c in db_session.execute(select(ChangeEvent)).scalars().all()
+            if c.kind == ChangeKind.PRICE_DECREASE
+        )
+
+        response = client.get(f"/changes/{cut.id}/history", headers=auth_headers)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["product"] == "Linen Table Runner"
+        assert [float(p["price"]) for p in body["points"]] == [34.0, 27.5]
+        assert all(p["data_source"] and p["source_label"] for p in body["points"])
+        assert body["change"]["competitor_id"] == rival["id"]
+
+    def test_another_tenant_gets_a_404(self, client, auth_headers, db_session, shop, rival, store, monkeypatch):
+        competitor = db_session.get(Competitor, rival["id"])
+        run_crawl(db_session, competitor, shop["id"], store, monkeypatch)
+        change = db_session.execute(select(ChangeEvent)).scalars().first()
+        other = client.post("/auth/register", json={
+            "email": "history-other@example.com", "password": "correct-horse-battery",
+            "organization_name": "Other Co"})
+        assert other.status_code == 201, other.text
+        headers = {"Authorization": f"Bearer {other.json()['token']}"}
+        assert client.get(f"/changes/{change.id}/history", headers=headers).status_code == 404
+
+    def test_an_unknown_change_is_a_404(self, client, auth_headers):
+        assert client.get("/changes/999999/history", headers=auth_headers).status_code == 404

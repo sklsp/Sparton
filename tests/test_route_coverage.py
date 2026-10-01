@@ -140,6 +140,7 @@ PROTECTED_WRITE_ONLY = [
 PROTECTED_WITH_IDS = [
     "/agent/runs/1",
     "/agent/runs/1/events",
+    "/changes/1/history",
     "/products/1",
     "/reports/1",
     "/shops/1",

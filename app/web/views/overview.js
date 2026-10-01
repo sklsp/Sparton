@@ -1,150 +1,95 @@
-// Overview — what happened, and what to do next.
-//
-// The whole screen is driven by one `GET /overview` round trip. That is a
-// deliberate constraint from the API side ("everything the dashboard needs in
-// one round trip") and it should not be undone by convenience fetches here.
-//
-// The ordering is the argument: headline numbers, then the thing that needs a
-// decision (unread alerts), then the shops you are watching. A customer who
-// only reads the top third still learns something true.
+// This week: the board of what competitors changed, newest first. One request (`/overview`)
+// for the board and the counts, one more for source labels per competitor.
 
-import { api } from "../api.js";
-import { h, fill, asyncPanel, empty, skeletonMetrics, button, ago, num, badge } from "../ui.js";
-import { money, kindLabel, kindTone } from "./shared.js";
+import { api, settleAll, settledValue } from "../api.js";
+import { h, fill, errorState } from "../ui.js";
+import { t, fmtDate } from "../i18n.js";
+import { boardRow } from "../board.js";
+import { changeRow, weekLabel, countFlow } from "./board-view.js";
 
-function greeting(user) {
-  const hour = new Date().getHours();
-  const part = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const name = (user?.email || "").split("@")[0];
-  return name ? `${part}, ${name}` : part;
+export default function overviewView(host, { navigate }) {
+  const load = async () => {
+    const [ov, comps] = await settleAll([api.overview(), api.competitors()]);
+    if (ov.status === "rejected") throw ov.reason;
+    const list = settledValue(comps, { competitors: [] });
+    // A quiet week still shows the last moves, so the board is never just an empty frame.
+    const earlier = ov.value.shops.length && !ov.value.recent_changes.length
+      ? (await api.changes({ days: 60, limit: 8 }).catch(() => ({ changes: [] }))).changes
+      : [];
+    return { ov: ov.value, competitors: list.competitors || list, earlier };
+  };
+
+  const render = ({ ov, competitors, earlier }) => {
+    if (!ov.shops.length) return firstRun(navigate);
+    const source = new Map(competitors.map((c) => [c.id, c.data_source]));
+
+    const counts = h("p.week-counts",
+      countFlow(ov.changes_this_week, "ov.count.changes"),
+      countFlow(ov.unacknowledged, "ov.count.unread"),
+      countFlow(ov.competitor_count, "ov.count.watched"),
+      ov.competitors_failing ? countFlow(ov.competitors_failing, "ov.count.failing", "warn") : null);
+
+    const toRow = (c) => changeRow(c, source.get(c.competitor_id), () => navigate(`product?change=${c.id}`));
+    const rows = ov.recent_changes.map(toRow);
+    const cols = () => h("div.board-cols", { "aria-hidden": "true" },
+      h("span", t("ov.col.competitor")), h("span", t("ov.col.product")),
+      h("span.num", t("ov.col.was")), h("span.num", t("ov.col.now")), h("span.num", t("ov.col.change")), h("span"));
+    const board = h("section.board.week-board", { "aria-labelledby": "week-board-title" },
+      h("div.board-head",
+        h("h2.board-title#week-board-title", t("ov.board.title")),
+        h("a.board-link", { href: "#/alerts" }, t("ov.board.all"))),
+      rows.length
+        ? [cols(), h("ol.board-rows", rows)]
+        : [quietWeek(ov), earlier.length
+            ? [h("h3.board-sub", t("ov.earlier")), cols(), h("ol.board-rows", earlier.map(toRow))]
+            : null]);
+
+    const report = ov.latest_report
+      ? h("a.report-teaser", { href: "#/reports" },
+          h("span.report-teaser-k", t("ov.report.latest")),
+          h("strong", ov.latest_report.title || t("ov.report.untitled")),
+          h("span.report-teaser-go", t("ov.report.read")))
+      : null;
+
+    return [
+      h("header.view-head",
+        h("h1.view-title", t("ov.title")),
+        h("p.view-sub", weekLabel())),
+      counts,
+      board,
+      report,
+    ];
+  };
+
+  const run = async () => {
+    fill(host, h("div.view-head", h("h1.view-title", t("ov.title"))), loadingBoard());
+    try {
+      fill(host, render(await load()));
+    } catch (err) {
+      fill(host, h("h1.view-title", t("ov.title")), errorState({ title: t("ov.error"), message: err.message, onRetry: run }));
+    }
+  };
+  run();
 }
 
-export default function overviewView(host, { navigate, state }) {
-  const metricsHost = h("div");
-  const alertsHost = h("div.stack");
-  const shopsHost = h("div.stack");
-  let reload = () => {};
-
-  host.append(
-    h("div.page-head",
-      h("div",
-        h("h1", greeting(state?.user)),
-        h("p", "What your competitors did in the last seven days."))),
-    metricsHost,
-    h("section.ov-section",
-      h("div.ov-section-head",
-        h("h2.ov-section-title", "Needs your attention"),
-        button("All alerts", { size: "sm", onClick: () => navigate("alerts") })),
-      alertsHost),
-    h("section.ov-section",
-      h("div.ov-section-head",
-        h("h2.ov-section-title", "Shops you are watching"),
-        button("Manage shops", { size: "sm", onClick: () => navigate("shops") })),
-      shopsHost));
-
-  /* -------------------------------------------------------------- metrics */
-  function metrics(data) {
-    const failing = data.competitors_failing;
-    return h("div.metrics",
-      h("div.metric", { "data-tone": "info" },
-        h("p.metric-label", "Competitors tracked"),
-        h("p.metric-value", num(data.competitor_count)),
-        h("p.metric-sub", `${data.competitors_healthy} crawled cleanly`)),
-      h("div.metric", { "data-tone": "neutral" },
-        h("p.metric-label", "Changes this week"),
-        h("p.metric-value", num(data.changes_this_week)),
-        h("p.metric-sub", data.changes_this_week
-          ? "price, stock and assortment"
-          : "nothing moved")),
-      h("div.metric", {
-        "data-tone": data.unacknowledged ? "warning" : "neutral",
-      },
-        h("p.metric-label", "Unread alerts"),
-        h("p.metric-value", num(data.unacknowledged)),
-        h("p.metric-sub", data.unacknowledged ? "waiting on you" : "all caught up")),
-      h("div.metric", { "data-tone": failing ? "danger" : "neutral" },
-        h("p.metric-label", "Crawl problems"),
-        h("p.metric-value", num(failing)),
-        h("p.metric-sub", failing
-          ? "blocked or failing — check robots.txt"
-          : "none")));
-  }
-
-  /* --------------------------------------------------------------- alerts */
-  function changeRow(change) {
-    return h("li.ov-change", { "data-tone": kindTone(change.kind) },
-      h("div.ov-change-main",
-        h("p.ov-change-title", change.title || kindLabel(change.kind)),
-        h("p.ov-change-meta",
-          change.competitor ? h("span", change.competitor, " · ") : null,
-          change.product ? h("span", change.product, " · ") : null,
-          h("time", { datetime: change.detected_at || "" }, ago(change.detected_at)))),
-      h("div.ov-change-side",
-        change.new_price != null
-          ? h("span.ov-change-price", money(change.new_price, change.currency))
-          : badge(kindLabel(change.kind), kindTone(change.kind)),
-        change.evidence_url
-          ? h("a.ov-evidence", {
-              href: change.evidence_url, target: "_blank", rel: "noopener noreferrer",
-            }, "Evidence ↗")
-          : null));
-  }
-
-  function renderAlerts(data) {
-    const changes = data.recent_changes || [];
-    if (!changes.length) {
-      fill(alertsHost, empty({
-        iconName: "check",
-        title: data.competitor_count
-          ? "Nothing has moved this week"
-          : "Nothing to watch yet",
-        message: data.competitor_count
-          ? "No competitor changed a price, added a product or ran out of "
-            + "stock in the last seven days."
-          : "Add a shop and a competitor, and this is where their changes "
-            + "will appear.",
-        action: data.competitor_count
-          ? null
-          : { label: "Add your first shop", onClick: () => navigate("shops") },
-      }));
-      return;
-    }
-    fill(alertsHost, h("ul.ov-change-list", changes.map(changeRow)));
-  }
-
-  /* ---------------------------------------------------------------- shops */
-  function renderShops(data) {
-    const shops = data.shops || [];
-    if (!shops.length) {
-      fill(shopsHost, empty({
-        iconName: "shop",
-        title: "No shops yet",
-        message: "Add your shop and we will start watching the competitors you choose.",
-        action: { label: "Add a shop", onClick: () => navigate("shops") },
-      }));
-      return;
-    }
-    fill(shopsHost,
-      h("div.ov-shop-grid",
-        shops.map((shop) =>
-          h("a.ov-shop", { href: "#/shops" },
-            h("p.ov-shop-name", shop.name),
-            h("p.ov-shop-meta", shop.domain),
-            h("p.ov-shop-crawl", shop.last_crawled_at
-              ? `Last crawl ${ago(shop.last_crawled_at)}`
-              : "Never crawled")))));
-  }
-
-  /* ----------------------------------------------------------------- load */
-  async function render() {
-    const data = await api.overview();
-    fill(metricsHost, metrics(data));
-    renderAlerts(data);
-    renderShops(data);
-  }
-
-  reload = asyncPanel(metricsHost, render, render, {
-    loading: () => skeletonMetrics(4),
-  });
-  return reload;
+function quietWeek(ov) {
+  const next = ov.shops.map((s) => s.next_crawl_at).filter(Boolean).sort()[0];
+  return h("div.board-quiet",
+    h("p.board-quiet-title", t("ov.quiet.title")),
+    h("p", next ? t("ov.quiet.next", { when: fmtDate(new Date(next), { weekday: "long", day: "numeric", month: "long" }) }) : t("ov.quiet.body")));
 }
+
+function firstRun() {
+  return h("section.first-run",
+    h("h1.view-title", t("ov.first.title")),
+    h("p.view-sub", t("ov.first.body")),
+    h("a.btn", { href: "#/start", "data-variant": "primary", "data-size": "lg" }, t("ov.first.cta")));
+}
+
+/** The board's own loading state: empty tiles, not a spinner. */
+export function loadingBoard(n = 5) {
+  return h("div.board.is-loading", { "aria-busy": "true", "aria-label": t("ui.loading") },
+    h("div.board-head", h("span.board-title", t("ui.loading"))),
+    h("ol.board-rows", Array.from({ length: n }, () => boardRow({ a: " ", b: " ", c: "", d: "", e: "" }))));
+}
+

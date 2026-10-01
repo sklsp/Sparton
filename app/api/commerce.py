@@ -36,7 +36,7 @@ from sqlalchemy import select
 from app.billing.plans import check_competitors, check_crawl_frequency, check_shops, check_tokens
 from app.billing.service import effective_plan
 from app.core.auth.api import DbSession, current_user
-from app.core.database.ecommerce_models import ChangeEvent, Competitor, Report, Shop
+from app.core.database.ecommerce_models import ChangeEvent, Competitor, CompetitorProduct, Report, Shop
 from app.core.database.models import utcnow
 from app.core.jobs.queue import enqueue
 from app.ecommerce.discovery import (
@@ -137,6 +137,7 @@ def _change_dict(row: ChangeEvent) -> dict[str, Any]:
     return {
         "id": row.id,
         "shop_id": row.shop_id,
+        "competitor_id": row.competitor_id,
         "kind": row.kind,
         "severity": row.severity,
         "title": row.title,
@@ -536,6 +537,73 @@ def acknowledge_change(
         row.acknowledged_at = utcnow()
         db.commit()
     return {"id": row.id, "acknowledged_at": row.acknowledged_at.isoformat()}
+
+
+@router.get("/changes/{change_id}/history")
+def change_history(
+    change_id: int,
+    limit: int = Query(default=120, ge=1, le=500),
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
+    """Every capture of the product a change is about, oldest first: its price history.
+
+    The same product is the same competitor and the same page (`source_url`); the
+    normalised name is the fallback for shops that rewrite product URLs, exactly as
+    the diff engine matches captures. Each point keeps its own data source, so the
+    chart can tell an exact reading from an extracted one.
+    """
+    org = _org_id(user)
+    change = db.execute(
+        select(ChangeEvent).where(ChangeEvent.id == change_id, ChangeEvent.organization_id == org)
+    ).scalars().first()
+    if change is None:
+        raise HTTPException(status_code=404, detail="Change not found")
+
+    anchor = None
+    if change.competitor_product_id is not None:
+        anchor = db.execute(
+            select(CompetitorProduct).where(
+                CompetitorProduct.id == change.competitor_product_id,
+                CompetitorProduct.organization_id == org,
+            )
+        ).scalars().first()
+
+    points: list[CompetitorProduct] = []
+    if anchor is not None:
+        same = select(CompetitorProduct).where(
+            CompetitorProduct.organization_id == org,
+            CompetitorProduct.competitor_id == anchor.competitor_id,
+        )
+        points = db.execute(
+            same.where(CompetitorProduct.source_url == anchor.source_url)
+            .order_by(CompetitorProduct.captured_at.desc()).limit(limit)
+        ).scalars().all()
+        if len(points) < 2 and anchor.normalized_name:
+            points = db.execute(
+                same.where(CompetitorProduct.normalized_name == anchor.normalized_name)
+                .order_by(CompetitorProduct.captured_at.desc()).limit(limit)
+            ).scalars().all()
+        points = list(reversed(points))
+
+    return {
+        "change": _change_dict(change),
+        "product": change.product_name,
+        "competitor": change.competitor_name or change.competitor_domain,
+        "currency": change.currency,
+        "points": [
+            {
+                "captured_at": p.captured_at.isoformat() if p.captured_at else None,
+                "price": p.price,
+                "compare_at_price": p.compare_at_price,
+                "in_stock": p.in_stock,
+                "data_source": p.data_source,
+                "source_label": source_label(p.data_source or "html"),
+                "source_url": p.source_url,
+            }
+            for p in points
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------

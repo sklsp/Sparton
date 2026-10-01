@@ -1,319 +1,125 @@
-// Shops and competitors — the onboarding screen.
-//
-// This is where a new customer does the one thing that matters: add a shop,
-// then confirm the competitors to watch. Both are single forms, because a
-// multi-step wizard on a phone is a conversion problem.
-//
-// Construction order is deliberate: `reload` is declared before the forms,
-// because every form's submit handler calls it.
+// Shops and the competitors watched for each. Every competitor row says how sure its data is
+// (exact from a feed, or extracted from the page), when it was last read, and what it found.
 
 import { api } from "../api.js";
-import { h, fill, asyncPanel, empty, toast, ago, badge, button, confirmDialog } from "../ui.js";
-import { crawlTone, platformLabel, isPlanLimit, planLimitMessage } from "./shared.js";
-
-/** A form that reports a plan limit as an instruction, not an error. */
-function formSubmit({ fields, submitLabel, read, onSubmit, after }) {
-  const message = h("p.form-message", { role: "status" });
-  message.hidden = true;
-  const submit = button(submitLabel, { type: "submit", variant: "primary" });
-
-  const form = h("form.form-grid", {
-    onsubmit: async (event) => {
-      event.preventDefault();
-      message.hidden = true;
-      submit.disabled = true;
-      submit.dataset.loading = "true";
-      try {
-        await onSubmit();
-        toast(`${submitLabel.replace(/s$/, "")} added`, "success");
-        form.reset();
-        after?.();
-      } catch (error) {
-        // A plan limit is not something the user can retry away, so it says
-        // what to do rather than only what went wrong.
-        const limited = isPlanLimit(error);
-        message.dataset.tone = limited ? "warning" : "danger";
-        message.textContent = limited
-          ? `${planLimitMessage(error)} Change plan in Billing to add more.`
-          : error.message;
-        message.hidden = false;
-      } finally {
-        submit.disabled = false;
-        delete submit.dataset.loading;
-      }
-    },
-  }, fields, h("div.form-actions", submit));
-
-  return h("div.stack", form, message);
-}
-
-const fieldValue = (node, name) =>
-  node.querySelector(`[name=${name}]`)?.value.trim() ?? "";
+import { h, fill, toast, button, confirmDialog, errorState } from "../ui.js";
+import { t, fmtNumber, fmtDate, fmtRelative } from "../i18n.js";
+import { loadingBoard } from "./overview.js";
+import { platformLabel, isPlanLimit, planLimitMessage } from "./shared.js";
 
 export default function shopsView(host) {
-  const listHost = h("div.stack");
-  let reload = () => {};
-
-  /* ------------------------------------------------------------ add a shop */
-  const shopForm = formSubmit({
-    submitLabel: "Add shop",
-    fields: [
-      h("label.field", h("span", "Shop URL"),
-        h("input.input", {
-          type: "url", name: "url", required: true,
-          placeholder: "your-shop.myshopify.com", autocomplete: "url",
-        })),
-      h("label.field", h("span", "Name"),
-        h("input.input", {
-          type: "text", name: "name", placeholder: "Your shop name (optional)",
-        })),
-      h("label.field", h("span", "Category"),
-        h("input.input", {
-          type: "text", name: "category", placeholder: "homeware, outdoor, beauty…",
-        })),
-    ],
-    onSubmit: () => api.createShop({
-      url: fieldValue(shopForm, "url"),
-      name: fieldValue(shopForm, "name"),
-      category: fieldValue(shopForm, "category"),
-    }),
-    after: () => reload(),
-  });
-
-  /* ----------------------------------------------------- add a competitor */
-  const shopPicker = h("select.input", { "aria-label": "Attach to shop" });
-  const competitorForm = formSubmit({
-    submitLabel: "Add competitor",
-    fields: [
-      h("label.field", h("span", "Competitor URL"),
-        h("input.input", {
-          type: "url", name: "url", required: true,
-          placeholder: "competitor-shop.myshopify.com", autocomplete: "off",
-        })),
-      h("label.field", h("span", "Shop"), shopPicker),
-    ],
-    onSubmit: () => api.createCompetitor({
-      url: fieldValue(competitorForm, "url"),
-      shop_id: shopPicker.value ? Number(shopPicker.value) : null,
-    }),
-    after: () => reload(),
-  });
-
-  fill(host,
-    h("div.toolbar",
-      h("h2.view-title", "Shops"),
-      h("div.toolbar-controls",
-        button("Refresh", { onClick: () => reload() }))),
-    h("section.panel",
-      h("h3.panel-title", "Add your shop"),
-      h("p.panel-hint",
-        "Shopify, WooCommerce or Bol.com — anything that publishes product "
-        + "pages. We only crawl public pages, we respect robots.txt, and we "
-        + "identify ourselves honestly."),
-      shopForm),
-    h("section.panel",
-      h("h3.panel-title", "Add a competitor"),
-      h("p.panel-hint",
-        "Paste a competitor's shop URL. We suggest some once your shop is "
-        + "added, but we never crawl anyone you have not confirmed."),
-      competitorForm),
-    listHost);
-
-  /* --------------------------------------------------------------- render */
-  // One sentence per tier, on hover. The label itself is short enough to read
-  // at a glance; this is for the customer who wants to know what the words mean.
-  const SOURCE_EXPLAIN = {
-    feed: "Read from the shop's own product feed: the exact price they charge, no interpretation.",
-    jsonld: "Read from schema.org structured data on the product page: exact, machine-readable.",
-    html: "Read from the rendered page: a best effort, and occasionally wrong.",
-  };
-
-  function competitorRow(competitor) {
-    return h("li.competitor",
-      h("div.competitor-main",
-        h("p.competitor-name", competitor.name || competitor.domain),
-        h("p.competitor-meta",
-          h("a", {
-            href: competitor.url, target: "_blank", rel: "noopener noreferrer",
-          }, competitor.domain),
-          " · ", platformLabel(competitor.platform),
-          competitor.last_crawled_at
-            ? h("span", " · crawled ", ago(competitor.last_crawled_at))
-            : h("span", " · not crawled yet"))),
-      h("div.competitor-side",
-        competitor.last_status
-          ? badge(competitor.last_status, crawlTone(competitor.last_status))
-          : badge("pending", "neutral"),
-        h("span.competitor-count", `${competitor.product_count} products`),
-        // How the prices were read. "Exact, from their feed" is a materially
-        // stronger claim than "we read the page", and the customer is entitled
-        // to know which one they are looking at before they act on a number.
-        competitor.last_crawled_at && competitor.source_label
-          ? h("span.competitor-source", {
-              class: `source-${competitor.data_source || "html"}`,
-              title: SOURCE_EXPLAIN[competitor.data_source] || "",
-            }, competitor.source_label)
-          : null,
-        h("div.row-actions",
-          button("Crawl now", {
-            size: "sm",
-            onClick: (e) => withBusy(e.currentTarget,
-              () => api.crawlCompetitor(competitor.id), "Crawl queued."),
-          }),
-          button("Remove", { size: "sm", onClick: () => removeCompetitor(competitor) }))));
-  }
-
-  function shopCard(shop) {
-    const competitors = shop.competitors || [];
-    return h("section.shop-card",
-      h("header.shop-head",
-        h("div",
-          h("h3.shop-name", shop.name),
-          h("p.shop-meta",
-            h("a", { href: shop.url, target: "_blank", rel: "noopener noreferrer" },
-              shop.domain),
-            " · ", platformLabel(shop.platform),
-            shop.last_crawled_at
-              ? h("span", " · last crawl ", ago(shop.last_crawled_at))
-              : h("span", " · never crawled"))),
-        h("div.row-actions",
-          button("Suggest", { size: "sm", onClick: (e) => discover(shop, e.currentTarget) }),
-          button("Crawl now", {
-            size: "sm",
-            variant: "primary",
-            onClick: (e) => withBusy(e.currentTarget,
-              () => api.crawlShop(shop.id), "Crawl queued."),
-          }),
-          button("Write report", {
-            size: "sm",
-            onClick: (e) => withBusy(e.currentTarget,
-              () => api.generateReport(shop.id, 7), "Report queued."),
-          }),
-          button("Delete", { size: "sm", onClick: () => removeShop(shop) }))),
-      competitors.length
-        ? h("ul.competitor-list", competitors.map(competitorRow))
-        : h("p.shop-empty",
-            "No competitors yet. Add one above, or let us suggest some — we "
-            + "will not crawl anything until you confirm."));
-  }
-
-  /* ------------------------------------------------------------- actions */
-  /** Disable a button, run work, then always restore it and refresh. */
-  async function withBusy(button, work, successMessage) {
-    const original = button.textContent;
-    button.disabled = true;
-    button.textContent = "Working…";
+  const run = async () => {
+    fill(host, head(), loadingBoard(3));
     try {
-      await work();
-      toast(successMessage, "success");
-      reload();
-    } catch (error) {
-      toast(isPlanLimit(error) ? planLimitMessage(error) : error.message, "danger");
-      button.disabled = false;
-      button.textContent = original;
-    }
-  }
-
-  async function discover(shop, button) {
-    const original = button.textContent;
-    button.disabled = true;
-    button.textContent = "Searching…";
-    try {
-      const result = await api.discoverCompetitors(shop.id);
-      if (!result.suggestions.length) {
-        toast("We could not find anything that looks like a competitor.", "info");
+      const [{ shops = [] }, comps] = await Promise.all([api.shops(), api.competitors()]);
+      const competitors = comps.competitors || comps;
+      if (!shops.length) {
+        fill(host, head(), h("section.plate.empty-plate",
+          h("h2", t("sh.empty.title")),
+          h("p", t("sh.empty.body")),
+          h("a.btn", { href: "#/start", "data-variant": "primary", "data-size": "lg" }, t("sh.empty.cta"))));
         return;
       }
-      const ok = await confirmDialog({
-        title: `Possible competitors for ${shop.name}`,
-        message: `${result.suggestions.map((s) => s.domain).join("\n")}\n\n`
-          + "Add all of these?",
-        confirmLabel: "Add them",
-      });
-      if (ok) await addAll(shop, result.suggestions);
-    } catch (error) {
-      toast(error.message, "danger");
-    } finally {
-      button.disabled = false;
-      button.textContent = original;
+      fill(host, head(true), shops.map((shop) => shopSection(shop, competitors.filter((c) => c.shop_id === shop.id), run)));
+    } catch (err) {
+      fill(host, head(), errorState({ title: t("sh.error"), message: err.message, onRetry: run }));
     }
-  }
+  };
+  run();
+}
 
-  async function addAll(shop, suggestions) {
-    let added = 0;
-    for (const suggestion of suggestions) {
+function head(withAdd = false) {
+  return h("header.view-head.view-head-row",
+    h("div", h("h1.view-title", t("sh.title")), h("p.view-sub", t("sh.sub"))),
+    withAdd ? h("a.btn", { href: "#/start" }, t("sh.addShop")) : null);
+}
+
+const when = (iso) => {
+  if (!iso) return null;
+  const days = Math.round((Date.now() - new Date(iso).getTime()) / 864e5);
+  return days < 1 ? fmtRelative(-Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 36e5)), "hour")
+    : days < 14 ? fmtRelative(-days, "day") : fmtDate(new Date(iso));
+};
+
+function cadence(hours) {
+  if (hours <= 12) return t("plan.freq.twiceDaily");
+  if (hours <= 24) return t("plan.freq.daily");
+  return t("plan.freq.weekly");
+}
+
+function shopSection(shop, competitors, reload) {
+  const check = button(t("sh.checkNow"), { size: "sm", variant: "board", onClick: async () => {
+    check.dataset.loading = "true";
+    try {
+      await api.crawlShop(shop.id);
+      toast(t("sh.checkQueued"), "success");
+      reload();
+    } catch (err) { toast(err.message, "danger"); } finally { delete check.dataset.loading; }
+  } });
+  if (!competitors.length) check.disabled = true;
+
+  return h("section.shop-block", { "aria-labelledby": `shop-${shop.id}` },
+    h("header.shop-head",
+      h("div",
+        h("h2#shop-" + shop.id, shop.name || shop.domain),
+        h("p.shop-meta",
+          h("a", { href: shop.url, target: "_blank", rel: "noopener noreferrer" }, shop.domain),
+          ` · ${platformLabel(shop.platform)} · ${cadence(shop.crawl_frequency_hours)}`,
+          shop.next_crawl_at ? ` · ${t("sh.next", { when: fmtDate(new Date(shop.next_crawl_at), { weekday: "short", day: "numeric", month: "short" }) })}` : "")),
+      check),
+    h("div.plate.comp-plate",
+      competitors.length
+        ? h("ul.comp-list", competitors.map((c) => competitorRow(c, reload)))
+        : h("p.comp-empty", t("sh.noRivals")),
+      addCompetitor(shop, reload)));
+}
+
+function competitorRow(c, reload) {
+  const status = String(c.last_status || "").toUpperCase();
+  const failed = status === "FAILED" || status === "BLOCKED";
+  const exact = c.data_source === "feed" || c.data_source === "jsonld";
+  const never = !c.last_crawled_at;
+  const remove = button(t("sh.remove"), { size: "sm", variant: "ghost", onClick: async () => {
+    const ok = await confirmDialog({ title: t("sh.removeTitle", { name: c.name || c.domain }), message: t("sh.removeBody"), confirmLabel: t("sh.remove"), variant: "danger" });
+    if (!ok) return;
+    try { await api.deleteCompetitor(c.id); toast(t("sh.removed"), "success"); reload(); } catch (err) { toast(err.message, "danger"); }
+  } });
+
+  return h("li.comp-row", { "data-state": never ? "new" : failed ? "failed" : exact ? "exact" : "extracted" },
+    h("span.comp-mark", { "aria-hidden": "true" }),
+    h("div.comp-main",
+      h("strong.comp-name", c.name || c.domain),
+      h("span.comp-meta",
+        h("a", { href: c.url, target: "_blank", rel: "noopener noreferrer" }, c.domain),
+        ` · ${platformLabel(c.platform)}`)),
+    h("div.comp-facts",
+      h("span.src-tag", { "data-src": never ? "none" : exact ? "exact" : "extracted" },
+        never ? t("src.notYet") : t(exact ? "src.exact" : "src.extracted")),
+      h("span.comp-count", never ? t("sh.waitingFirst") : failed
+        ? t(status === "BLOCKED" ? "sh.blocked" : "sh.failed")
+        : t("sh.products", { n: fmtNumber(c.product_count || 0) }) + (c.last_crawled_at ? ` · ${when(c.last_crawled_at)}` : ""))),
+    remove);
+}
+
+function addCompetitor(shop, reload) {
+  const id = `add-rival-${shop.id}`;
+  const input = h("input.input", { id, type: "text", inputmode: "url", autocomplete: "off", spellcheck: false, placeholder: "concurrent.nl", required: true });
+  const msg = h("p.form-error", { role: "alert", hidden: true });
+  const submit = button(t("sh.add"), { type: "submit" });
+  return h("form.comp-add", {
+    onsubmit: async (e) => {
+      e.preventDefault();
+      msg.hidden = true;
+      submit.dataset.loading = "true";
+      const v = input.value.trim();
       try {
-        await api.createCompetitor({ url: suggestion.url, shop_id: shop.id });
-        added += 1;
-      } catch {
-        // One failure (a duplicate, or a plan limit) must not abort the rest.
-        // The customer can add the remainder by hand.
-      }
-    }
-    toast(`Added ${added} competitor${added === 1 ? "" : "s"}`, "success");
-    reload();
-  }
-
-  async function removeCompetitor(competitor) {
-    const ok = await confirmDialog({
-      title: "Stop tracking this competitor?",
-      message: `We will stop crawling ${competitor.domain}. Its past alerts and `
-        + "captures are deleted too. This cannot be undone.",
-      confirmLabel: "Stop tracking",
-    });
-    if (!ok) return;
-    try {
-      await api.deleteCompetitor(competitor.id);
-      toast("Competitor removed", "success");
-      reload();
-    } catch (error) {
-      toast(error.message, "danger");
-    }
-  }
-
-  async function removeShop(shop) {
-    const ok = await confirmDialog({
-      title: "Delete this shop?",
-      message: `This deletes ${shop.name}, every competitor attached to it, all `
-        + "captured products, alerts and reports. This cannot be undone.",
-      confirmLabel: "Delete shop",
-    });
-    if (!ok) return;
-    try {
-      await api.deleteShop(shop.id);
-      toast("Shop deleted", "success");
-      reload();
-    } catch (error) {
-      toast(error.message, "danger");
-    }
-  }
-
-  /* ----------------------------------------------------------------- load */
-  async function render() {
-    const { shops } = await api.shops();
-
-    fill(shopPicker,
-      h("option", { value: "" }, "Not attached to a specific shop"),
-      shops.map((s) => h("option", { value: String(s.id) }, s.name)));
-
-    if (!shops.length) {
-      fill(listHost, empty({
-        iconName: "shop",
-        title: "No shops yet",
-        message: "Add your shop above. Then add the competitors you compete "
-          + "with, and we will start watching them.",
-      }));
-      return;
-    }
-
-    // The list endpoint returns counts only; the detail endpoint has the
-    // competitor rows. One failure must not blank the whole screen.
-    const details = await Promise.all(
-      shops.map((s) => api.shop(s.id).catch(() => ({ ...s, competitors: [] }))),
-    );
-    fill(listHost, details.map(shopCard));
-  }
-
-  reload = asyncPanel(listHost, render, render);
-  return reload;
+        await api.createCompetitor({ url: /^https?:\/\//i.test(v) ? v : `https://${v}`, shop_id: shop.id });
+        toast(t("sh.added"), "success");
+        reload();
+      } catch (err) {
+        msg.textContent = isPlanLimit(err) ? `${planLimitMessage(err)} ${t("sh.upgrade")}` : err.message;
+        msg.hidden = false;
+      } finally { delete submit.dataset.loading; }
+    },
+  }, h("label", { for: id }, t("sh.addLabel")), h("div.ob-manual-row", input, submit), msg);
 }
