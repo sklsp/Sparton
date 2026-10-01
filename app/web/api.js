@@ -3,10 +3,11 @@
 const TOKEN_KEY = "sparton.token";
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, detail) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -45,13 +46,16 @@ async function request(path, { method = "GET", body, form, signal } = {}) {
   }
 
   if (!response.ok) {
-    let detail = `Request failed (${response.status})`;
+    let message = `Request failed (${response.status})`;
+    let detail;
     try {
       const payload = await response.json();
-      if (typeof payload.detail === "string") detail = payload.detail;
-      else if (Array.isArray(payload.detail)) detail = payload.detail.map((d) => d.msg).join(", ");
+      detail = payload.detail;
+      if (typeof detail === "string") message = detail;
+      else if (Array.isArray(detail)) message = detail.map((d) => d.msg).join(", ");
+      else if (detail?.message) message = detail.message; // plan limits: { message, limit, plan }
     } catch { /* non-JSON error body — keep the generic message */ }
-    throw new ApiError(detail, response.status);
+    throw new ApiError(message, response.status, detail);
   }
 
   if (response.status === 204) return null;
@@ -115,6 +119,7 @@ export const api = {
     return get(`/changes?${q}`);
   },
   acknowledgeChange: (id) => post(`/changes/${id}/ack`),
+  changeHistory: (id) => get(`/changes/${encodeURIComponent(id)}/history`),
 
   reports: (limit = 20) => get(`/reports?limit=${limit}`),
   report: (id) => get(`/reports/${id}`),
