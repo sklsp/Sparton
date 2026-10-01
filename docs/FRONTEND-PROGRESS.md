@@ -11,3 +11,4 @@ Resume point for the scheduled frontend sessions. One line per milestone.
 ✅ M7 Sparton vs Prisync (NL+EN, sourced) — c44651e — single URL with language switch
 ✅ M8 NAMING.md (top 3: Flapbord, Peilbord, Klapbord) — 1a6ca78 — trademarks [unverified]
 ✅ M9 Finish review (2 rounds, fixes applied), DESIGN.md, Lighthouse 100/100/100 landing+signup, full suite 530 passed — 5ed7e75 — reviewer's last 3 micro items applied unscored; report prose English-only
+✅ M10 Report email (NL+EN, 600px, images off, dark mode) + in-app report view from M6 — 182df9a — not wired to sending (D-032)
