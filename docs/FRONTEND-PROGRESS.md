@@ -13,3 +13,4 @@ Resume point for the scheduled frontend sessions. One line per milestone.
 ✅ M9 Finish review (2 rounds, fixes applied), DESIGN.md, Lighthouse 100/100/100 landing+signup, full suite 530 passed — 5ed7e75 — reviewer's last 3 micro items applied unscored; report prose English-only
 ✅ M10 Report email (NL+EN, 600px, images off, dark mode) + in-app report view from M6 — 182df9a — not wired to sending (D-032)
 ✅ M11 /pricing, /faq, 404/500, draft privacy+terms NL+EN (DPA restyled, EN only) — b5a76ee — legal placeholders for controller, processors, law
+✅ M12 Three NL search pages + sitemap.xml + robots.txt — 050817a — sitemap uses APP_URL; 'exact' claims depend on shopfeed being in the image (release blocker)
