@@ -8,4 +8,7 @@ export const ROUTES = [
   { id: "reports",  load: () => import("./views/reports.js") },
   { id: "billing",  load: () => import("./views/billing.js") },
   { id: "settings", load: () => import("./views/settings.js") },
+  // Onboarding: reached after signup and from empty states, not from the nav.
+  { id: "start", nav: false, load: () => import("./views/start.js") },
+  { id: "product", nav: false, parent: "overview", load: () => import("./views/product.js") },
 ];
