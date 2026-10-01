@@ -150,3 +150,26 @@ class TestErrorPages:
     def test_fetch_from_the_dashboard_keeps_json(self, client):
         response = client.get("/shops/999999", headers={"Accept": "*/*"})
         assert response.headers["content-type"].startswith("application/json")
+
+
+class TestSearchPages:
+    PAGES = ["/nl/prisync-alternatief", "/nl/concurrentieprijzen-shopify",
+             "/nl/concurrentieprijzen-woocommerce-lightspeed"]
+
+    @pytest.mark.parametrize("path", PAGES)
+    def test_dutch_page_is_served_with_its_meta(self, client, path):
+        body = client.get(path).text
+        assert 'lang="nl"' in body
+        assert '<meta name="description"' in body and 'property="og:title"' in body
+        assert "<h1>" in body and "/app/#signup" in body
+
+    def test_the_sitemap_lists_every_public_page(self, client):
+        response = client.get("/sitemap.xml")
+        assert response.status_code == 200
+        assert "application/xml" in response.headers["content-type"]
+        for path in ["/pricing", "/faq", "/vs/prisync", *self.PAGES]:
+            assert f"{path}</loc>" in response.text
+
+    def test_robots_points_at_the_sitemap_and_keeps_the_app_out(self, client):
+        body = client.get("/robots.txt").text
+        assert "Sitemap:" in body and "Disallow: /app/" in body

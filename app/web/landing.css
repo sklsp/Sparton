@@ -203,3 +203,10 @@ html[lang="nl"] [data-lang="en"], html:not([lang="nl"]) [data-lang="nl"] { displ
 .error-page h1 { font-size: var(--fs-4); font-weight: 800; }
 .error-page p { color: var(--ink-2); max-width: 52ch; }
 .error-actions { display: flex; gap: var(--s3); flex-wrap: wrap; }
+
+/* ------------------------------------------------------- dutch search pages */
+.seo-body { padding-top: var(--s7); padding-bottom: var(--s8); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s6) var(--s7); }
+.seo-block h2 { font-size: var(--fs-3); font-weight: 800; }
+.seo-block p { margin-top: var(--s2); color: var(--ink-2); max-width: 60ch; }
+.seo-more { grid-column: 1 / -1; font-weight: 700; }
+@media (max-width: 760px) { .seo-body { grid-template-columns: 1fr; } }

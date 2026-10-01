@@ -201,6 +201,9 @@ def create_app() -> FastAPI:
         ("/vs/prisync", "vs-prisync.html"),
         ("/pricing", "pricing.html"),
         ("/faq", "faq.html"),
+        ("/nl/prisync-alternatief", "nl/prisync-alternatief.html"),
+        ("/nl/concurrentieprijzen-shopify", "nl/concurrentieprijzen-shopify.html"),
+        ("/nl/concurrentieprijzen-woocommerce-lightspeed", "nl/concurrentieprijzen-woocommerce-lightspeed.html"),
     ):
         def _public(_file: str = _file):
             path = WEB_DIR / _file
@@ -209,6 +212,23 @@ def create_app() -> FastAPI:
             return FileResponse(path, media_type="text/html")
 
         app.add_api_route(_route, _public, methods=["GET"], include_in_schema=False)
+
+    # Search engines: every public page, absolute URLs on the configured APP_URL.
+    _PUBLIC_PAGES = ("/", "/pricing", "/faq", "/vs/prisync", "/nl/prisync-alternatief",
+                     "/nl/concurrentieprijzen-shopify", "/nl/concurrentieprijzen-woocommerce-lightspeed")
+
+    @app.get("/sitemap.xml", include_in_schema=False)
+    def sitemap() -> Response:
+        base = settings.app_url.rstrip("/")
+        urls = "".join(f"<url><loc>{base}{path}</loc></url>" for path in _PUBLIC_PAGES)
+        xml = f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
+        return Response(xml, media_type="application/xml")
+
+    @app.get("/robots.txt", include_in_schema=False)
+    def robots() -> Response:
+        base = settings.app_url.rstrip("/")
+        body = f"User-agent: *\nDisallow: /app/\nDisallow: /docs\nSitemap: {base}/sitemap.xml\n"
+        return Response(body, media_type="text/plain")
 
     # The verification and reset emails link to these paths (app/core/email.py), but both flows
     # live in the dashboard. Hand the token over in the fragment: a fragment is never sent to a

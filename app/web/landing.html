@@ -74,7 +74,7 @@
         </div>
         <ol class="board-rows" id="hero-rows"></ol>
         <figcaption class="board-legend" id="hero-board-caption">
-          <span class="legend-item"><span class="legend-tile mark-exact" aria-hidden="true"></span><span data-i18n="lp.legend.exact">Solid: exact, read from the shop's own product feed</span></span>
+          <span class="legend-item"><span class="legend-tile mark-exact" aria-hidden="true"></span><span data-i18n="lp.legend.exact">Solid: exact, the shop's own product data</span></span>
           <span class="legend-item"><span class="legend-tile mark-extracted" aria-hidden="true"></span><span data-i18n="lp.legend.extracted">Hatched: extracted from the page</span></span>
           <span class="legend-item"><span class="legend-struck" aria-hidden="true">ABC</span><span data-i18n="lp.legend.soldout">Struck: sold out</span></span>
         </figcaption>
@@ -140,7 +140,7 @@
         <h2 id="faq-title" data-i18n="lp.faq.title">Questions</h2>
         <div class="faq">
           <details><summary data-i18n="lp.faq.q1">Is this allowed?</summary><p data-i18n="lp.faq.a1">Sparton only reads pages a shop has made public, identifies itself honestly, respects robots.txt and waits between requests. It never logs in, never bypasses anything and never touches a checkout.</p></details>
-          <details><summary data-i18n="lp.faq.q2">How exact are the prices?</summary><p data-i18n="lp.faq.a2">On Shopify and WooCommerce shops Sparton reads the shop's own product feed: the price to the cent, including the "was" price of a sale and whether it is in stock. Where a shop publishes no feed, Sparton uses the product data in the page (schema.org) or, as a last resort, extracts the price from the page. Those rows are labelled "extracted".</p></details>
+          <details><summary data-i18n="lp.faq.q2">How exact are the prices?</summary><p data-i18n="lp.faq.a2">On Shopify and WooCommerce shops Sparton reads the shop's own product feed: the price to the cent, including the &quot;was&quot; price of a sale and whether it is in stock. Where a shop publishes no feed, Sparton reads the product data the shop puts in its own pages (schema.org), which counts as exact too. Only as a last resort does it extract the price from the page itself; those rows are labelled &quot;extracted&quot;.</p></details>
           <details><summary data-i18n="lp.faq.q3">Does the AI make up numbers?</summary><p data-i18n="lp.faq.a3">No. Every number comes from comparing two readings of the same product. The AI only writes the sentences around those facts and may use no figure that is not in them. If the AI is unavailable you still get a correct report, just a plainer one.</p></details>
           <details><summary data-i18n="lp.faq.q4">How often do you check?</summary><p data-i18n="lp.faq.a4">Weekly on Free, daily on Pro and twice a day on Business. The first check of a new competitor sets the baseline; changes appear from the second check on.</p></details>
           <details><summary data-i18n="lp.faq.q5">Which shops can I watch?</summary><p data-i18n="lp.faq.a5">Any webshop with public product pages. Shopify and WooCommerce shops give exact data through their feeds; other platforms, Lightspeed included, are read from the product data on the page and labelled accordingly.</p></details>
