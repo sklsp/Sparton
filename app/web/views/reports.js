@@ -5,7 +5,7 @@
 import { api, settleAll, settledValue } from "../api.js";
 import { h, fill, button, toast, errorState } from "../ui.js";
 import { t, lang, fmtDate } from "../i18n.js";
-import { changeRow, isoWeek, countFlow } from "./board-view.js";
+import { changeRow, isoWeek, boardCounts } from "./board-view.js";
 import { loadingBoard } from "./overview.js";
 
 export default function reportsView(host, { navigate }) {
@@ -61,9 +61,8 @@ const period = (r) => {
 function listItem(r, current) {
   const shop = r.facts?.shop?.name || "";
   return h("li", h("a.report-item", { href: `#/reports?id=${r.id}`, "aria-current": current ? "page" : null },
-    h("span.report-item-week", t("week.label", { n: isoWeek(new Date(r.period_end)) })),
     h("strong", shop || t("ov.report.untitled")),
-    h("span.report-item-period", period(r)),
+    h("span.report-item-period", `${t("week.label", { n: isoWeek(new Date(r.period_end)) })} · ${period(r)}`),
     r.status !== "COMPLETED" ? h("span.report-item-status", t(r.status === "FAILED" ? "rp.failed" : "rp.writing")) : null));
 }
 
@@ -80,16 +79,17 @@ async function reportBody(id, navigate) {
 
   return h("article.report", { "aria-labelledby": "report-title" },
     h("header.report-head",
-      h("p.report-week", `${t("week.label", { n: isoWeek(new Date(report.period_end)) })} · ${period(report)}`),
-      h("h2#report-title", t("rp.title", { shop: facts.shop?.name || "" }))),
-    h("p.week-counts",
-      countFlow(facts.total_changes ?? changes.length, "ov.count.changes"),
-      kinds.price_decrease ? countFlow(kinds.price_decrease, "rp.count.cuts") : null,
-      kinds.price_increase ? countFlow(kinds.price_increase, "rp.count.rises") : null,
-      (facts.competitors || []).length ? countFlow(facts.competitors.length, "ov.count.watched") : null),
+      h("h2#report-title", t("rp.title", { shop: facts.shop?.name || "" })),
+      h("p.report-week", `${t("week.label", { n: isoWeek(new Date(report.period_end)) })} · ${period(report)}`)),
     changes.length
       ? h("section.board.week-board", { "aria-label": t("rp.moves") },
           h("div.board-head", h("h3.board-title", t("rp.moves"))),
+          boardCounts([
+            [facts.total_changes ?? changes.length, "ov.count.changes"],
+            kinds.price_decrease ? [kinds.price_decrease, "rp.count.cuts"] : null,
+            kinds.price_increase ? [kinds.price_increase, "rp.count.rises"] : null,
+            (facts.competitors || []).length ? [facts.competitors.length, "ov.count.watched"] : null,
+          ]),
           h("ol.board-rows", changes.map((c) => changeRow(c, source.get(c.competitor_id), () => navigate(`product?change=${c.id}`)))))
       : null,
     report.markdown

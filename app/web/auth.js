@@ -5,7 +5,8 @@
 import { api, token } from "./api.js";
 import { h, fill, button } from "./ui.js";
 import { t, langSwitch } from "./i18n.js";
-import { flapWord } from "./board.js";
+import { flapWord, boardRow } from "./board.js";
+import { fmtMoney } from "./i18n.js";
 
 const root = document.getElementById("root");
 
@@ -57,9 +58,13 @@ function passwordInput(label, { autocomplete, minlength, hint }) {
 }
 
 function layout(view, ...content) {
-  const promise = view === "signup"
-    ? [flapWord(t("auth.board.free")), flapWord(t("auth.board.shops")), flapWord(t("auth.board.weekly"))]
-    : [flapWord(t("auth.board.since")), flapWord(t("auth.board.moved"))];
+  // What the board will look like once it runs: three labelled demo rows.
+  const eur = (v) => fmtMoney(v, "EUR");
+  const demo = [
+    { a: "Kade & Co", b: t("lp.demo.belt"), c: eur(34), d: eur(27.5), e: "−19%", tone: "down" },
+    { a: "Noord Supply", b: t("lp.demo.oil"), c: eur(18.95), d: eur(21.5), e: "+13%", tone: "up" },
+    { a: "Atelier Vos", b: t("lp.demo.scarf"), c: eur(59), span: t("lp.demo.soldout"), struck: true, tone: "stock" },
+  ];
   fill(root, h("div.auth-shell",
     h("a.skip-link", { href: "#main" }, t("a11y.skip")),
     h("header.auth-top",
@@ -67,7 +72,9 @@ function layout(view, ...content) {
       langSwitch()),
     h("div.auth-stage",
       h("main.auth-card#main", { tabindex: "-1" }, content),
-      h("aside.auth-board", { "aria-hidden": "true" }, h("div.auth-board-rows", promise.map((w) => h("div.auth-board-row", w)))))));
+      h("aside.board.auth-board", { "aria-hidden": "true" },
+        h("div.board-head", h("span.board-title", t(view === "signup" ? "auth.board.signup" : "auth.board.login")), h("span.board-demo", t("lp.demo"))),
+        h("ol.board-rows", demo.map((r) => boardRow(r)))))));
 }
 
 function form(view, fields, submitLabel, onSubmit) {

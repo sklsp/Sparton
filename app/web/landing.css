@@ -118,8 +118,9 @@
   .hero h1 { font-size: 2.6rem; }
   /* the board comes straight after the headline, so a phone's first screen shows the product */
   .hero-copy { display: contents; }
-  .hero h1 { order: 1; } .hero .board { order: 2; } .hero-lede { order: 3; margin-top: 0; }
-  .hero-cta { order: 4; margin-top: 0; } .hero-fine { order: 5; margin-top: 0; }
+  .hero h1 { order: 1; } .hero-cta { order: 2; margin-top: 0; } .hero .board { order: 3; }
+  .hero-lede { order: 4; margin-top: 0; } .hero-fine { order: 5; margin-top: 0; }
+  .hero-cta .lp-ghost-dark { display: none; }
   .hero { gap: var(--s5); }
   .story { padding: var(--s6) var(--s4); }
   .story-stage { top: 56px; margin: 0 calc(-1 * var(--s4)); padding-inline: var(--s4); }
@@ -146,7 +147,7 @@
 .vs-table td.vs-us { color: var(--ink); background: rgb(245 197 24 / 0.08); }
 .vs-unknown { font-style: italic; color: var(--ink-3); }
 .vs-src { font-size: var(--fs-0); font-weight: 700; white-space: nowrap; }
-.vs-src::after { content: " ↗"; }
+.vs-src::after { content: ""; display: inline-block; width: 0.8em; height: 0.8em; margin-left: 3px; vertical-align: -0.05em; background: currentColor; -webkit-mask: var(--arrow) center / contain no-repeat; mask: var(--arrow) center / contain no-repeat; }
 .vs-fit { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); }
 .vs-fit ul { padding-left: 1.2em; display: grid; gap: var(--s2); color: var(--ink-2); }
 @media (max-width: 760px) {
@@ -161,3 +162,20 @@
   .vs-fit { grid-template-columns: 1fr; }
 }
 .vs-body > * { min-width: 0; }
+
+/* ------------------------------------------------------------ plans as boards */
+.plan-board { background: var(--board-2); color: var(--chalk); border: 1px solid #000; box-shadow: var(--shadow-board), inset 0 0 0 5px var(--board); }
+.plan-board[data-featured] { border: 2px solid var(--signal); }
+.plan-board[data-current] { background: var(--board); }
+.plan-board .plan-name { color: var(--chalk); font-stretch: 75%; }
+.plan-board .plan-per { color: var(--chalk-2); }
+.plan-rows { display: grid; gap: 4px; margin: 0; padding: var(--s3) 0; border-top: 1px solid #000; border-bottom: 1px solid #000; }
+.plan-row { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); }
+.plan-row dt { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--chalk-2); }
+.plan-row dd { margin: 0; font-size: 1.05rem; }
+.plan-board .plan-features { list-style: none; padding: 0; display: grid; gap: var(--s2); flex: 1; align-content: start; color: var(--chalk-2); font-size: var(--fs-0); }
+.plan-board .plan-features li { padding-left: 18px; position: relative; }
+.plan-board .plan-features li::before { content: ""; position: absolute; left: 0; top: 0.5em; width: 10px; height: 6px; border-left: 2px solid var(--chalk-2); border-bottom: 2px solid var(--chalk-2); transform: rotate(-45deg); }
+.plan-board .plan-current-tag { color: var(--chalk); }
+.plan-board .btn:not(.btn-primary):not([data-variant="primary"]) { --btn-bg: transparent; --btn-fg: var(--chalk); --btn-bd: var(--chalk-2); }
+.plan-board .btn:not(.btn-primary):not([data-variant="primary"]):hover { --btn-bg: var(--flap); }

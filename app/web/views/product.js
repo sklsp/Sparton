@@ -22,7 +22,7 @@ export default function productView(host) {
   let onResize = null;
 
   const run = async () => {
-    fill(host, h("p.back", h("a", { href: "#/overview" }, t("pd.back"))), loadingBoard(2));
+    fill(host, h("p.back", h("a", { href: "#/overview" }, h("span.ico-arrow.ico-back", { "aria-hidden": "true" }), " ", t("pd.back"))), loadingBoard(2));
     try {
       const data = await api.changeHistory(id);
       // Opening a change is reading it.
@@ -31,7 +31,7 @@ export default function productView(host) {
       const comp = (competitors.competitors || []).find((c) => c.id === data.change.competitor_id);
       const chartHost = h("div.chart-host");
       fill(host,
-        h("p.back", h("a", { href: "#/overview" }, t("pd.back"))),
+        h("p.back", h("a", { href: "#/overview" }, h("span.ico-arrow.ico-back", { "aria-hidden": "true" }), " ", t("pd.back"))),
         h("header.view-head",
           h("h1.view-title", data.product || t("pd.untitled")),
           h("p.view-sub", data.competitor, comp ? ` · ${t(comp.data_source === "html" ? "src.extracted" : "src.exact")}` : "")),
@@ -47,7 +47,7 @@ export default function productView(host) {
       onResize = () => draw();
       addEventListener("resize", onResize);
     } catch (err) {
-      fill(host, h("p.back", h("a", { href: "#/overview" }, t("pd.back"))),
+      fill(host, h("p.back", h("a", { href: "#/overview" }, h("span.ico-arrow.ico-back", { "aria-hidden": "true" }), " ", t("pd.back"))),
         errorState({ title: t("pd.error"), message: err.status === 404 ? t("pd.notFound") : err.message, onRetry: run }));
     }
   };
@@ -59,8 +59,8 @@ function legend() {
   return h("ul.chart-legend",
     h("li", h("span.swatch.swatch-solid", { "aria-hidden": "true" }), t("pd.legend.yours"), h("span.legend-note", t("pd.legend.yoursNote"))),
     h("li", h("span.swatch.swatch-dashed", { "aria-hidden": "true" }), t("pd.legend.theirs")),
-    h("li", h("span.dot.dot-exact", { "aria-hidden": "true" }), t("pd.legend.exact")),
-    h("li", h("span.dot.dot-extracted", { "aria-hidden": "true" }), t("pd.legend.extracted")));
+    h("li", h("span.pt-dot.dot-exact", { "aria-hidden": "true" }), t("pd.legend.exact")),
+    h("li", h("span.pt-dot.dot-extracted", { "aria-hidden": "true" }), t("pd.legend.extracted")));
 }
 
 function chart(points, currency, width) {
@@ -73,9 +73,12 @@ function chart(points, currency, width) {
   const prices = priced.map((p) => Number(p.price));
   let t0 = Math.min(...times); let t1 = Math.max(...times);
   if (t1 - t0 < 7 * 864e5) { t0 -= 3.5 * 864e5; t1 += 3.5 * 864e5; }
-  let lo = Math.min(...prices); let hi = Math.max(...prices);
-  const span = hi - lo || hi * 0.2 || 1;
-  lo = Math.max(0, lo - span * 0.25); hi += span * 0.25;
+  // Round axis steps (1, 2, 2.5 or 5 × 10^k), like the figures on a printed timetable.
+  const raw = Math.max(...prices) - Math.min(...prices) || Math.max(...prices) * 0.2 || 1;
+  const mag = 10 ** Math.floor(Math.log10(raw / 3));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => raw / s <= 3);
+  const lo = Math.max(0, Math.floor(Math.min(...prices) / step) * step - (Math.min(...prices) % step === 0 ? step : 0));
+  const hi = Math.ceil(Math.max(...prices) / step) * step + (Math.max(...prices) % step === 0 ? step : 0);
   const x = (v) => pad.l + ((v - t0) / (t1 - t0)) * (W - pad.l - pad.r);
   const y = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * (H - pad.t - pad.b);
 
@@ -91,11 +94,10 @@ function chart(points, currency, width) {
     grid.append(s("line", { x1: gx, x2: gx, y1: pad.t, y2: H - pad.b }));
     if (i % every === 0) grid.append(s("text", { x: gx + 4, y: H - pad.b + 18, class: "chart-tick" }, t("week.short", { n: isoWeek(d) })));
   });
-  for (let i = 0; i <= 3; i++) {
-    const v = lo + ((hi - lo) * i) / 3;
+  for (let v = lo; v <= hi + step / 2; v += step) {
     const gy = y(v);
     grid.append(s("line", { x1: pad.l, x2: W - pad.r, y1: gy, y2: gy, class: "chart-hline" }),
-      s("text", { x: pad.l - 8, y: gy + 4, "text-anchor": "end", class: "chart-tick" }, fmtMoney(v, currency, v >= 100 ? 0 : 2)));
+      s("text", { x: pad.l - 8, y: gy + 4, "text-anchor": "end", class: "chart-tick" }, fmtMoney(v, currency, Number.isInteger(v) ? 0 : 2)));
   }
 
   // Prices hold until the next reading changes them: a step line, not a slope that never happened.

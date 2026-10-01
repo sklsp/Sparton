@@ -1,11 +1,8 @@
 // Board pieces the dashboard views share: a change as a board row, the week label, the counters.
 
 import { h } from "../ui.js";
-import { t, lang, fmtMoney, fmtDate } from "../i18n.js";
-import { boardRow } from "../board.js";
-import NumberFlow, { define } from "../vendor/number-flow.esm.js";
-
-define("number-flow", NumberFlow);
+import { t, fmtMoney, fmtDate } from "../i18n.js";
+import { boardRow, flapWord } from "../board.js";
 
 const pct = (v) => `${v > 0 ? "+" : "−"}${Math.abs(Math.round(v))}%`;
 
@@ -50,7 +47,7 @@ export function changeRow(c, source, onOpen) {
   if (c.evidence_url) {
     li.append(h("a.row-evidence", { href: c.evidence_url, target: "_blank", rel: "noopener noreferrer", title: t("ch.evidence") },
       h("span.visually-hidden", `${t("ch.evidence")}: ${c.product || ""}`),
-      h("span", { "aria-hidden": "true" }, "↗")));
+      h("span.ico-arrow", { "aria-hidden": "true" })));
   }
   return li;
 }
@@ -70,12 +67,10 @@ export function isoWeek(date) {
   return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
 }
 
-/** "12 changes" with the number rolling in (NumberFlow), and plural-aware wording. */
-export function countFlow(n, key, tone = "") {
-  const flow = document.createElement("number-flow");
-  flow.locales = lang === "nl" ? "nl-NL" : "en-IE";
-  const wrap = h("span.count", { "data-tone": tone },
-    flow, " ", h("span.count-label", t(Number(n) === 1 ? `${key}.one` : key)));
-  requestAnimationFrame(() => flow.update(Number(n) || 0));
-  return wrap;
+/** Counters for a board's title bar: a number on flap tiles, its label in plain text. */
+export function boardCounts(items) {
+  return h("p.board-counts", items.filter(Boolean).map(([n, key, tone = ""]) =>
+    h("span.board-count", { "data-tone": tone },
+      flapWord(String(n ?? 0), { label: String(n ?? 0) }),
+      h("span", t(Number(n) === 1 ? `${key}.one` : key)))));
 }

@@ -5,7 +5,7 @@ import { api, settleAll, settledValue } from "../api.js";
 import { h, fill, errorState } from "../ui.js";
 import { t, fmtDate } from "../i18n.js";
 import { boardRow } from "../board.js";
-import { changeRow, weekLabel, countFlow } from "./board-view.js";
+import { changeRow, weekLabel, boardCounts } from "./board-view.js";
 
 export default function overviewView(host, { navigate }) {
   const load = async () => {
@@ -23,11 +23,12 @@ export default function overviewView(host, { navigate }) {
     if (!ov.shops.length) return firstRun(navigate);
     const source = new Map(competitors.map((c) => [c.id, c.data_source]));
 
-    const counts = h("p.week-counts",
-      countFlow(ov.changes_this_week, "ov.count.changes"),
-      countFlow(ov.unacknowledged, "ov.count.unread"),
-      countFlow(ov.competitor_count, "ov.count.watched"),
-      ov.competitors_failing ? countFlow(ov.competitors_failing, "ov.count.failing", "warn") : null);
+    const counts = boardCounts([
+      [ov.changes_this_week, "ov.count.changes"],
+      [ov.unacknowledged, "ov.count.unread"],
+      [ov.competitor_count, "ov.count.watched"],
+      ov.competitors_failing ? [ov.competitors_failing, "ov.count.failing", "warn"] : null,
+    ]);
 
     const toRow = (c) => changeRow(c, source.get(c.competitor_id), () => navigate(`product?change=${c.id}`));
     const rows = ov.recent_changes.map(toRow);
@@ -38,6 +39,7 @@ export default function overviewView(host, { navigate }) {
       h("div.board-head",
         h("h2.board-title#week-board-title", t("ov.board.title")),
         h("a.board-link", { href: "#/alerts" }, t("ov.board.all"))),
+      counts,
       rows.length
         ? [cols(), h("ol.board-rows", rows)]
         : [quietWeek(ov), earlier.length
@@ -47,7 +49,7 @@ export default function overviewView(host, { navigate }) {
     const report = ov.latest_report
       ? h("a.report-teaser", { href: "#/reports" },
           h("span.report-teaser-k", t("ov.report.latest")),
-          h("strong", ov.latest_report.title || t("ov.report.untitled")),
+          h("strong", reportTitle(ov.latest_report)),
           h("span.report-teaser-go", t("ov.report.read")))
       : null;
 
@@ -55,7 +57,6 @@ export default function overviewView(host, { navigate }) {
       h("header.view-head",
         h("h1.view-title", t("ov.title")),
         h("p.view-sub", weekLabel())),
-      counts,
       board,
       report,
     ];
@@ -72,11 +73,19 @@ export default function overviewView(host, { navigate }) {
   run();
 }
 
+/** The server writes report titles in English; build ours from the report's own facts. */
+export function reportTitle(r) {
+  const shop = r.facts?.shop?.name;
+  const end = r.period_end ? fmtDate(new Date(r.period_end), { day: "numeric", month: "short" }) : "";
+  return shop ? `${t("rp.title", { shop })}${end ? ` · ${end}` : ""}` : t("ov.report.untitled");
+}
+
+/** A quiet week is one board line, so earlier moves still fill the first screen. */
 function quietWeek(ov) {
   const next = ov.shops.map((s) => s.next_crawl_at).filter(Boolean).sort()[0];
-  return h("div.board-quiet",
-    h("p.board-quiet-title", t("ov.quiet.title")),
-    h("p", next ? t("ov.quiet.next", { when: fmtDate(new Date(next), { weekday: "long", day: "numeric", month: "long" }) }) : t("ov.quiet.body")));
+  return h("p.board-quiet",
+    h("strong", t("ov.quiet.title")), " ",
+    next ? t("ov.quiet.next", { when: fmtDate(new Date(next), { weekday: "long", day: "numeric", month: "long" }) }) : t("ov.quiet.body"));
 }
 
 function firstRun() {

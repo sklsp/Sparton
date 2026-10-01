@@ -3,7 +3,8 @@
 // can never advertise a price the server does not enforce.
 
 import { t, translateDom, langSwitch, fmtMoney } from "/app/i18n.js";
-import { flapWord, flapTo, boardRow as row } from "/app/board.js";
+import { flapTo, boardRow as row } from "/app/board.js";
+import { planBoard } from "/app/plans.js";
 
 translateDom();
 document.getElementById("lp-tools")?.prepend(langSwitch());
@@ -222,39 +223,11 @@ if (stageRows && rail) {
 /* ---------------------------------------------------------------- plans */
 const plansEl = document.getElementById("plans");
 
-function frequency(hours) {
-  if (hours <= 12) return t("plan.freq.twiceDaily");
-  if (hours <= 24) return t("plan.freq.daily");
-  return t("plan.freq.weekly");
-}
-
 function planCard(plan) {
-  const card = el("article", "lp-plan");
-  if (plan.id === "pro") card.dataset.featured = "true";
-  const price = plan.price_cents === 0 ? fmtMoney(0, "EUR", 0) : fmtMoney(plan.price_cents / 100, "EUR", 0);
-  const head = el("div", "plan-head");
-  head.append(el("h3", "plan-name", plan.name));
-  if (plan.id === "pro") head.append(el("span", "plan-flag", t("plan.mostShops")));
-  const priceRow = el("p", "plan-price");
-  const flaps = flapWord(price, { className: "plan-flaps" });
-  priceRow.append(flaps, el("span", "plan-per", plan.price_cents ? t("plan.perMonth") : t("plan.forever")));
-  const items = [
-    t("plan.shops", { n: plan.shops }),
-    t("plan.competitors", { n: plan.competitors }),
-    frequency(plan.crawl_frequency_hours),
-    t("plan.history", { n: plan.report_history_months }),
-    t("plan.weeklyReport"),
-  ];
-  if (plan.features?.api_access) items.push(t("plan.api"));
-  if (plan.features?.priority_support) items.push(t("plan.support"));
-  const ul = el("ul", "plan-features");
-  for (const item of items) ul.append(el("li", null, item));
-  const cta = el("a", `btn ${plan.id === "free" ? "btn-primary" : ""} plan-cta`.trim(),
+  const cta = el("a", `btn ${plan.id === "pro" ? "btn-primary" : ""} plan-cta`.trim(),
     plan.id === "free" ? t("lp.cta") : t("plan.choose", { name: plan.name }));
   cta.href = plan.id === "free" ? "/app/#signup" : `/app/#signup?plan=${encodeURIComponent(plan.id)}`;
-  if (plan.id === "pro") cta.dataset.variant = "board";
-  card.append(head, priceRow, ul, cta);
-  return card;
+  return planBoard(plan, { featured: plan.id === "pro", action: cta });
 }
 
 async function loadPlans() {

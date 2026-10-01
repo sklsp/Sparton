@@ -5,6 +5,7 @@ import { api, settleAll, settledValue } from "../api.js";
 import { h, fill, button, toast, errorState } from "../ui.js";
 import { t, fmtMoney, fmtDate } from "../i18n.js";
 import { flapWord } from "../board.js";
+import { planBoard, cadence } from "../plans.js";
 import { loadingBoard } from "./overview.js";
 
 export default function billingView(host) {
@@ -20,9 +21,7 @@ export default function billingView(host) {
       fill(host, head(),
         h("section.plate.plan-now", { "aria-labelledby": "plan-now-title" },
           h("div.plan-now-head",
-            h("div",
-              h("p.plan-now-k", t("bl.current")),
-              h("h2#plan-now-title", plan.name)),
+            h("h2#plan-now-title", t("bl.currentIs", { plan: plan.name })),
             flapWord(price(plan), { className: "plan-flaps" })),
           h("div.limits",
             limit(t("bl.shops"), used.shops, plan.shops),
@@ -44,12 +43,7 @@ export default function billingView(host) {
 }
 
 const head = () => h("header.view-head", h("h1.view-title", t("nav.billing")), h("p.view-sub", t("bl.sub")));
-const price = (p) => fmtMoney(p.price_cents / 100, "EUR", 0);
-function cadence(hours) {
-  if (hours <= 12) return t("plan.freq.twiceDaily");
-  if (hours <= 24) return t("plan.freq.daily");
-  return t("plan.freq.weekly");
-}
+const price = (p) => fmtMoney(p.price_cents / 100, "EUR", 0).replace(/\s/g, "");
 
 /** "2 of 3 competitors": a tile per allowance, filled where used. */
 function limit(label, used, max) {
@@ -63,7 +57,7 @@ function limit(label, used, max) {
 
 function planCard(p, currentId, enabled, highlighted) {
   const current = p.id === currentId;
-  const go = current
+  const action = current
     ? h("p.plan-current-tag", t("bl.yourPlan"))
     : p.price_cents === 0
       ? null
@@ -79,17 +73,7 @@ function planCard(p, currentId, enabled, highlighted) {
             } catch (err) { toast(err.message, "danger"); delete b.dataset.loading; }
           },
         });
-  return h("article.lp-plan", { "data-featured": highlighted || (!currentId && p.id === "pro") ? "" : null, "data-current": current ? "" : null },
-    h("div.plan-head", h("h3.plan-name", p.name)),
-    h("p.plan-price", flapWord(price(p), { className: "plan-flaps" }), h("span.plan-per", p.price_cents ? t("plan.perMonth") : t("plan.forever"))),
-    h("ul.plan-features",
-      h("li", t("plan.shops", { n: p.shops })),
-      h("li", t("plan.competitors", { n: p.competitors })),
-      h("li", cadence(p.crawl_frequency_hours)),
-      h("li", t("plan.history", { n: p.report_history_months })),
-      p.features?.api_access ? h("li", t("plan.api")) : null,
-      p.features?.priority_support ? h("li", t("plan.support")) : null),
-    go);
+  return planBoard(p, { featured: highlighted, current, action });
 }
 
 function portalButton() {

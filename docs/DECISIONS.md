@@ -486,3 +486,11 @@ flag from the plans.
 `/vs/prisync` serves `app/web/vs-prisync.html`; `/verify-email` and `/reset-password` (the links in
 the existing emails, which previously 404'd) redirect into the dashboard's `#/verify` and
 `#/reset` screens, with the token in the fragment so it never reaches an access log.
+
+## D-034 — NumberFlow was tried and removed; anime.js stays for entrances only
+
+The brief asked for anime.js v4 and NumberFlow. NumberFlow rolls digits smoothly, which breaks
+the direction's whole-step motion rule (flaps turn, they do not tween), and the finish review
+flagged the counter strip it drove as a KPI pattern. Counters are now flap tiles in the board's
+title bar; NumberFlow is no longer vendored. anime.js (vendored, MIT) drives the plan and row
+entrances on the landing page, loads after first paint and never under reduced motion.
