@@ -430,5 +430,10 @@
   "plan.row.checks": "Checks",
   "bl.currentIs": "Your plan: {plan}",
   "auth.board.signup": "What your board will show",
-  "auth.board.login": "Since you last looked"
+  "auth.board.login": "Since you last looked",
+  "legal.back": "Back to Sparton",
+  "pp.title": "Sparton plans — Free, Pro and Business",
+  "pp.faq": "Questions about plans and data",
+  "pp.vs": "Sparton vs Prisync",
+  "fq.title": "Sparton questions — how it reads prices, how often, and what it costs"
 }

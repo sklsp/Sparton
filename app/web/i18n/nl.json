@@ -430,5 +430,10 @@
   "plan.row.checks": "Metingen",
   "bl.currentIs": "Je abonnement: {plan}",
   "auth.board.signup": "Wat je bord laat zien",
-  "auth.board.login": "Sinds je laatst keek"
+  "auth.board.login": "Sinds je laatst keek",
+  "legal.back": "Terug naar Sparton",
+  "pp.title": "Sparton abonnementen — Free, Pro en Business",
+  "pp.faq": "Vragen over abonnementen en data",
+  "pp.vs": "Sparton vs Prisync",
+  "fq.title": "Sparton vragen — hoe het prijzen leest, hoe vaak, en wat het kost"
 }

@@ -18,7 +18,9 @@ from urllib.parse import quote
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import (
     admin as admin_api,
@@ -195,7 +197,11 @@ def create_app() -> FastAPI:
         )
 
     # Public comparison pages: static HTML from the same directory as the landing page.
-    for _route, _file in (("/vs/prisync", "vs-prisync.html"),):
+    for _route, _file in (
+        ("/vs/prisync", "vs-prisync.html"),
+        ("/pricing", "pricing.html"),
+        ("/faq", "faq.html"),
+    ):
         def _public(_file: str = _file):
             path = WEB_DIR / _file
             if not path.is_file():
@@ -216,6 +222,26 @@ def create_app() -> FastAPI:
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon() -> Response:
         return Response(status_code=204)
+
+    # Browsers get designed error pages; API clients keep their JSON. A browser is a GET that
+    # asks for text/html; fetch() from the dashboard sends */* and stays on the JSON path.
+    def _wants_html(request: Request) -> bool:
+        return request.method == "GET" and "text/html" in request.headers.get("accept", "")
+
+    @app.exception_handler(StarletteHTTPException)
+    async def html_not_found(request: Request, exc: StarletteHTTPException):
+        page = WEB_DIR / "404.html"
+        if exc.status_code == 404 and _wants_html(request) and page.is_file():
+            return FileResponse(page, status_code=404, media_type="text/html")
+        return await http_exception_handler(request, exc)
+
+    @app.exception_handler(Exception)
+    async def html_server_error(request: Request, exc: Exception):
+        # Starlette still re-raises after this, so logging and test clients see the error.
+        page = WEB_DIR / "500.html"
+        if _wants_html(request) and page.is_file():
+            return FileResponse(page, status_code=500, media_type="text/html")
+        return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError):

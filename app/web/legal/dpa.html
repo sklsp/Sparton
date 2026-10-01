@@ -1,33 +1,29 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Data processing · SPARTON</title>
-<link rel="stylesheet" href="/styles.css">
-<link rel="stylesheet" href="/landing.css">
-<style>
-  .legal { max-width: 44rem; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
-  .legal h1 { font-size: 2.25rem; margin-bottom: 0.5rem; letter-spacing: -0.02em; }
-  .legal h2 { margin-top: 2.5rem; font-size: 1.15rem; }
-  .legal p, .legal li { color: var(--lp-muted, #5a6472); line-height: 1.7; }
-  .legal ul { padding-left: 1.25rem; }
-  .legal li { margin: 0.4rem 0; }
-  .legal .lp-updated { font-size: 0.9rem; }
-  .legal a { color: var(--lp-accent, #3b5bdb); }
-  .legal table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-  .legal th, .legal td { text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid #e3e6ec; vertical-align: top; font-size: 0.95rem; }
-  .legal th { color: #1a1d23; font-weight: 600; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex">
+  <title>Data processing (draft) · Sparton</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/landing.css">
 </head>
-<body>
-<main class="legal">
-  <p><a href="/">&larr; Back to SPARTON</a></p>
+<body class="landing legal-page">
+  <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
+  <header class="lp-bar"><div class="lp-bar-inner">
+    <a class="brand" href="/"><span class="flaps" role="img" aria-label="Sparton"><span class="flap">S</span><span class="flap">P</span><span class="flap">A</span><span class="flap">R</span><span class="flap">T</span><span class="flap">O</span><span class="flap">N</span></span></a>
+    <span class="lp-nav"></span><div class="lp-tools" id="lp-tools"></div>
+  </div></header>
+  <main id="main" class="legal">
+    <p class="draft-banner" role="note"><strong data-lang="en">DRAFT — needs legal review.</strong><strong data-lang="nl">CONCEPT — moet juridisch worden nagekeken.</strong>
+      <span data-lang="en">This is not final legal text. Do not rely on it.</span><span data-lang="nl">Dit is geen definitieve juridische tekst. Deze verwerkersovereenkomst is nog alleen in het Engels beschikbaar.</span></p>
+    <article lang="en">
   <h1>Data processing</h1>
   <p class="lp-updated">Last updated 29 September 2026.</p>
 
   <p>
-    This summarises how SPARTON processes personal data on your behalf. Our
+    This summarises how Sparton processes personal data on your behalf. Our
     <a href="/legal/privacy">privacy policy</a> covers what we do as a
     controller for your own account; this page covers the processor role, which
     applies when your organisation's data is what we are handling.
@@ -35,7 +31,7 @@
 
   <h2>Roles</h2>
   <p>
-    You are the controller of your account data. SPARTON is the processor. We act
+    You are the controller of your account data. Sparton is the processor. We act
     on your documented instructions &mdash; in practice, the shop and competitor
     URLs you add, and the crawl schedule your plan sets.
   </p>
@@ -98,6 +94,9 @@
 
   <h2>Contact</h2>
   <p>dpo@sparton.io &mdash; for a signed data processing agreement, contact legal@sparton.io.</p>
-</main>
+    </article>
+    <p class="legal-back"><a href="/" data-i18n="legal.back">Back to Sparton</a></p>
+  </main>
+  <script type="module" src="/app/legal.js"></script>
 </body>
 </html>

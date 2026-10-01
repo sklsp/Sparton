@@ -119,3 +119,34 @@ class TestComparisonPage:
         for row in rows:
             prisync_cell = re.findall(r"<td[^>]*>(.*?)</td>", row, flags=re.S)[-1]
             assert "prisync.com" in prisync_cell or "vs-unknown" in row, prisync_cell
+
+
+class TestPublicTextPages:
+    @pytest.mark.parametrize("path", ["/pricing", "/faq"])
+    def test_page_is_served(self, client, path):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    @pytest.mark.parametrize("page", ["privacy", "terms", "dpa"])
+    def test_legal_drafts_say_they_are_drafts(self, client, page):
+        body = client.get(f"/legal/{page}").text
+        assert "DRAFT — needs legal review" in body
+        assert "CONCEPT — moet juridisch worden nagekeken" in body
+
+
+class TestErrorPages:
+    def test_a_browser_gets_the_designed_404(self, client):
+        response = client.get("/no-such-page", headers={"Accept": "text/html,application/xhtml+xml"})
+        assert response.status_code == 404
+        assert "text/html" in response.headers["content-type"]
+        assert "isn't on the board" in response.text
+
+    def test_an_api_client_still_gets_json(self, client):
+        response = client.get("/no-such-page", headers={"Accept": "application/json"})
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Not Found"}
+
+    def test_fetch_from_the_dashboard_keeps_json(self, client):
+        response = client.get("/shops/999999", headers={"Accept": "*/*"})
+        assert response.headers["content-type"].startswith("application/json")
