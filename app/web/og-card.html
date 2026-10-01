@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- Source of og-image.png: this page, rendered in code and captured with a 1200x630 Playwright screenshot. Not linked from the site. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <title>Sparton OG card</title>
+  <link rel="stylesheet" href="/app/tokens.css">
+  <style>
+    body { margin: 0; width: 1200px; height: 630px; background: var(--board); color: var(--chalk); display: grid; place-items: center; overflow: hidden; }
+    .card { width: 1080px; display: grid; gap: 36px; }
+    .brand { font-size: 64px; }
+    .line { font-size: 40px; display: grid; gap: 14px; }
+    .line .flap { min-width: 0.74em; }
+    .tag { font: 600 30px/1.3 var(--font); color: var(--chalk-2); font-stretch: 87%; }
+    .y .flap { color: var(--signal); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand" id="brand"></div>
+    <div class="line"><div id="l1"></div><div id="l2" class="y"></div></div>
+    <p class="tag">Competitor prices for small webshops · NL / EN</p>
+  </div>
+  <script type="module">
+    import { flapWord } from "/app/board.js";
+    document.getElementById("brand").append(flapWord("SPARTON"));
+    document.getElementById("l1").append(flapWord("WHAT YOUR RIVALS"));
+    document.getElementById("l2").append(flapWord("CHANGED THIS WEEK"));
+  </script>
+</body>
+</html>

@@ -64,3 +64,45 @@ export function flapTo(wrap, text, { label = text } = {}) {
     setTimeout(tick, i * STEP_MS);
   })));
 }
+
+/* ------------------------------------------------------------- board rows */
+// Five cells: two name strips (whole-word flaps, like destination strips on a station board)
+// and three character-flap figures. `mark` is the certainty of the row; `struck` = sold out.
+// A status word (SOLD OUT, FOUND, EXACT) is too long for one figure, so it gets a strip across
+// the last two columns, like the CANCELLED strip on a departure board.
+// Screen readers get one sentence per row (`say`, or the cells joined), not tile soup.
+
+const node = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+};
+
+export function strip(text, cls = "") {
+  const s = node("span", `strip ${cls}`.trim());
+  s.append(node("span", "strip-text", text));
+  return s;
+}
+
+function figure(text, cls) {
+  const w = flapWord(text || " ", { className: `fig ${cls}` });
+  w.removeAttribute("role");
+  w.removeAttribute("aria-label");
+  return w;
+}
+
+export function boardRow({ a, b, c = "", d = "", e = "", span = "", mark = "exact", struck = false, tone = "", say, extractedNote = "" }, tag = "li") {
+  const li = node(tag, `board-row mark-row-${mark}`);
+  li.dataset.tone = tone;
+  li.dataset.span = span ? "1" : "";
+  if (struck) li.classList.add("is-struck");
+  const cells = node("span", "board-cells");
+  cells.setAttribute("aria-hidden", "true");
+  cells.append(strip(a, "cell-a"), strip(b, "cell-b"), figure(c, "cell-c"));
+  if (span) cells.append(strip(span, "cell-span"));
+  else cells.append(figure(d, "cell-d"), figure(e, "cell-e"));
+  const sentence = say || [a, b, c, d, e, span].filter(Boolean).join(", ");
+  li.append(node("span", "visually-hidden row-say", sentence + (mark === "extracted" && extractedNote ? ` (${extractedNote})` : "")), cells);
+  return li;
+}
