@@ -1,143 +1,58 @@
-// Settings — the account screen.
-//
-// Three things live here and nothing else: who you are, your password, and the
-// raw facts about what we are doing to your data. Adding a "preferences" tab
-// full of toggles that change nothing is how a settings page starts lying.
+// Account settings: who you are, your password, your language, signing out.
 
-import { api } from "../api.js";
-import { h, fill, toast, badge, button, confirmDialog } from "../ui.js";
+import { api, token } from "../api.js";
+import { h, fill, button, toast } from "../ui.js";
+import { t, langSwitch } from "../i18n.js";
 
-export default function settingsView(host, { state, onLogout }) {
-  const user = state?.user || {};
+export default function settingsView(host, { state }) {
+  const user = state.user || {};
+  fill(host,
+    h("header.view-head", h("h1.view-title", t("nav.settings"))),
+    h("section.plate.settings-block", { "aria-labelledby": "st-account" },
+      h("h2#st-account", t("st.account")),
+      h("dl.kv-list",
+        h("div", h("dt", t("auth.email")), h("dd", user.email || "—")),
+        h("div", h("dt", t("st.verified")), h("dd", t(user.email_verified ? "st.yes" : "st.no"))))),
+    passwordBlock(),
+    h("section.plate.settings-block", { "aria-labelledby": "st-lang" },
+      h("h2#st-lang", t("lang.label")),
+      h("p", t("st.langBody")),
+      h("div.st-lang", langSwitch())),
+    h("section.plate.settings-block", { "aria-labelledby": "st-out" },
+      h("h2#st-out", t("nav.signout")),
+      h("p", t("st.signoutBody")),
+      button(t("nav.signout"), { variant: "danger", onClick: async () => {
+        try { await api.logout(); } catch { /* the token may already be dead */ }
+        token.clear();
+        location.hash = "#/login";
+        location.reload();
+      } })));
+}
 
-  /* ------------------------------------------------------------- password */
-  function passwordForm() {
-    const current = h("input.input", {
-      type: "password", name: "current", required: true,
-      autocomplete: "current-password",
-    });
-    const next = h("input.input", {
-      type: "password", name: "next", required: true, minlength: "8",
-      autocomplete: "new-password",
-    });
-    const confirm = h("input.input", {
-      type: "password", name: "confirm", required: true, minlength: "8",
-      autocomplete: "new-password",
-    });
-    const message = h("p.form-message", { role: "status" });
-    message.hidden = true;
-    const submit = button("Change password", { type: "submit", variant: "primary" });
-
-    const form = h("form.form-grid", {
-      onsubmit: async (event) => {
-        event.preventDefault();
-        message.hidden = true;
-
-        // Checked here purely to save a round trip; the server checks it too.
-        if (next.value !== confirm.value) {
-          message.dataset.tone = "danger";
-          message.textContent = "The two new passwords do not match.";
-          message.hidden = false;
-          return;
-        }
-        if (next.value.length < 8) {
-          message.dataset.tone = "danger";
-          message.textContent = "Use at least 8 characters.";
-          message.hidden = false;
-          return;
-        }
-
-        submit.disabled = true;
-        submit.textContent = "Changing…";
+function passwordBlock() {
+  const field = (id, label, auto) => {
+    const el = h("input.input", { id, type: "password", required: true, minlength: auto === "new-password" ? 8 : 1, autocomplete: auto });
+    return [h("div.field", h("label", { for: id }, label), el), el];
+  };
+  const [curWrap, cur] = field("st-cur", t("st.currentPassword"), "current-password");
+  const [nextWrap, next] = field("st-new", t("auth.newPassword"), "new-password");
+  const msg = h("p.form-error", { role: "alert", hidden: true });
+  const submit = button(t("auth.savePassword"), { type: "submit", variant: "primary" });
+  return h("section.plate.settings-block", { "aria-labelledby": "st-pw" },
+    h("h2#st-pw", t("st.password")),
+    h("form.st-form", {
+      onsubmit: async (e) => {
+        e.preventDefault();
+        msg.hidden = true;
+        submit.dataset.loading = "true";
         try {
-          await api.changePassword(current.value, next.value);
-          form.reset();
-          toast("Password changed", "success");
-        } catch (error) {
-          message.dataset.tone = "danger";
-          message.textContent = error.message;
-          message.hidden = false;
-        } finally {
-          submit.disabled = false;
-          submit.textContent = "Change password";
-        }
+          await api.changePassword(cur.value, next.value);
+          e.target.reset();
+          toast(t("st.passwordSaved"), "success");
+        } catch (err) {
+          msg.textContent = err.status === 400 || err.status === 401 ? t("st.wrongPassword") : err.message;
+          msg.hidden = false;
+        } finally { delete submit.dataset.loading; }
       },
-    },
-      h("label.field", h("span", "Current password"), current),
-      h("label.field", h("span", "New password"), next),
-      h("label.field", h("span", "Confirm new password"), confirm),
-      h("div.form-actions", submit));
-
-    return h("div.stack", form, message);
-  }
-
-  /* --------------------------------------------------------------- account */
-  function accountCard() {
-    return h("div.account-card",
-      h("dl.account-facts",
-        h("div", h("dt", "Email"), h("dd", user.email || "—")),
-        h("div", h("dt", "Role"), h("dd", user.role || "member")),
-        h("div", h("dt", "Organisation"),
-          h("dd", user.organization_name || (user.organization_id
-            ? `#${user.organization_id}`
-            : "—"))),
-        h("div", h("dt", "Email verified"),
-          h("dd", user.email_verified
-            ? badge("Verified", "success")
-            : badge("Not verified", "warning")))));
-  }
-
-  /* ------------------------------------------------------------------ data */
-  const facts = [
-    ["What we crawl", "Only public product pages of shops and competitors you "
-      + "have added yourself."],
-    ["robots.txt", "Respected for every request. A page that forbids us is "
-      + "skipped, not worked around."],
-    ["How we identify", "Requests carry an honest user agent and a contact URL, "
-      + "so a site owner can reach us or block us."],
-    ["What we store", "Product name, price, availability and stock, per crawl, "
-      + "as a time series. We do not store page HTML."],
-    ["Alerts", "Computed by comparing two captures. Numbers are arithmetic, not "
-      + "model output, so they are reproducible."],
-    ["Reports", "Every figure comes from that same capture history."],
-  ];
-
-  function dataCard() {
-    return h("div.data-card",
-      h("dl.data-facts", facts.map(([label, text]) =>
-        h("div", h("dt", label), h("dd", text)))));
-  }
-
-  host.append(
-    h("div.toolbar", h("h2.view-title", "Settings")),
-    h("section.panel",
-      h("h3.panel-title", "Your account"),
-      accountCard()),
-    h("section.panel",
-      h("h3.panel-title", "Password"),
-      h("p.panel-hint",
-        "You will stay signed in on this device after changing it. Other "
-        + "devices keep working until their sessions expire."),
-      passwordForm()),
-    h("section.panel",
-      h("h3.panel-title", "What SPARTON does with your data"),
-      dataCard()),
-    h("section.panel",
-      h("h3.panel-title", "Session"),
-      h("p.panel-hint", "Sign out of this device."),
-      h("div.form-actions",
-        button("Sign out", { onClick: signOut }))));
-
-  /** Revoke the session server-side, then drop the local token. */
-  async function signOut() {
-    const ok = await confirmDialog({
-      title: "Sign out?",
-      message: "You will need to sign in again on this device.",
-      confirmLabel: "Sign out",
-    });
-    if (!ok) return;
-    await api.logout().catch(() => {});
-    api.token.clear();
-    onLogout?.();
-  }
+    }, curWrap, nextWrap, h("p.field-hint", t("auth.passwordHint")), msg, submit));
 }

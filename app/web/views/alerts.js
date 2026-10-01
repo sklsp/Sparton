@@ -1,179 +1,82 @@
-// Alerts — the in-app inbox. This is the screen a customer opens daily.
-//
-// Three rules this view keeps:
-//  1. Every alert links to the product page the number was read from. If we
-//     cannot show the evidence, we should not be making the claim.
-//  2. An empty inbox says so plainly. A quiet week is information.
-//  3. Nothing is deleted, only acknowledged, so the history stays auditable.
+// Every change, newest first, ruled by week: the same time axis as This week and the reports.
 
 import { api, settleAll, settledValue } from "../api.js";
-import { h, fill, asyncPanel, empty, toast, ago, badge, button } from "../ui.js";
-import { money, kindLabel, kindTone } from "./shared.js";
+import { h, fill, button, toast, errorState } from "../ui.js";
+import { t } from "../i18n.js";
+import { changeRow, isoWeek } from "./board-view.js";
+import { loadingBoard } from "./overview.js";
 
-const KINDS = [
-  ["", "All changes"],
-  ["price_decrease", "Price cuts"],
-  ["price_increase", "Price rises"],
-  ["new_product", "New products"],
-  ["removed_product", "Delisted"],
-  ["out_of_stock", "Out of stock"],
-  ["back_in_stock", "Back in stock"],
-];
-
-const filters = { kind: "", shopId: null, unacknowledgedOnly: false };
+const KINDS = ["price_decrease", "price_increase", "out_of_stock", "back_in_stock", "new_product", "removed_product"];
 
 export default function alertsView(host, { navigate }) {
-  const listHost = h("div.stack");
+  const filters = { unread: false, kind: "" };
 
-  const kindSelect = h(
-    "select.input",
-    {
-      "aria-label": "Filter by change type",
-      onchange: (e) => { filters.kind = e.target.value; reload(); },
-    },
-    KINDS.map(([value, label]) =>
-      h("option", { value, selected: filters.kind === value }, label)),
-  );
-
-  const shopSelect = h(
-    "select.input",
-    {
-      "aria-label": "Filter by shop",
-      onchange: (e) => {
-        filters.shopId = e.target.value ? Number(e.target.value) : null;
-        reload();
-      },
-    },
-    h("option", { value: "" }, "All shops"),
-  );
-
-  const unreadInput = h("input", {
-    type: "checkbox",
-    onchange: (e) => { filters.unacknowledgedOnly = e.target.checked; reload(); },
-  });
-
-  fill(host,
-    h("div.toolbar",
-      h("h2.view-title", "Alerts"),
-      h("div.toolbar-controls",
-        kindSelect, shopSelect,
-        h("label.check", unreadInput, "Unread only"),
-        button("Refresh", { onClick: () => reload() }))),
-    listHost);
-
-  /* ------------------------------------------------------------- one alert */
-  function changeCard(change) {
-    const tone = kindTone(change.kind);
-    const hasPrices = change.previous_price != null && change.new_price != null;
-
-    return h("article.alert", {
-      "data-tone": tone,
-      "data-unread": change.acknowledged_at ? "false" : "true",
-    },
-      h("div.alert-head",
-        h("span.alert-kind", kindLabel(change.kind)),
-        change.delta_pct != null
-          ? badge(`${change.delta_pct > 0 ? "+" : ""}${change.delta_pct.toFixed(0)}%`, tone)
-          : null,
-        h("time.alert-time", { datetime: change.detected_at || "" }, ago(change.detected_at))),
-      h("p.alert-title", change.title),
-      change.summary ? h("p.alert-summary", change.summary) : null,
-      h("div.alert-foot",
-        h("div.alert-prices",
-          change.previous_price != null
-            ? h("span.price-was", money(change.previous_price, change.currency))
-            : null,
-          hasPrices ? h("span.price-arrow", { "aria-hidden": "true" }, "→") : null,
-          change.new_price != null
-            ? h("span.price-now", money(change.new_price, change.currency))
-            : null),
-        change.evidence_url
-          ? h("a.evidence", {
-              href: change.evidence_url,
-              target: "_blank",
-              rel: "noopener noreferrer",
-            }, "Evidence", h("span.evidence-icon", { "aria-hidden": "true" }, "↗"))
-          : h("span.evidence.evidence-missing", "No evidence link"),
-        !change.acknowledged_at
-          ? button("Mark read", {
-              size: "sm",
-              onClick: (event) => acknowledge(change.id, event.currentTarget),
-            })
-          : null));
-  }
-
-  async function acknowledge(id, button) {
-    button.disabled = true;
+  const run = async () => {
+    fill(host, head(), loadingBoard(6));
     try {
-      await api.acknowledgeChange(id);
-      toast("Marked as read", "success");
-      reload();
-    } catch (error) {
-      button.disabled = false;
-      toast(error.message, "danger");
+      const [ch, comps, sh] = await settleAll([
+        api.changes({ days: 90, limit: 200, kind: filters.kind || undefined, unacknowledgedOnly: filters.unread }),
+        api.competitors(),
+        api.shops(),
+      ]);
+      if (ch.status === "rejected") throw ch.reason;
+      const { changes, unacknowledged } = ch.value;
+      const source = new Map((settledValue(comps, { competitors: [] }).competitors || []).map((c) => [c.id, c.data_source]));
+      const hasShops = (settledValue(sh, { shops: [] }).shops || []).length > 0;
+
+      const markAll = unacknowledged
+        ? button(t("al.markAll", { n: unacknowledged }), { size: "sm", onClick: async () => {
+            markAll.dataset.loading = "true";
+            try {
+              const unread = changes.filter((c) => !c.acknowledged_at);
+              for (const c of unread) await api.acknowledgeChange(c.id);
+              toast(t("al.marked"), "success");
+              run();
+            } catch (err) { toast(err.message, "danger"); delete markAll.dataset.loading; }
+          } })
+        : null;
+
+      fill(host, head(), toolbar(markAll), changes.length
+        ? weeks(changes).map(([week, rows]) => h("section.board.week-board", { "aria-label": t("week.label", { n: week }) },
+            h("div.board-head", h("h2.board-title", t("week.label", { n: week }))),
+            h("ol.board-rows", rows.map((c) => changeRow(c, source.get(c.competitor_id), () => navigate(`product?change=${c.id}`))))))
+        : empty(hasShops));
+    } catch (err) {
+      fill(host, head(), errorState({ title: t("al.error"), message: err.message, onRetry: run }));
     }
+  };
+
+  function toolbar(markAll) {
+    const unread = h("input#al-unread", { type: "checkbox", checked: filters.unread, onchange: () => { filters.unread = unread.checked; run(); } });
+    const kind = h("select.input#al-kind", { onchange: () => { filters.kind = kind.value; run(); } },
+      h("option", { value: "" }, t("al.kind.all")),
+      KINDS.map((k) => h("option", { value: k, selected: filters.kind === k }, t(`al.kind.${k}`))));
+    return h("div.al-toolbar",
+      h("label.al-check", { for: "al-unread" }, unread, t("al.unreadOnly")),
+      h("label.al-select", { for: "al-kind" }, h("span", t("al.kind")), kind),
+      markAll);
   }
 
-  /* --------------------------------------------------------------- render */
-  async function render() {
-    const [changes, shopList] = await settleAll([
-      api.changes({
-        kind: filters.kind || undefined,
-        shopId: filters.shopId || undefined,
-        unacknowledgedOnly: filters.unacknowledgedOnly,
-        days: 30,
-        limit: 100,
-      }),
-      api.shops(),
-    ]);
-
-    // Rebuild the shop options, keeping the current selection.
-    const shops = settledValue(shopList, { shops: [] }).shops || [];
-    fill(shopSelect,
-      h("option", { value: "" }, "All shops"),
-      shops.map((s) => h("option", {
-        value: String(s.id),
-        selected: filters.shopId === s.id,
-      }, s.name)));
-
-    const data = settledValue(changes, null);
-    if (!data) throw new Error("Could not load alerts");
-
-    const filtered = filters.kind || filters.unacknowledgedOnly || filters.shopId;
-    if (!data.changes.length) {
-      fill(listHost, empty({
-        iconName: filtered ? "search" : "info",
-        title: filtered ? "Nothing matches that filter" : "No alerts yet",
-        message: filtered
-          ? "Try widening the filter."
-          : "We alert you the moment a competitor changes a price, adds a "
-            + "product, or goes out of stock. The first crawl of a new "
-            + "competitor sets a baseline, so real changes appear from the "
-            + "second crawl onward.",
-        action: filtered
-          ? { label: "Clear filters", onClick: clearFilters }
-          : { label: "Add a shop", onClick: () => navigate("shops") },
-      }));
-      return;
-    }
-
-    fill(listHost,
-      h("p.list-meta",
-        `${data.count} alert${data.count === 1 ? "" : "s"}`,
-        data.unacknowledged ? ` · ${data.unacknowledged} unread` : ""),
-      h("div.alert-list", data.changes.map(changeCard)));
+  function empty(hasShops) {
+    const filtered = filters.unread || filters.kind;
+    return h("section.plate.empty-plate",
+      h("h2", t(filtered ? "al.empty.filtered" : hasShops ? "al.empty.title" : "al.empty.noShop")),
+      h("p", t(filtered ? "al.empty.filteredBody" : hasShops ? "al.empty.body" : "al.empty.noShopBody")),
+      !hasShops ? h("a.btn", { href: "#/start", "data-variant": "primary" }, t("ov.first.cta")) : null);
   }
 
-  function clearFilters() {
-    filters.kind = "";
-    filters.shopId = null;
-    filters.unacknowledgedOnly = false;
-    kindSelect.value = "";
-    shopSelect.value = "";
-    unreadInput.checked = false;
-    reload();
-  }
+  run();
+}
 
-  const reload = asyncPanel(listHost, render, render);
-  return reload;
+const head = () => h("header.view-head", h("h1.view-title", t("nav.alerts")), h("p.view-sub", t("al.sub")));
+
+/** Changes grouped by ISO week, newest week first. */
+function weeks(changes) {
+  const groups = new Map();
+  for (const c of changes) {
+    const w = isoWeek(new Date(c.detected_at));
+    if (!groups.has(w)) groups.set(w, []);
+    groups.get(w).push(c);
+  }
+  return [...groups];
 }

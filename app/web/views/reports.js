@@ -1,193 +1,140 @@
-// Reports — the "what changed and what should I do about it" screen.
-//
-// A report is a generated artefact, so the list is a filing cabinet and the
-// detail is the document. Reports are immutable once written: we keep the
-// numbers that were true at generation time, even if a later crawl contradicts
-// them, because a report you cannot trust retrospectively is worthless.
+// The weekly reports: a list on the weekly axis, and one report read as the board of its moves
+// plus the written summary. Numbers come from the report's facts and its change rows, never
+// from the prose.
 
-import { api } from "../api.js";
-import { h, fill, asyncPanel, empty, toast, ago, when, badge, button } from "../ui.js";
-import { money, kindLabel, kindTone, isPlanLimit, planLimitMessage } from "./shared.js";
+import { api, settleAll, settledValue } from "../api.js";
+import { h, fill, button, toast, errorState } from "../ui.js";
+import { t, lang, fmtDate } from "../i18n.js";
+import { changeRow, isoWeek, countFlow } from "./board-view.js";
+import { loadingBoard } from "./overview.js";
 
-const DAYS = [7, 14, 30];
+export default function reportsView(host, { navigate }) {
+  const selected = () => new URLSearchParams(location.hash.split("?")[1] || "").get("id");
 
-export default function reportsView(host) {
-  const listHost = h("div.stack");
-  const detailHost = h("div");
-  let selectedId = null;
-  let reload = () => {};
-
-  // Each picker lives in exactly one place in the tree; a DOM node cannot be
-  // in two parents, so there is one shop picker and one period picker.
-  const periodSelect = h("select.input", {
-    "aria-label": "Reporting period",
-  }, DAYS.map((d) => h("option", { value: String(d), selected: d === 30 }, `Last ${d} days`)));
-
-  const shopSelect = h("select.input", {
-    "aria-label": "Shop",
-  }, h("option", { value: "" }, "Loading shops…"));
-
-  const generateButton = button("Write report", {
-    variant: "primary",
-    onClick: () => generate(),
-  });
-
-  const page = h("div",
-    h("div.toolbar",
-      h("h2.view-title", "Reports"),
-      h("div.toolbar-controls",
-        h("label.inline-field", "Period", periodSelect),
-        button("Refresh", { onClick: () => reload() }))),
-    h("section.panel",
-      h("h3.panel-title", "Generate a report"),
-      h("p.panel-hint",
-        "A report summarises every change we detected in the period: price "
-        + "moves, new and delisted products, and stock-outs. Every figure comes "
-        + "from our own capture history, so a report is always reproducible."),
-      h("div.form-grid",
-        h("label.field", h("span", "Shop"), shopSelect),
-        h("div.form-actions", generateButton))),
-    h("div.reports-split",
-      h("section.reports-list-wrap", listHost),
-      detailHost));
-
-  host.append(page);
-
-  /* ------------------------------------------------------------- generate */
-  async function generate() {
-    const shopId = Number(shopSelect.value);
-    if (!shopId) {
-      toast("Add a shop before generating a report.", "info");
-      return;
-    }
-    const days = Number(periodSelect.value);
-    generateButton.disabled = true;
-    generateButton.textContent = "Writing…";
+  const run = async () => {
+    fill(host, head(), loadingBoard(4));
     try {
-      const result = await api.generateReport(shopId, days);
-      selectedId = result?.report?.id ?? result?.id ?? null;
-      toast("Report ready", "success");
-      reload();
-    } catch (error) {
-      toast(isPlanLimit(error) ? planLimitMessage(error) : error.message, "danger");
-    } finally {
-      generateButton.disabled = false;
-      generateButton.textContent = "Write report";
+      const [rep, sh] = await settleAll([api.reports(30), api.shops()]);
+      if (rep.status === "rejected") throw rep.reason;
+      const reports = rep.value.reports || [];
+      const shops = settledValue(sh, { shops: [] }).shops || [];
+      const id = selected() || reports[0]?.id;
+      fill(host, head(writeNow(shops, run)),
+        reports.length
+          ? h("div.reports-split",
+              h("nav.report-list", { "aria-label": t("rp.list") }, h("ol", reports.map((r) => listItem(r, String(r.id) === String(id))))),
+              h("div.report-host", await reportBody(id, navigate)))
+          : h("section.plate.empty-plate",
+              h("h2", t(shops.length ? "rp.empty.title" : "al.empty.noShop")),
+              h("p", t(shops.length ? "rp.empty.body" : "al.empty.noShopBody")),
+              shops.length ? null : h("a.btn", { href: "#/start", "data-variant": "primary" }, t("ov.first.cta"))));
+    } catch (err) {
+      fill(host, head(), errorState({ title: t("rp.error"), message: err.message, onRetry: run }));
+    }
+  };
+  run();
+}
+
+function head(action = null) {
+  return h("header.view-head.view-head-row",
+    h("div", h("h1.view-title", t("nav.reports")), h("p.view-sub", t("rp.sub"))), action);
+}
+
+function writeNow(shops, reload) {
+  if (!shops.length) return null;
+  const b = button(t("rp.writeNow"), { onClick: async () => {
+    b.dataset.loading = "true";
+    try {
+      for (const s of shops) await api.generateReport(s.id, 7);
+      toast(t("rp.queued"), "success");
+      setTimeout(reload, 1500);
+    } catch (err) { toast(err.message, "danger"); } finally { delete b.dataset.loading; }
+  } });
+  return b;
+}
+
+const period = (r) => {
+  const a = new Date(r.period_start); const b = new Date(r.period_end);
+  return `${fmtDate(a)} – ${fmtDate(b, { day: "numeric", month: "short", year: "numeric" })}`;
+};
+
+function listItem(r, current) {
+  const shop = r.facts?.shop?.name || "";
+  return h("li", h("a.report-item", { href: `#/reports?id=${r.id}`, "aria-current": current ? "page" : null },
+    h("span.report-item-week", t("week.label", { n: isoWeek(new Date(r.period_end)) })),
+    h("strong", shop || t("ov.report.untitled")),
+    h("span.report-item-period", period(r)),
+    r.status !== "COMPLETED" ? h("span.report-item-status", t(r.status === "FAILED" ? "rp.failed" : "rp.writing")) : null));
+}
+
+async function reportBody(id, navigate) {
+  if (!id) return null;
+  const [r, ch, comps] = await settleAll([api.report(id), api.changes({ days: 365, limit: 200 }), api.competitors()]);
+  if (r.status === "rejected") return errorState({ title: t("rp.error"), message: r.reason.message });
+  const report = r.value;
+  const facts = report.facts || {};
+  const ids = new Set((report.change_ids || []).map(String));
+  const changes = (settledValue(ch, { changes: [] }).changes || []).filter((c) => ids.has(String(c.id)));
+  const source = new Map((settledValue(comps, { competitors: [] }).competitors || []).map((c) => [c.id, c.data_source]));
+  const kinds = facts.by_kind || {};
+
+  return h("article.report", { "aria-labelledby": "report-title" },
+    h("header.report-head",
+      h("p.report-week", `${t("week.label", { n: isoWeek(new Date(report.period_end)) })} · ${period(report)}`),
+      h("h2#report-title", t("rp.title", { shop: facts.shop?.name || "" }))),
+    h("p.week-counts",
+      countFlow(facts.total_changes ?? changes.length, "ov.count.changes"),
+      kinds.price_decrease ? countFlow(kinds.price_decrease, "rp.count.cuts") : null,
+      kinds.price_increase ? countFlow(kinds.price_increase, "rp.count.rises") : null,
+      (facts.competitors || []).length ? countFlow(facts.competitors.length, "ov.count.watched") : null),
+    changes.length
+      ? h("section.board.week-board", { "aria-label": t("rp.moves") },
+          h("div.board-head", h("h3.board-title", t("rp.moves"))),
+          h("ol.board-rows", changes.map((c) => changeRow(c, source.get(c.competitor_id), () => navigate(`product?change=${c.id}`)))))
+      : null,
+    report.markdown
+      ? h("section.plate.report-prose", { "aria-label": t("rp.summary") },
+          h("h3", t("rp.summary")),
+          lang !== "en" ? h("p.report-lang", t("rp.englishOnly")) : null,
+          markdown(report.markdown))
+      : null,
+    h("p.report-fine", t("rp.fine")));
+}
+
+/* -------------------------------------------------------------- markdown */
+// The report prose is our own server's Markdown: headings, bold, lists, tables and links.
+// Everything is escaped first; only http(s) links survive.
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const inline = (s) => esc(s)
+  .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+  .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+export function markdown(src) {
+  const out = [];
+  const lines = src.replace(/\r/g, "").split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const head = /^(#{1,4})\s+(.*)$/.exec(line);
+    if (head) {
+      // The report's own H1 repeats the title above it; start the prose at H2.
+      if (head[1].length === 1) continue;
+      out.push(`<h${head[1].length + 2}>${inline(head[2])}</h${head[1].length + 2}>`);
+    } else if (line.startsWith("|")) {
+      const rows = [];
+      while (i < lines.length && lines[i].startsWith("|")) rows.push(lines[i++]);
+      i--;
+      const cells = (r) => r.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      const [hd, , ...body] = rows;
+      out.push(`<div class="table-wrap"><table class="readings"><thead><tr>${cells(hd).map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${body.map((r) => `<tr>${cells(r).map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
+    } else if (/^[-*]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^[-*]\s+/.test(lines[i])) items.push(lines[i++].replace(/^[-*]\s+/, ""));
+      i--;
+      out.push(`<ul>${items.map((x) => `<li>${inline(x)}</li>`).join("")}</ul>`);
+    } else {
+      out.push(`<p>${inline(line)}</p>`);
     }
   }
-
-  /* ----------------------------------------------------------------- list */
-  function reportRow(report) {
-    const selected = report.id === selectedId;
-    return h("li.report-row", { "data-selected": selected ? "true" : "false" },
-      h("button.report-row-btn", {
-        onclick: () => { selectedId = report.id; render(); },
-        "aria-current": selected ? "true" : "false",
-      },
-        h("span.report-row-title", report.title || "Untitled report"),
-        h("span.report-row-meta",
-          h("span", when(report.period_end || report.generated_at)),
-          h("span.report-row-stats",
-            `${report.change_count} changes`,
-            report.competitors_covered != null
-              ? ` · ${report.competitors_covered} competitors`
-              : ""),
-          badge(report.status === "FAILED" ? "failed" : "ready",
-            report.status === "FAILED" ? "danger" : "neutral"))));
-  }
-
-  function section(heading, ...body) {
-    return h("section.report-section", h("h4", heading), body);
-  }
-
-  function stat(label, value) {
-    return h("div.stat", h("dt", label), h("dd", value));
-  }
-
-  /* --------------------------------------------------------------- detail */
-  function renderReport(report) {
-    const highlights = report.highlights || [];
-    const changes = report.changes || [];
-    const data = report.data || {};
-    const stats = [];
-
-    if (data.competitors_covered != null) {
-      stats.push(stat("Competitors", data.competitors_covered));
-    }
-    if (data.products_tracked != null) {
-      stats.push(stat("Products tracked", data.products_tracked));
-    }
-    if (data.price_moves != null) stats.push(stat("Price changes", data.price_moves));
-    if (data.avg_price_delta != null) {
-      const delta = Number(data.avg_price_delta);
-      stats.push(stat("Average price move", `${delta > 0 ? "+" : ""}${delta}%`));
-    }
-
-    return h("article.report",
-      h("header.report-head",
-        h("div",
-          h("h3", report.title || "Report"),
-          h("p.report-period",
-            `${when(report.period_start)} – ${when(report.period_end || report.generated_at)}`,
-            report.generated_at
-              ? h("span", " · generated ", ago(report.generated_at))
-              : null)),
-        button("Close", {
-          size: "sm",
-          onClick: () => { selectedId = null; render(); },
-        })),
-
-      section("Summary",
-        h("p.report-summary", report.summary || "No summary was generated for this period.")),
-
-      highlights.length
-        ? section("What matters",
-            h("ul.highlights", highlights.map((line) => h("li", line))))
-        : null,
-
-      stats.length ? section("The numbers", h("dl.stat-grid", stats)) : null,
-
-      changes.length
-        ? section(`Changes (${changes.length})`,
-            h("ul.change-chips", changes.slice(0, 50).map((change) =>
-              h("li.chip", { "data-tone": kindTone(change.kind) },
-                kindLabel(change.kind),
-                change.new_price != null
-                  ? h("span.chip-price", money(change.new_price, change.currency))
-                  : null))))
-        : h("p.report-muted", "No individual changes were recorded in this period."));
-  }
-
-  /* ----------------------------------------------------------------- load */
-  async function render() {
-    const { shops } = await api.shops();
-    const current = shopSelect.value;
-    fill(shopSelect, shops.length
-      ? shops.map((s) => h("option", { value: String(s.id), selected: current === String(s.id) },
-        s.name))
-      : h("option", { value: "" }, "No shops yet — add one first"));
-
-    // A failed list must not hide a report the user already has open.
-    const [list, detail] = await Promise.all([
-      api.reports().catch(() => ({ reports: [] })),
-      selectedId ? api.report(selectedId).catch(() => null) : Promise.resolve(null),
-    ]);
-
-    fill(listHost, list.reports.length
-      ? h("ul.report-list", list.reports.map(reportRow))
-      : empty({
-          iconName: "report",
-          title: "No reports yet",
-          message: "Generate one above to see how your competitors moved.",
-        }));
-
-    fill(detailHost, detail
-      ? renderReport(detail)
-      : selectedId
-        ? h("p.report-muted", "That report could not be loaded.")
-        : h("p.report-muted", "Choose a report to read it."));
-  }
-
-  reload = asyncPanel(listHost, render, render);
-  return reload;
+  return h("div.prose", { html: out.join("") });
 }

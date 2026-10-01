@@ -453,3 +453,36 @@ Station yellow is the single action colour. One self-hosted variable face (Archi
 condensed for the flaps and headings, normal width for reading. The previous dark theme is dropped
 for v1.0 (one light world, the board itself is the dark element). Build path is code-led: no image
 generation (€0 rule), so every scene is CSS/SVG/canvas.
+
+## D-031 — The site claims no product matching and no own-price tracking (yet)
+
+**Context.** The brief positions Sparton on "automatic product matching" and asks for price
+histories with "your price a solid line". The backend (2026-10-01) reads competitor catalogues
+only: there is no capture of the owner's own catalogue and no own-product ↔ competitor-product
+matching (`app/ecommerce/` matches a competitor's product to *its own* earlier captures).
+
+**Decision.** Public copy and the dashboard claim only what the code does: competitor discovery
+(suggest + confirm), full competitor catalogue reading with exact/extracted labels, change
+detection, the weekly report with evidence links. The price-history chart keeps the "your price
+solid, competitors dashed" grammar and shows the own-price line as "not tracked yet" until the
+backend records it.
+
+**Jay decides.** Whether to build own-catalogue reading + matching (then restore the claim), or
+drop it from the positioning.
+
+## D-032 — "Email digest" is not shown as a plan feature
+
+**Context.** `app/billing/plans.py` sets `email_digest: true` on Pro and Business, but no code
+sends a digest or a report email (`app/core/email.py` only sends verification and reset mails).
+
+**Decision.** The landing page and the billing view do not list "Email digest" until it exists.
+The plan data is unchanged (API contract kept).
+
+**Jay decides.** Build the weekly report email (the M10 template is the design for it), or drop the
+flag from the plans.
+
+## D-033 — Comparison and email links are served by small static routes
+
+`/vs/prisync` serves `app/web/vs-prisync.html`; `/verify-email` and `/reset-password` (the links in
+the existing emails, which previously 404'd) redirect into the dashboard's `#/verify` and
+`#/reset` screens, with the token in the fragment so it never reaches an access log.

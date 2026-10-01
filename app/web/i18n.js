@@ -36,7 +36,7 @@ export function setLang(next) {
   location.reload();
 }
 
-/** Static HTML: data-i18n="key" sets text; data-i18n-attr="aria-label:key;content:key" sets attributes. */
+/** Static HTML: data-i18n=KEY sets text; data-i18n-attr=ATTR:KEY;ATTR:KEY sets attributes. */
 export function translateDom(root = document) {
   for (const el of root.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
   for (const el of root.querySelectorAll("[data-i18n-html]")) el.innerHTML = t(el.dataset.i18nHtml);

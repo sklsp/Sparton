@@ -9,6 +9,7 @@ horizontal overflow at 375 px, the two checks a screenshot alone does not show.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 import uuid
@@ -46,9 +47,15 @@ def main(base: str, paths: list[str], full: bool = True) -> int:
                     needs_session = path.startswith("/app/") and not re.search(r"#/?(signup|login|reset|forgot)", path)
                     if needs_session:
                         if session_token is None:
-                            res = page.request.post(f"{base}/auth/register", data={
-                                "email": f"qa-{uuid.uuid4().hex[:8]}@example.com",
-                                "password": "correct-horse-battery", "organization_name": "QA demo shop"})
+                            # QA_EMAIL/QA_PASSWORD: sign in to a seeded demo account instead
+                            # of a fresh, empty one (scripts/seed_demo.py).
+                            if os.environ.get("QA_EMAIL"):
+                                res = page.request.post(f"{base}/auth/login", data={
+                                    "email": os.environ["QA_EMAIL"], "password": os.environ["QA_PASSWORD"]})
+                            else:
+                                res = page.request.post(f"{base}/auth/register", data={
+                                    "email": f"qa-{uuid.uuid4().hex[:8]}@example.com",
+                                    "password": "correct-horse-battery", "organization_name": "QA demo shop"})
                             session_token = res.json()["token"]
                         page.evaluate("t => localStorage.setItem('sparton.token', t)", session_token)
                     else:

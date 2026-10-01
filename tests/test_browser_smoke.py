@@ -195,6 +195,26 @@ class TestThePublicPages:
         assert not missing, f"the landing page 404s: {missing}"
         _assert_no_js_errors(page, "the landing page assets")
 
+    def test_the_demo_board_is_filled_and_labelled_as_demo(self, page):
+        """The hero board shows invented shops; it must say so on the board itself."""
+        page.goto(f"{page.base}/", wait_until="networkidle")
+        board = page.locator("#hero-board")
+        assert board.locator(".board-row").count() >= 5, "the demo board is empty"
+        assert "demo" in board.locator(".board-demo").inner_text().lower()
+        _assert_no_js_errors(page, "the demo board")
+
+    def test_the_scroll_story_changes_the_board(self, page):
+        page.goto(f"{page.base}/", wait_until="networkidle")
+        title = page.locator("#stage-title")
+        first = title.inner_text()
+        page.evaluate("document.querySelector('.step[data-scene=report]').scrollIntoView({block: 'center'})")
+        page.wait_for_function(
+            "() => document.querySelector('.rail-stop[data-scene=report]').hasAttribute('data-active')",
+            timeout=5000,
+        )
+        assert title.inner_text() != first, "the board did not change with the story"
+        _assert_no_js_errors(page, "the scroll story")
+
     def test_an_unknown_path_does_not_500(self, page):
         response = page.goto(f"{page.base}/definitely-not-a-route", wait_until="domcontentloaded")
         assert response.status < 500, f"a missing path returned {response.status}"
@@ -618,3 +638,80 @@ class TestLanguageAndShell:
             _assert_no_js_errors(page, "the mobile navigation")
         finally:
             context.close()
+
+
+class TestAccountRecovery:
+    """Forgot password and the reset link, driven through the real screens."""
+
+    def test_forgot_password_confirms_without_revealing_the_account(self, page):
+        page.goto(f"{page.base}/app/#/login", wait_until="networkidle")
+        page.click("a[href='#/forgot']")
+        page.wait_for_selector("input[type=email]")
+        page.fill("input[type=email]", "nobody-here@example.com")
+        page.click("button[type=submit]")
+        page.wait_for_function("() => document.body.innerText.includes('Check your inbox')", timeout=5000)
+        assert "nobody-here@example.com" in page.locator("body").inner_text()
+        _assert_no_js_errors(page, "forgot password")
+
+    def test_an_invalid_reset_link_says_so_and_offers_a_new_one(self, page):
+        page.goto(f"{page.base}/reset-password?token=not-a-real-token", wait_until="networkidle")
+        assert "#/reset?token=not-a-real-token" in page.url
+        page.fill("input[autocomplete=new-password] >> nth=0", "correct-horse-battery")
+        page.fill("input[autocomplete=new-password] >> nth=1", "correct-horse-battery")
+        page.click("button[type=submit]")
+        page.wait_for_selector(".form-error:not([hidden])", timeout=5000)
+        assert "expired" in page.locator(".form-error").inner_text()
+        _assert_no_js_errors(page, "an invalid reset link")
+
+
+class TestOnboarding:
+    """Signup lands in onboarding; shop URL, competitors, first check, with live progress."""
+
+    def test_signup_to_first_check(self, page):
+        # Discovery searches the web; answer it from here so the test never leaves the machine.
+        page.route("**/shops/*/discover", lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body='{"count": 1, "suggestions": [{"domain": "www.example.org", "url": "https://www.example.org",'
+                 ' "platform": "shopify", "reason": "test", "confidence": 0.4}]}',
+        ))
+        page.goto(f"{page.base}/app/#signup", wait_until="networkidle")
+        page.fill("input[type=email]", "onboarding@example.com")
+        page.fill("input[type=password]", "correct-horse-battery")
+        page.fill("input[name=organization_name]", "Onboarding Co")
+        page.click("button[type=submit]")
+        page.wait_for_selector("#ob-url", timeout=15000)
+        assert page.url.endswith("#/start"), page.url
+
+        page.fill("#ob-url", "www.example.com")
+        page.click(".ob-plate button[type=submit]")
+        page.wait_for_selector(".ob-suggestion", timeout=10000)
+        go = page.locator(".ob-actions .btn")
+        assert go.is_disabled(), "nothing is chosen yet, so nothing may be watched"
+        page.check(".ob-suggestion input[type=checkbox]")
+        page.fill("#ob-rival", "www.iana.org")
+        page.press("#ob-rival", "Enter")
+        assert "2" in page.locator(".ob-count").inner_text()
+        go.click()
+
+        page.wait_for_selector(".ob-row", timeout=10000)
+        assert page.locator(".ob-row").count() == 2
+        # No worker runs in the test server, so the honest state is "in queue", not a fake bar.
+        assert page.locator(".ob-row[data-state=waiting]").count() == 2
+        assert page.locator(".ob-stop[aria-current=step]").get_attribute("data-step") == "check"
+        _assert_no_js_errors(page, "onboarding")
+
+
+class TestEmptyStates:
+    def test_a_new_account_sees_a_designed_first_run_not_a_blank_board(self, page):
+        page.goto(f"{page.base}/app/#signup", wait_until="networkidle")
+        page.fill("input[type=email]", "empty-state@example.com")
+        page.fill("input[type=password]", "correct-horse-battery")
+        page.fill("input[name=organization_name]", "Empty Co")
+        page.click("button[type=submit]")
+        page.wait_for_selector("#ob-url", timeout=15000)
+        page.goto(f"{page.base}/app/#/overview")
+        page.wait_for_selector(".first-run", timeout=10000)
+        cta = page.locator(".first-run a.btn")
+        assert cta.get_attribute("href") == "#/start"
+        assert cta.inner_text().strip(), "the empty state has no way forward"
+        _assert_no_js_errors(page, "the empty overview")
