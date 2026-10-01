@@ -84,3 +84,38 @@ class TestDashboardMountUndisturbed:
     def test_root_does_not_shadow_the_dashboard(self, client):
         assert "dashboard" in client.get("/app/").text.lower() or \
             client.get("/app/").status_code == 200
+
+
+class TestEmailLinks:
+    """The verification and reset emails link to /verify-email and /reset-password. Those paths
+    must reach the dashboard's flows, not 404, and must not drop the token on the way."""
+
+    @pytest.mark.parametrize("path, view", [("/verify-email", "verify"), ("/reset-password", "reset")])
+    def test_the_email_link_lands_in_the_dashboard_flow(self, client, path, view):
+        response = client.get(f"{path}?token=abc-123_XYZ", follow_redirects=False)
+        assert response.status_code in (302, 303, 307)
+        assert response.headers["location"] == f"/app/#/{view}?token=abc-123_XYZ"
+
+    def test_a_hostile_token_cannot_break_out_of_the_fragment(self, client):
+        response = client.get("/reset-password?token=a%26next%3Dhttps%3A%2F%2Fevil.example", follow_redirects=False)
+        location = response.headers["location"]
+        assert location.startswith("/app/#/reset?token=")
+        assert "&" not in location and "://" not in location
+
+
+class TestComparisonPage:
+    def test_vs_prisync_is_served(self, client):
+        response = client.get("/vs/prisync")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    def test_every_prisync_claim_links_to_its_source(self, client):
+        """A comparison page is only as honest as its sources: each Prisync cell cites one."""
+        import re
+
+        body = client.get("/vs/prisync").text
+        rows = re.findall(r"<tr>(.*?)</tr>", body, flags=re.S)[1:]
+        assert rows, "the comparison table is empty"
+        for row in rows:
+            prisync_cell = re.findall(r"<td[^>]*>(.*?)</td>", row, flags=re.S)[-1]
+            assert "prisync.com" in prisync_cell or "vs-unknown" in row, prisync_cell

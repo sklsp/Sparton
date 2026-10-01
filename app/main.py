@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -192,6 +193,25 @@ def create_app() -> FastAPI:
         app.add_api_route(
             f"/legal/{_page}", _legal, methods=["GET"], include_in_schema=False
         )
+
+    # Public comparison pages: static HTML from the same directory as the landing page.
+    for _route, _file in (("/vs/prisync", "vs-prisync.html"),):
+        def _public(_file: str = _file):
+            path = WEB_DIR / _file
+            if not path.is_file():
+                raise HTTPException(status_code=404, detail="Not found")
+            return FileResponse(path, media_type="text/html")
+
+        app.add_api_route(_route, _public, methods=["GET"], include_in_schema=False)
+
+    # The verification and reset emails link to these paths (app/core/email.py), but both flows
+    # live in the dashboard. Hand the token over in the fragment: a fragment is never sent to a
+    # server, so the token does not land in an access log on the next request.
+    for _path, _view in (("/verify-email", "verify"), ("/reset-password", "reset")):
+        def _email_link(token: str = "", _view: str = _view) -> RedirectResponse:
+            return RedirectResponse(url=f"/app/#/{_view}?token={quote(token, safe='')}", status_code=303)
+
+        app.add_api_route(_path, _email_link, methods=["GET"], include_in_schema=False)
 
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon() -> Response:
