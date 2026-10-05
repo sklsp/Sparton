@@ -14,9 +14,9 @@ export function vsYou(v) {
   if (!v || v.gap_pct == null) return "";
   const gap = Number(v.gap_pct);
   const pct = `${fmtNumber(Math.abs(gap), { maximumFractionDigits: 1 })}%`;
-  const line = gap > 0 ? t("vs.cheaper", { pct }) : gap < 0 ? t("vs.dearer", { pct }) : t("vs.same");
+  const line = gap > 0 ? t("gap.cheaper", { pct }) : gap < 0 ? t("gap.dearer", { pct }) : t("gap.same");
   if (v.confidence === "certain") return line;
-  return `${line} (${v.confidence === "likely" ? t("vs.likely") : t("vs.possible")})`;
+  return `${line} (${v.confidence === "likely" ? t("gap.likely") : t("gap.possible")})`;
 }
 
 /** A change event as board cells + one spoken sentence. `source` is the competitor's data tier. */
