@@ -457,6 +457,8 @@ class Report(Base):
     change_ids: Mapped[list[Any]] = mapped_column(JSONType, default=list)
 
     model: Mapped[str] = mapped_column(String(120), default="")
+    #: The language the prose was written in ("nl" | "en"); the facts have none.
+    language: Mapped[str] = mapped_column(String(8), default="en", server_default="en")
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

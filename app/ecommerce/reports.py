@@ -69,6 +69,30 @@ Two or three specific, actionable suggestions a shop owner could take this \
 week. These must follow from the FACTS, not from general e-commerce advice.
 """
 
+#: The report is written in the account's language (Organization.language). The
+#: rules above stay in English: they are instructions, not copy. Only the prose
+#: changes language; names and numbers are copied from the FACTS untouched.
+LANGUAGES = ("en", "nl")
+LANGUAGE_RULES = {
+    "en": "\nLanguage: write the whole brief in English.\n",
+    "nl": (
+        "\nLanguage: write the whole brief in Dutch (Nederlands), in the plain words a "
+        "Dutch or Flemish shop owner uses. Use these headings exactly: "
+        "'## Wat er veranderde', '## Prijsbewegingen', '## Assortiment', "
+        "'## Wat je nu kunt doen'. Write the table headers in Dutch. Copy competitor "
+        "names, product names and every number exactly as the FACTS spell them; do "
+        "not translate product names.\n"
+    ),
+}
+
+
+def report_language(language: str | None) -> str:
+    return language if language in LANGUAGES else "en"
+
+
+def system_prompt(language: str = "en") -> str:
+    return SYSTEM_PROMPT + LANGUAGE_RULES[report_language(language)]
+
 
 def period_bounds(days: int = WEEK_DAYS, end: datetime | None = None) -> tuple[datetime, datetime]:
     finish = end or utcnow()
@@ -177,112 +201,151 @@ def build_facts(
 
 
 # ---------------------------------------------------------------------------
-# Deterministic rendering — the fallback that needs no model at all
+# Deterministic rendering: the fallback that needs no model at all
 # ---------------------------------------------------------------------------
-_KIND_LABEL = {
-    ChangeKind.PRICE_DECREASE: "price cut",
-    ChangeKind.PRICE_INCREASE: "price rise",
-    ChangeKind.NEW_PRODUCT: "new listing",
-    ChangeKind.REMOVED_PRODUCT: "delisted",
-    ChangeKind.OUT_OF_STOCK: "out of stock",
-    ChangeKind.BACK_IN_STOCK: "back in stock",
+_COPY: dict[str, dict[str, Any]] = {
+    "en": {
+        "title": "# Competitor report: {name}",
+        "your_shop": "your shop",
+        "what": "## What changed",
+        "nothing": (
+            "Nothing moved this week. No competitor changed a price, added a "
+            "product, or went out of stock on anything we track."
+        ),
+        "next": "## What to do next",
+        "no_action": (
+            "No action needed. If you have just added competitors, the first "
+            "crawl builds a baseline and the next one is when changes appear."
+        ),
+        "largest": "**{who}** moved **{what}** from {was} to {now} ({pct}).",
+        "total": "{total} change(s) detected across {n} competitor(s): {counts}.",
+        "moves": "## Price moves",
+        "moves_head": "| Competitor | Product | Was | Now | Change | Evidence |",
+        "view": "view",
+        "more_moves": "_...and {n} more price moves._",
+        "assortment": "## Assortment",
+        "assortment_head": "| Competitor | Product | What happened | Evidence |",
+        "more_assortment": "_...and {n} more assortment changes._",
+        "kinds": {
+            ChangeKind.PRICE_DECREASE: "price cut",
+            ChangeKind.PRICE_INCREASE: "price rise",
+            ChangeKind.NEW_PRODUCT: "new listing",
+            ChangeKind.REMOVED_PRODUCT: "delisted",
+            ChangeKind.OUT_OF_STOCK: "out of stock",
+            ChangeKind.BACK_IN_STOCK: "back in stock",
+        },
+    },
+    "nl": {
+        "title": "# Concurrentierapport: {name}",
+        "your_shop": "je winkel",
+        "what": "## Wat er veranderde",
+        "nothing": (
+            "Deze week bewoog er niets. Geen concurrent veranderde een prijs, voegde "
+            "een product toe of raakte iets uitverkocht van wat we volgen."
+        ),
+        "next": "## Wat je nu kunt doen",
+        "no_action": (
+            "Niets te doen. Heb je net concurrenten toegevoegd, dan legt de eerste "
+            "meting een basis en zie je veranderingen vanaf de volgende."
+        ),
+        "largest": "**{who}** bracht **{what}** van {was} naar {now} ({pct}).",
+        "total": "{total} verandering(en) bij {n} concurrent(en): {counts}.",
+        "moves": "## Prijsbewegingen",
+        "moves_head": "| Concurrent | Product | Was | Nu | Verschil | Bewijs |",
+        "view": "bekijk",
+        "more_moves": "_...en nog {n} prijsbewegingen._",
+        "assortment": "## Assortiment",
+        "assortment_head": "| Concurrent | Product | Wat er gebeurde | Bewijs |",
+        "more_assortment": "_...en nog {n} assortimentswijzigingen._",
+        "kinds": {
+            ChangeKind.PRICE_DECREASE: "prijsverlaging",
+            ChangeKind.PRICE_INCREASE: "prijsverhoging",
+            ChangeKind.NEW_PRODUCT: "nieuw product",
+            ChangeKind.REMOVED_PRODUCT: "uit het assortiment",
+            ChangeKind.OUT_OF_STOCK: "uitverkocht",
+            ChangeKind.BACK_IN_STOCK: "weer op voorraad",
+        },
+    },
 }
 
 
-def render_facts(facts: dict[str, Any]) -> str:
+def render_facts(facts: dict[str, Any], language: str = "en") -> str:
     """A complete, correct report built from the facts with no LLM involved.
 
-    This is not a degraded path bolted on for when the API is down — it is the
-    guarantee that a customer always gets a usable report. The AI only ever
-    *improves the prose* on top of this.
+    This is not a degraded path bolted on for when the API is down: it is the
+    guarantee that a customer always gets a usable report, in their language.
+    The AI only ever *improves the prose* on top of this.
     """
+    c = _COPY[report_language(language)]
+    kinds = c["kinds"]
     shop = facts.get("shop") or {}
-    name = shop.get("name") or "your shop"
+    name = shop.get("name") or c["your_shop"]
     total = facts.get("total_changes", 0)
     by_kind: dict[str, int] = facts.get("by_kind") or {}
     moves = facts.get("price_moves") or []
     assortment = facts.get("assortment") or []
 
-    lines = [f"# Competitor report — {name}", ""]
+    lines = [c["title"].format(name=name), ""]
 
     if total == 0:
-        lines += [
-            "## What changed",
-            "",
-            "Nothing moved this week. No competitor changed a price, added a "
-            "product, or went out of stock on anything we track.",
-            "",
-            "## What to do next",
-            "",
-            "No action needed. If you have just added competitors, the first "
-            "crawl builds a baseline and the next one is when changes appear.",
-        ]
+        lines += [c["what"], "", c["nothing"], "", c["next"], "", c["no_action"]]
         return "\n".join(lines)
 
     # --- narrative ------------------------------------------------------
     largest = facts.get("largest_price_move")
     counts = ", ".join(
-        f"{_KIND_LABEL.get(k, k)}: {v}" for k, v in sorted(by_kind.items()) if v
+        f"{kinds.get(k, k)}: {v}" for k, v in sorted(by_kind.items()) if v
     )
-    lines += ["## What changed", ""]
+    lines += [c["what"], ""]
     if largest:
-        lines.append(
-            f"**{largest['competitor']}** moved **{largest['product']}** from "
-            f"{money(largest.get('previous_price'), largest.get('currency', 'EUR'))} "
-            f"to {money(largest.get('new_price'), largest.get('currency', 'EUR'))} "
-            f"({largest.get('delta_pct') or 0:+.0f}%)."
-        )
+        currency = largest.get("currency", "EUR")
+        lines.append(c["largest"].format(
+            who=largest["competitor"],
+            what=largest["product"],
+            was=money(largest.get("previous_price"), currency),
+            now=money(largest.get("new_price"), currency),
+            pct=f"{largest.get('delta_pct') or 0:+.0f}%",
+        ))
     lines.append("")
-    lines.append(f"{total} change(s) detected across "
-                 f"{len(facts.get('by_competitor') or {})} competitor(s) — {counts}.")
+    lines.append(c["total"].format(
+        total=total, n=len(facts.get("by_competitor") or {}), counts=counts
+    ))
 
     # --- price table ----------------------------------------------------
     if moves:
-        lines += [
-            "",
-            "## Price moves",
-            "",
-            "| Competitor | Product | Was | Now | Change | Evidence |",
-            "|---|---|---|---|---|---|",
-        ]
+        lines += ["", c["moves"], "", c["moves_head"], "|---|---|---|---|---|---|"]
         for move in moves[:30]:
             currency = move.get("currency", "EUR")
             was = money(move.get("previous_price"), currency)
             now = money(move.get("new_price"), currency)
             pct = move.get("delta_pct")
-            change = f"{pct:+.0f}%" if pct is not None else "—"
+            change = f"{pct:+.0f}%" if pct is not None else "-"
             link = move.get("evidence_url") or ""
-            evidence = f"[view]({link})" if link else "—"
+            evidence = f"[{c['view']}]({link})" if link else "-"
             lines.append(
-                f"| {move.get('competitor', '—')} | {move.get('product', '—')} "
+                f"| {move.get('competitor', '-')} | {move.get('product', '-')} "
                 f"| {was} | {now} | {change} | {evidence} |"
             )
         if len(moves) > 30:
-            lines.append(f"\n_…and {len(moves) - 30} more price moves._")
+            lines.append("\n" + c["more_moves"].format(n=len(moves) - 30))
 
     # --- assortment table ------------------------------------------------
     if assortment:
-        lines += [
-            "",
-            "## Assortment",
-            "",
-            "| Competitor | Product | What happened | Evidence |",
-            "|---|---|---|---|",
-        ]
+        lines += ["", c["assortment"], "", c["assortment_head"], "|---|---|---|---|"]
         for item in assortment[:30]:
             link = item.get("evidence_url") or ""
-            evidence = f"[view]({link})" if link else "—"
+            evidence = f"[{c['view']}]({link})" if link else "-"
             lines.append(
-                f"| {item.get('competitor', '—')} | {item.get('product', '—')} "
-                f"| {_KIND_LABEL.get(item.get('kind'), item.get('kind'))} | {evidence} |"
+                f"| {item.get('competitor', '-')} | {item.get('product', '-')} "
+                f"| {kinds.get(item.get('kind'), item.get('kind'))} | {evidence} |"
             )
         if len(assortment) > 30:
-            lines.append(f"\n_…and {len(assortment) - 30} more assortment changes._")
+            lines.append("\n" + c["more_assortment"].format(n=len(assortment) - 30))
 
     return "\n".join(lines)
 
 
-def build_prompt(facts: dict[str, Any]) -> str:
+def build_prompt(facts: dict[str, Any], language: str = "en") -> str:
     """The user message. Facts are embedded verbatim; the model may not add."""
     import json
 
@@ -293,9 +356,10 @@ def build_prompt(facts: dict[str, Any]) -> str:
         "FACTS for the week. These were computed by the diff engine; every "
         "number you use must come from here.\n\n"
         f"```json\n{json.dumps(trimmed, indent=2, default=str)}\n```\n\n"
-        "Write the weekly brief in Markdown, following the structure you were "
-        "given. If `price_moves` and `assortment` are both empty, say so in one "
-        "sentence under 'What changed' and stop."
+        "Write the weekly brief in Markdown, in "
+        f"{'Dutch' if report_language(language) == 'nl' else 'English'}, following "
+        "the structure you were given. If `price_moves` and `assortment` are both "
+        "empty, say so in one sentence under the first heading and stop."
     )
 
 
@@ -311,14 +375,24 @@ def generate_report(
     days: int = WEEK_DAYS,
     kind: str = "weekly",
     use_llm: bool = True,
+    language: str | None = None,
 ) -> Report:
     """Build (and persist) a report for the last `days`.
 
     The report row is written and committed *before* the LLM is called, so a
     slow or failed model call still leaves the customer with the deterministic
     rendering. On model failure the report completes with the fallback text and
-    an `error` explaining why — it is never left in GENERATING forever.
+    an `error` explaining why: it is never left in GENERATING forever.
+
+    `language` defaults to the account's (Organization.language). Only the prose
+    follows it; the facts, and so every number, are the same in both languages.
     """
+    if language is None:
+        from app.core.database.identity import Organization
+
+        org = db.get(Organization, organization_id) if organization_id else None
+        language = org.language if org else "en"
+    language = report_language(language)
     start, end = period_bounds(days)
     all_changes = collect_changes(db, organization_id, start, end, shop.id if shop else None)
     narrative_changes = [
@@ -338,8 +412,9 @@ def generate_report(
         title=_report_title(shop, kind, start, end),
         # Start with the deterministic version. If the model works, we replace
         # it; if not, the customer still has a correct report.
-        markdown=render_facts(facts),
+        markdown=render_facts(facts, language),
         facts=facts,
+        language=language,
         change_ids=[c.id for c in narrative_changes[:200]],
     )
     db.add(report)
@@ -362,8 +437,8 @@ def generate_report(
         try:
             markdown = provider.complete(
                 [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": build_prompt(facts)},
+                    {"role": "system", "content": system_prompt(language)},
+                    {"role": "user", "content": build_prompt(facts, language)},
                 ],
                 task="report",
                 temperature=0.3,
@@ -394,7 +469,7 @@ def generate_report(
 
 def _report_title(shop: Shop | None, kind: str, start: datetime, end: datetime) -> str:
     label = (shop.name if shop else "All shops") or "All shops"
-    return f"{label} — {kind} report, {start:%d %b} to {end:%d %b %Y}"
+    return f"{label}: {kind} report, {start:%d %b} to {end:%d %b %Y}"
 
 
 def report_to_dict(report: Report, include_markdown: bool = True) -> dict[str, Any]:
@@ -410,6 +485,7 @@ def report_to_dict(report: Report, include_markdown: bool = True) -> dict[str, A
         "facts": report.facts or {},
         "change_ids": report.change_ids or [],
         "model": report.model,
+        "language": report.language or "en",
         "error": report.error,
         "created_at": report.created_at.isoformat() if report.created_at else None,
         "completed_at": report.completed_at.isoformat() if report.completed_at else None,
@@ -425,6 +501,8 @@ __all__ = [
     "WEEK_DAYS",
     "build_facts",
     "build_prompt",
+    "report_language",
+    "system_prompt",
     "collect_changes",
     "generate_report",
     "period_bounds",

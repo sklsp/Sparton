@@ -539,3 +539,18 @@ shopfeed's match module, show the gap, never present a weak match as certain.
 **Jay decides (conservative defaults taken).** The 0.9 line between "likely" and "possible"; whether
 owners should be able to confirm or reject a match (not built); whether the own catalogue deserves a
 bigger product budget than a competitor.
+
+## D-038: The weekly report is written in the account's language
+
+**Context.** v1.0 wrote report prose in English only and the NL UI said so (report frontend note).
+
+**Decision.** `organizations.language` ("nl" | "en") is set at signup from the dashboard's language
+and updated by the NL/EN switch when signed in. The report generator tells the model which language
+to write (the rules stay in English; headings are given in Dutch) and still hands it the same FACTS,
+so every number is the diff engine's in both languages. The no-model fallback text is rendered in
+the same language. Each report records its `language`.
+
+**Conservative defaults taken.** Existing accounts stay "en" (what their reports were written in)
+until someone uses the switch. Any member of the account may change it, verified or not: it only
+picks the language of the next report. Product names are never translated; prices keep the
+diff engine's formatting (`€27.50`) in both languages.
