@@ -503,3 +503,17 @@ week tells an established account when it last checked instead of showing first-
 "mark all as read" asks first (there is no un-acknowledge endpoint, so no undo) and reports
 partial failure; plan check frequencies are words, not "1×/W". Plan names (Free, Pro, Business)
 stay untranslated: they are names, shared with the API and Stripe.
+
+## D-036: shopfeed goes into the image through a BuildKit secret
+
+**Context.** v1.0 shipped without `shopfeed` in the image, so production read every competitor
+through the HTML crawl ("extracted" instead of "exact"). Options were a build secret, vendoring the
+code, or making the repository public.
+
+**Decision.** A BuildKit secret (`gh_token`) used by one `RUN pip install git+https://github.com/sklsp/shopfeed`
+step in its own build stage. The repository stays private and nothing is vendored. Without the
+secret the build succeeds with a warning and the app keeps its HTML fallback. The build command
+and the verification are in DEPLOYMENT.md.
+
+**Cost.** Whoever builds the image needs a read token for `sklsp/shopfeed`, and the build must use
+`--no-cache-filter shopfeed` (BuildKit does not key its cache on secrets).

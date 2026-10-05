@@ -101,8 +101,16 @@ class TestCompose:
 
     def test_the_api_and_worker_share_one_image(self, compose):
         """Two services running different builds is how they drift apart."""
-        for name in ("api", "worker"):
-            assert compose["services"][name].get("build") == ".", name
+        api, worker = compose["services"]["api"], compose["services"]["worker"]
+        assert api["build"] == worker["build"]
+        assert api["build"]["context"] == "."
+        assert api["image"] == worker["image"]
+
+    def test_the_build_token_is_a_secret_not_an_arg(self, compose):
+        """A build arg is recorded in `docker history`; a BuildKit secret is not."""
+        assert compose["services"]["api"]["build"]["secrets"] == ["gh_token"]
+        assert "args" not in compose["services"]["api"]["build"]
+        assert compose["secrets"]["gh_token"] == {"environment": "GH_TOKEN"}
 
     def test_services_wait_for_a_healthy_database(self, compose):
         """`depends_on` without a condition only waits for the container to

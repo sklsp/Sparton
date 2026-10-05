@@ -107,8 +107,14 @@ Double-click **`start_sparton.bat`**, or run `start_sparton.bat` from a terminal
 
 ```bash
 cp .env.example .env      # set POSTGRES_PASSWORD and APP_URL at minimum
-docker compose up -d --build
+GH_TOKEN=<read token for sklsp/shopfeed> docker build --secret id=gh_token,env=GH_TOKEN --no-cache-filter shopfeed -t sparton:latest .
+docker compose up -d
 ```
+
+The token is a BuildKit secret: it installs the private `shopfeed` feed reader
+and never lands in an image layer. Without it the build still succeeds, warns,
+and competitor prices come from the HTML crawl instead of the exact feed.
+Details: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#building-the-image-the-private-shopfeed-library).
 
 Postgres 16, Redis 7, the API and the queue worker. Migrations run on start, so
 there is no separate step to forget. Full runbook, the settings that actually

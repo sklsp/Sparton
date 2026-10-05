@@ -1,6 +1,7 @@
+# syntax=docker/dockerfile:1
 # SPARTON production image.
 #
-# Two stages so the runtime layer carries no compiler toolchain: a smaller image
+# Build stages (deps, then shopfeed) so the runtime layer carries no compiler toolchain: a smaller image
 # is a smaller patch surface, and a breach of the running container has nothing
 # useful to build a exploit with.
 #
@@ -9,7 +10,7 @@
 # command. See docs/DEPLOYMENT.md.
 
 # ---------------------------------------------------------------- builder
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim AS deps
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -30,11 +31,45 @@ RUN pip install --prefix=/install -r requirements.txt \
       pip install --prefix=/install -r requirements-experimental.txt; \
     fi
 
+# ---------------------------------------------------------------- shopfeed
+# Its own stage so `--no-cache-filter shopfeed` re-runs this step alone. BuildKit
+# does not put secrets in the cache key, so without that flag a build WITH the
+# secret silently reuses a cached build WITHOUT it (and a cached shopfeed never
+# picks up new commits). Re-running it costs one small clone.
+FROM deps AS shopfeed
+
 # shopfeed reads a webshop's own product feed instead of parsing HTML: exact
-# prices and no LLM tokens. It is a PRIVATE repository, so there is no git URL to
-# put in requirements.txt -- it is installed from a local path, and the
-# application degrades to the HTML crawl if it is missing. See docs/LAUNCH.md.
-# RUN pip install --prefix=/install -e /opt/shopfeed
+# prices and no LLM tokens. It is a PRIVATE repository, so it is installed from
+# GitHub with a token passed as a BuildKit secret:
+#
+#     GH_TOKEN=... docker build --secret id=gh_token,env=GH_TOKEN \
+#         --no-cache-filter shopfeed -t sparton:latest .
+#
+# The secret is mounted at /run/secrets/gh_token for this one RUN step only. It
+# is never an ARG or ENV (both are recorded in `docker history`), it never
+# appears in the git URL (pip records that URL in the installed package's
+# direct_url.json), and it lives only in git's environment for the clone.
+# git and the clone stay in this stage; only /install reaches the runtime image.
+#
+# No secret, no shopfeed: the build still succeeds and says so, and the app
+# falls back to the HTML crawl (app/ecommerce/feeds.py). See docs/DEPLOYMENT.md.
+ARG SHOPFEED_REF=master
+RUN --mount=type=secret,id=gh_token,required=false \
+    if [ -s /run/secrets/gh_token ]; then \
+      apt-get update -qq \
+      && apt-get install -y -qq --no-install-recommends git >/dev/null \
+      && rm -rf /var/lib/apt/lists/* \
+      && GIT_TERMINAL_PROMPT=0 \
+         GIT_CONFIG_COUNT=1 \
+         GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+         GIT_CONFIG_VALUE_0="Authorization: Basic $(printf 'x-access-token:%s' "$(cat /run/secrets/gh_token)" | base64 -w0)" \
+         pip install --prefix=/install --no-deps \
+           "git+https://github.com/sklsp/shopfeed@${SHOPFEED_REF}"; \
+    else \
+      echo "WARNING: no gh_token build secret, so shopfeed is NOT installed." >&2; \
+      echo "WARNING: competitor prices will come from the HTML crawl (extracted, not exact)." >&2; \
+      echo "WARNING: build with --secret id=gh_token,env=GH_TOKEN to include it." >&2; \
+    fi
 
 # ---------------------------------------------------------------- runtime
 FROM python:3.12-slim AS runtime
@@ -54,7 +89,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /install /usr/local
+COPY --from=shopfeed /install /usr/local
 
 WORKDIR /app
 COPY app/ ./app/
