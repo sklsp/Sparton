@@ -13,7 +13,7 @@ every claim.
 - **A weekly AI-written report**, the numbers are computed by our diff engine;
   the AI writes the summary. It never invents a price.
 
-**Status: feature-complete, pre-launch.** 397 tests pass, including 17 that drive
+**Status: feature-complete, pre-launch.** 581 tests pass, including 29 that drive
 a real browser through signup, the product loop and tenant isolation. What is left
 needs real accounts and money (a live Stripe charge, SMTP delivery, a production
 deploy) and is listed step by step in [docs/LAUNCH.md](docs/LAUNCH.md).
@@ -202,7 +202,7 @@ browser.
 pytest
 ```
 
-The suite (397 tests) runs against SQLite with the deterministic LLM provider and
+The suite (581 tests) runs against SQLite with the deterministic LLM provider and
 the offline hash embedding backend: no network, no API key, no GPU, no Ollama.
 
 `tests/test_browser_smoke.py` drives real Chrome against a real server (landing
