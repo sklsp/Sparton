@@ -171,7 +171,7 @@ Tokens and shared atoms live in `app/web/tokens.css`; the dashboard in `app/web/
 - Certainty shown by texture and line (solid / hatched / struck / dashed), never by hue alone.
 - Counts and prices are flap tiles in board title bars, not KPI cards.
 - Whole-step motion (`steps()`), snapped under reduced motion.
-- One condensed variable family (Archivo, width axis 62–125%) for everything.
+- One condensed variable family (Archivo, width axis 62-125%) for everything.
 - Every visible string comes from i18n keys in Dutch and English.
 
 ## Colors
@@ -203,28 +203,28 @@ A near-monochrome graphite-and-grey world with one saturated yellow for action a
 
 ## Typography
 
-**Display / Body / Label Font:** Archivo, self-hosted variable (`app/web/fonts/archivo-latin*.woff2`, weight 100–900, width 62–125%), fallback Arial Narrow, system-ui.
+**Display / Body / Label Font:** Archivo, self-hosted variable (`app/web/fonts/archivo-latin*.woff2`, weight 100-900, width 62-125%), fallback Arial Narrow, system-ui.
 
-**Character:** One condensed grotesque doing every job. Headings and tiles squeeze the width axis (70–80%) to read like painted signage; body copy runs at 100% width for comfort. Numbers are tabular and lining everywhere a price appears (`.tnum`, `.price`, flaps).
+**Character:** One condensed grotesque doing every job. Headings and tiles squeeze the width axis (70-80%) to read like painted signage; body copy runs at 100% width for comfort. Numbers are tabular and lining everywhere a price appears (`.tnum`, `.price`, flaps).
 
 ### Hierarchy
 - **Display** (800, `clamp(2.5rem, 6vw, 4.75rem)`, 0.98, width 70%, max 12ch): landing and comparison hero h1 only. 2.6rem on phones.
 - **Headline** (800, 2rem / `--fs-4`, width 75%): view titles, story steps, report and plan headings. Section h2s on the landing use `clamp(2rem, 4vw, 3rem)`.
 - **Title** (800, 1.375rem / `--fs-3`): plate headings, shop names, plan names.
-- **Lede** (400, 1.0625rem / `--fs-2`, 1.55, 44–60ch): hero lede, step body, section ledes.
+- **Lede** (400, 1.0625rem / `--fs-2`, 1.55, 44-60ch): hero lede, step body, section ledes.
 - **Body** (400, 0.9375rem / `--fs-1`, 1.55): default; prose capped at 72ch.
 - **Label / Meta** (0.8125rem / `--fs-0`): hints, legends, footers, fine print.
 - **Board title** (700, `--fs-0`, uppercase, 0.08em tracking, width 75%): board title bars and board column heads (column heads at 0.75rem). This is station signage, native to the board.
 
 ### Named Rules
-**The Squeeze Rule.** Headings (h1–h3) default to width 75%, line-height 1.08, `text-wrap: balance`. Body text is never condensed.
+**The Squeeze Rule.** Headings (h1-h3) default to width 75%, line-height 1.08, `text-wrap: balance`. Body text is never condensed.
 
 **The Tabular Rule.** Every price, count and percentage uses tabular lining figures, so columns of numbers align like a timetable.
 
 ## Layout
 
 - **Container:** 1240px max, 24px side gutter (16px under 640px). Auth stage 1080px; onboarding 760px; settings blocks 640px.
-- **Spacing:** 4px base scale `s1`–`s9` (4, 8, 12, 16, 24, 32, 48, 72, 112). Views stack at 24px; landing sections pad 72px vertically.
+- **Spacing:** 4px base scale `s1`-`s9` (4, 8, 12, 16, 24, 32, 48, 72, 112). Views stack at 24px; landing sections pad 72px vertically.
 - **Landing grid:** hero and story are 5fr / 7fr (copy / board), 48px gap; hero fills `100dvh − 64px`. The story pins the board (`position: sticky; top: 96px`) beside scrolling steps (each ~72vh). Plans are three equal columns; FAQ 4fr / 8fr.
 - **Board grid:** five columns, `minmax(0,1.2fr) minmax(0,2fr) 6.6em 6.6em 5.6em` (shop, product, was, now, change). The week board adds a 2.4em evidence column. Column headers share the rows' font-size so em widths align.
 - **Breakpoints:** 1100px (hero and story collapse to one column; story stage becomes a sticky band under the bar), 900px (dashboard nav collapses into a drawer behind a Menu button), 860px (landing nav hides; plans, reports split and auth stack to one column), 760px (comparison table becomes stacked cards with Sparton/Prisync labels), 640px (board rows re-flow).
@@ -250,7 +250,7 @@ Tight, machined corners. Tiles and buttons use `tile` (3px); plates and boards u
 ## Components
 
 ### Flap tile (`flapWord`, `flapTo` in `board.js`)
-One uppercase character per tile, tabular, chalk on the flap gradient with the seam. A row of tiles has `role="img"` and one `aria-label` (the whole word), never letter-by-letter. `flapTo` walks each tile along the drum (`" A–Z 0–9 €.,-−+%/:"`) at most 8 steps, 55ms per step, each tile starting one step after its left neighbour. Blank tiles keep their size (`data-blank`). Used for the brand mark, prices, percentages, plan prices and counters.
+One uppercase character per tile, tabular, chalk on the flap gradient with the seam. A row of tiles has `role="img"` and one `aria-label` (the whole word), never letter-by-letter. `flapTo` walks each tile along the drum (`" A-Z 0-9 €.,-−+%/:"`) at most 8 steps, 55ms per step, each tile starting one step after its left neighbour. Blank tiles keep their size (`data-blank`). Used for the brand mark, prices, percentages, plan prices and counters.
 
 ### Strip
 A whole-word name on one tile (shop names, product names), width 80%, weight 600, ellipsis on overflow, 1.9em high. Turns as a single flap (110ms, 2 steps). A **status strip** (`cell-span`) spans the last two columns for words too long for figures (SOLD OUT, NEW, FOUND), like a CANCELLED strip; NEW and back-in-stock are yellow.

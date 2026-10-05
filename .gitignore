@@ -75,3 +75,6 @@ qa_shots/
 .claude/
 .impeccable/review/
 .impeccable/questions/
+
+# visual baseline failures (the accepted baselines are committed)
+tests/baselines/**/*.actual.png

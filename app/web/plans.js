@@ -17,7 +17,7 @@ export function cadence(hours) {
   return t("plan.freq.weekly");
 }
 
-const checks = (hours) => (hours <= 12 ? "2×/D" : hours <= 24 ? "1×/D" : "1×/W");
+const checks = (hours) => t(hours <= 12 ? "plan.checks.twice" : hours <= 24 ? "plan.checks.daily" : "plan.checks.weekly");
 
 /** `action` is the element under the board: a link, a button or a "current plan" note. */
 export function planBoard(plan, { featured = false, current = false, action = null } = {}) {

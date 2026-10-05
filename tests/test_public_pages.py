@@ -131,8 +131,8 @@ class TestPublicTextPages:
     @pytest.mark.parametrize("page", ["privacy", "terms", "dpa"])
     def test_legal_drafts_say_they_are_drafts(self, client, page):
         body = client.get(f"/legal/{page}").text
-        assert "DRAFT — needs legal review" in body
-        assert "CONCEPT — moet juridisch worden nagekeken" in body
+        assert "DRAFT: needs legal review" in body
+        assert "CONCEPT: moet juridisch worden nagekeken" in body
 
 
 class TestErrorPages:

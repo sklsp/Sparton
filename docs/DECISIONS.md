@@ -1,13 +1,13 @@
-# SPARTON — Decision Log
+# SPARTON: Decision Log
 
 Decisions taken autonomously while turning the merged codebase into a launched
 product. Each entry records **what**, **why**, and **what it costs us**.
 
-Format: `D-nnn` — monotonically increasing, never renumbered.
+Format: `D-nnn`, monotonically increasing, never renumbered.
 
 ---
 
-## D-001 — Product scope is *Sparton Intelligence* only
+## D-001: Product scope is *Sparton Intelligence* only
 
 **Decision.** The launched product is competitor & pricing intelligence for
 small e-commerce sellers (Shopify / WooCommerce / Bol.com), built on the Ares
@@ -22,12 +22,12 @@ host GPU list).
 
 **Cost.** `app/documents`, `app/generation`, `app/datasets`, `app/training`,
 `app/api/create.py` and `app/api/knowledge.py` are retained but disabled by
-default in production. Not deleted — reachable by enabling the flag, and their
+default in production. Not deleted, reachable by enabling the flag, and their
 routers disappear entirely when the flag is off.
 
 ---
 
-## D-002 — No new runtime dependencies
+## D-002: No new runtime dependencies
 
 **Decision.** No new pip package is added to `requirements.txt` for product
 features. Stripe Checkout, the Customer Portal and webhook verification are
@@ -45,7 +45,7 @@ the calls sit behind one module.
 
 ---
 
-## D-003 — SQLite in tests, PostgreSQL in production, one schema source
+## D-003: SQLite in tests, PostgreSQL in production, one schema source
 
 **Decision.** `Base.metadata` is the single source of schema truth. Alembic
 autogenerates real migrations from it and they are committed. `create_all` is
@@ -61,7 +61,7 @@ review → commit loop.
 
 ---
 
-## D-004 — Anonymous access is removed; machine principals stay but are explicit
+## D-004: Anonymous access is removed; machine principals stay but are explicit
 
 **Decision.** The `if not settings.api_key: return anonymous admin` branch in
 `current_user` is **deleted**. Unauthenticated requests to protected routes
@@ -76,7 +76,7 @@ mode" is not a product requirement, and local dev has a perfectly good login.
 
 ---
 
-## D-005 — Every route declares its own auth
+## D-005: Every route declares its own auth
 
 **Decision.** No route may be registered without an explicit principal
 dependency. Routes that were open (`/rag/*`, `/comfyui/*`, `/training/*`,
@@ -91,7 +91,7 @@ other tenants' document text; `/comfyui/workflows` POST wrote server files.
 
 ---
 
-## D-006 — Model routing: cheap for extraction, strong for the agent and report
+## D-006: Model routing: cheap for extraction, strong for the agent and report
 
 **Decision.** `settings.llm_model_strong` and `settings.llm_model_cheap` are
 separate settings. The weekly report and the agent use *strong*; structured
@@ -108,7 +108,7 @@ layer already supports.
 
 ---
 
-## D-007 — Token usage is a first-class table, not a log line
+## D-007: Token usage is a first-class table, not a log line
 
 **Decision.** Every LLM call records an `LLMUsage` row (org, model, provider,
 prompt/completion tokens, latency, task label, created_at). Billing limits and
@@ -119,7 +119,7 @@ impossible without per-organization numbers, and retro-fitting them later
 requires a backfill nobody can do.
 ---
 
-## D-009 — Organization names are not globally unique
+## D-009: Organization names are not globally unique
 
 **Decision.** The unique constraint on `organizations.name` is dropped. Signup
 derives a unique internal `slug` instead.
@@ -133,7 +133,7 @@ else got there first.
 
 ---
 
-## D-010 — Email verification is enforced in production only
+## D-010: Email verification is enforced in production only
 
 **Decision.** `EMAIL_VERIFICATION_REQUIRED` defaults to `true` when
 `SPARTON_ENV=production`. When on, an unverified user gets 403 from product
@@ -147,7 +147,7 @@ unconditional would break the existing tests and the local dev loop.
 
 ---
 
-## D-011 — Password reset and email verification share one token table
+## D-011: Password reset and email verification share one token table
 
 **Decision.** A single `auth_tokens` table with a `purpose` discriminator
 (`verify_email` | `reset_password`), a SHA-256 hash of the token, and an expiry.
@@ -159,12 +159,12 @@ One code path, one expiry sweep, one audit action per purpose.
 
 ---
 
-## D-012 — Plans are enforced server-side at the service boundary
+## D-012: Plans are enforced server-side at the service boundary
 
 **Decision.** `app/billing/limits.py` exposes `Plan` definitions and
 `enforce(db, org, resource, n)` raising 402/409. Every mutating product route
 calls it. The frontend reads the same values from `GET /billing/plan` to render
-the upgrade prompt — the UI never decides what is allowed.
+the upgrade prompt, the UI never decides what is allowed.
 
 **Why.** The brief is explicit, and client-side-only limits are the most common
 SaaS breach. Also: the existing `TenantContext.scoped` returns *unscoped* queries
@@ -174,7 +174,7 @@ for machine principals, so a limit check must be org-explicit.
 
 ---
 
-## D-013 — Free / Pro / Business limits
+## D-013: Free / Pro / Business limits
 
 **Decision.** Free: 1 shop, 3 competitors, 200 AI tokens/day, weekly report.
 Pro (€29/mo): 3 shops, 15 competitors, 2000 tokens/day. Business (€79/mo):
@@ -187,7 +187,7 @@ cannot be resold as a monitoring service.
 
 ---
 
-## D-014 — Stripe webhooks are the only source of truth for subscription state
+## D-014: Stripe webhooks are the only source of truth for subscription state
 
 **Decision.** `checkout.session.completed`, `customer.subscription.updated` and
 `customer.subscription.deleted` update the org's plan. Verified with a constant
@@ -195,9 +195,9 @@ time HMAC over the **raw** request body. Handled idempotently by event id.
 `POST /stripe/webhook` is exempt from session auth but **not** from signature
 ---
 
-## D-016 — The crawler keeps its SSRF guard; it is extended, never relaxed
+## D-016: The crawler keeps its SSRF guard; it is extended, never relaxed
 
-**Decision.** `ResponsibleCrawler` is reused as-is — DNS-resolution SSRF check,
+**Decision.** `ResponsibleCrawler` is reused as-is, DNS-resolution SSRF check,
 robots.txt gate, per-host delay, body cap. A user-supplied shop URL goes
 through the *same* guard before a crawl is enqueued, so nobody can point the
 crawler at `169.254.169.254`.
@@ -209,21 +209,21 @@ the repository.
 
 ---
 
-## D-017 — Reports are stored Markdown plus the structured facts they were written from
+## D-017: Reports are stored Markdown plus the structured facts they were written from
 
 **Decision.** A `reports` table (org, shop, period, markdown, model, tokens,
 status). The API returns the markdown *and* the structured change list, so the
 UI can render a table as well as the prose.
 
 **Why.** A report a customer cannot re-read is not a product. Storing the
-structured changes makes the AI a *writer*, not the source of truth — the
+structured changes makes the AI a *writer*, not the source of truth, the
 numbers are computed by the diff engine.
 
 **Cost.** One table.
 
 ---
 
-## D-018 — Alerts are rows, not email, in v1
+## D-018: Alerts are rows, not email, in v1
 
 **Decision.** A `change_events` table. `GET /changes` powers an in-app inbox with
 evidence links. Email digest is post-launch.
@@ -235,7 +235,7 @@ evidence links. Email digest is post-launch.
 
 ---
 
-## D-019 — The no-build ES-module SPA is kept
+## D-019: The no-build ES-module SPA is kept
 
 **Decision.** `app/web/` stays a zero-dependency ES-module app. Phase 5 adds a
 public landing page and rebuilds the dashboard around the product loop. No
@@ -249,7 +249,7 @@ primitives are good; they need product views, not a framework.
 
 ---
 
-## D-020 — Feature flags are env-driven, default off for non-product domains
+## D-020: Feature flags are env-driven, default off for non-product domains
 
 **Decision.** `ENABLED_DOMAINS` (default `intelligence,agent`). A router is
 included in `create_app()` only if its domain is enabled; the corresponding nav
@@ -257,7 +257,7 @@ entries disappear with it. `/health` reports the active set.
 
 ---
 
-## D-024 — CI runs compile-check plus pytest; no linter dependency
+## D-024: CI runs compile-check plus pytest; no linter dependency
 
 **Decision.** GitHub Actions: `python -m compileall` (catches syntax errors with
 no new dependency) plus `pytest`. Heavy optional extras are not installed; the
@@ -270,7 +270,7 @@ diff unrelated to launching. `compileall` + `pytest` catches what breaks users.
 
 ---
 
-## D-025 — The test embedding backend is deterministic and offline
+## D-025: The test embedding backend is deterministic and offline
 
 **Decision.** `EmbeddingClient` gains a `hash` backend: a seeded,
 L2-normalised bag-of-words projection built from `hashlib` + numpy. It is the
@@ -281,12 +281,12 @@ and it is what tests use.
 suite that needs the network is a suite that stops being run. numpy is already a
 dependency and `hashlib` is stdlib.
 
-**Cost.** Retrieval quality is poor. Irrelevant — documents are not part of the
+**Cost.** Retrieval quality is poor. Irrelevant, documents are not part of the
 launched product and no product code path uses embeddings.
 
 ---
 
-## D-026 — Slug, not name, is the unique organization key
+## D-026: Slug, not name, is the unique organization key
 
 **Decision.** `organizations` gets a `slug` column with a unique index,
 generated from the display name with a numeric suffix on collision.
@@ -297,7 +297,7 @@ generated from the display name with a numeric suffix on collision.
 
 ---
 
-## D-027 — Rate limits on every sensitive auth route
+## D-027: Rate limits on every sensitive auth route
 
 **Decision.** `/auth/login`, `/auth/register`, `/auth/forgot-password`,
 `/auth/reset-password` and `/stripe/webhook` all get `rate_limit(...)`, per-IP,
@@ -310,7 +310,7 @@ database-fill and email-bomb vector.
 
 ---
 
-## D-028 — The Playwright smoke test targets the real product loop
+## D-028: The Playwright smoke test targets the real product loop
 
 **Decision.** One spec: landing page → signup → onboarding → add shop URL →
 "crawl now" → report appears. Runs against `LLM_PROVIDER=test` so it needs no
@@ -325,7 +325,7 @@ the Docker image.
 
 ---
 
-## D-029 — Cost control: the diff engine needs no LLM at all
+## D-029: Cost control: the diff engine needs no LLM at all
 
 **Decision.** Crawl + diff + change detection are pure code. The LLM is called
 once per shop per report period to *write* the narrative from pre-computed
@@ -335,19 +335,19 @@ the cheap model.
 **Why.** This is the biggest lever on "cost per customer per month", and it also
 makes the product's numbers non-hallucinatable.
 
-**Cost.** Report prose is less rich than a fully-LLM pipeline. The numbers —
-which is what a seller acts on — are exact.
+**Cost.** Report prose is less rich than a fully-LLM pipeline. The numbers,
+which is what a seller acts on, are exact.
 
 **Why.** Hiding is not deleting, and the brief says the other domains stay but
 are hidden. A flag checked at *router registration* means a disabled domain has
-no route at all, not a route that 403s — strictly less attack surface.
+no route at all, not a route that 403s, strictly less attack surface.
 
 **Cost.** The dashboard must tolerate a route list it does not recognise; the
 route table is already data-driven, so this is cheap.
 
 ---
 
-## D-021 — Landing page and dashboard share one origin
+## D-021: Landing page and dashboard share one origin
 
 **Decision.** `/` serves the marketing landing page; `/app/` serves the
 dashboard. Both are static files from `app/web/`.
@@ -359,7 +359,7 @@ dashboard. Both are static files from `app/web/`.
 
 ---
 
-## D-022 — `CORS_ORIGINS` no longer ships a domain we do not own
+## D-022: `CORS_ORIGINS` no longer ships a domain we do not own
 
 **Decision.** The default becomes `http://localhost:8000,http://127.0.0.1:8000`.
 `https://sparton.vercel.app` is removed.
@@ -367,11 +367,11 @@ dashboard. Both are static files from `app/web/`.
 **Why.** We do not control that domain; allowing credentials from it is a
 liability.
 
-**Cost.** None — nothing is deployed there.
+**Cost.** None, nothing is deployed there.
 
 ---
 
-## D-023 — `/metrics` and `/tools` require a principal
+## D-023: `/metrics` and `/tools` require a principal
 
 **Decision.** `/tools` requires a user; `/metrics` requires either a user or a
 correct `X-API-Key`. A Prometheus scrape sends the header.
@@ -386,11 +386,11 @@ verification, body-size limits, or rate limiting.
 **Why.** The post-checkout redirect is not a reliable signal (the customer can
 close the tab). Stripe explicitly requires webhook handling for this.
 
-**Cost.** Needs a public URL in dev — `stripe listen` handles it; documented.
+**Cost.** Needs a public URL in dev, `stripe listen` handles it; documented.
 
 ---
 
-## D-015 — Crawl cadence is per-shop and enforced by the job system
+## D-015: Crawl cadence is per-shop and enforced by the job system
 
 **Decision.** A `shops.crawl_frequency_hours` column (min 6, default 168 =
 weekly). `POST /shops/{id}/crawl` enqueues immediately; a scheduler in the worker
@@ -407,7 +407,7 @@ idempotency keys; using them is free.
 
 ---
 
-## D-008 — Competitor data is a time series, not a "current value"
+## D-008: Competitor data is a time series, not a "current value"
 
 **Decision.** A `competitor_products` row is one capture: `(competitor, product,
 crawl)` with price, availability, capture time and evidence URL. Diffs are
@@ -423,11 +423,11 @@ week" a window query, and makes each evidence link reproducible (*this* price,
 
 ---
 
-## D-030 — Frontend visual world: The Price Board
+## D-030: Frontend visual world: The Price Board
 
 **Context.** The v1.0 frontend redesign. Jay delegated the pick between the three directions from the
 impeccable direction round (`.impeccable/decision-direction.json`): The Price Board, Shelf Label &
-Weekly Folder, Sliding Planes. Scored 1–5 (5 = best):
+Weekly Folder, Sliding Planes. Scored 1-5 (5 = best):
 
 | Direction | Fit with the shop owner | Difference from Prisync / Bigshopper | Prices + certainty shown natively | Feasible in code, no generated imagery | Total |
 |---|---|---|---|---|---|
@@ -454,7 +454,7 @@ condensed for the flaps and headings, normal width for reading. The previous dar
 for v1.0 (one light world, the board itself is the dark element). Build path is code-led: no image
 generation (€0 rule), so every scene is CSS/SVG/canvas.
 
-## D-031 — The site claims no product matching and no own-price tracking (yet)
+## D-031: The site claims no product matching and no own-price tracking (yet)
 
 **Context.** The brief positions Sparton on "automatic product matching" and asks for price
 histories with "your price a solid line". The backend (2026-10-01) reads competitor catalogues
@@ -470,7 +470,7 @@ backend records it.
 **Jay decides.** Whether to build own-catalogue reading + matching (then restore the claim), or
 drop it from the positioning.
 
-## D-032 — "Email digest" is not shown as a plan feature
+## D-032: "Email digest" is not shown as a plan feature
 
 **Context.** `app/billing/plans.py` sets `email_digest: true` on Pro and Business, but no code
 sends a digest or a report email (`app/core/email.py` only sends verification and reset mails).
@@ -481,16 +481,25 @@ The plan data is unchanged (API contract kept).
 **Jay decides.** Build the weekly report email (the M10 template is the design for it), or drop the
 flag from the plans.
 
-## D-033 — Comparison and email links are served by small static routes
+## D-033: Comparison and email links are served by small static routes
 
 `/vs/prisync` serves `app/web/vs-prisync.html`; `/verify-email` and `/reset-password` (the links in
 the existing emails, which previously 404'd) redirect into the dashboard's `#/verify` and
 `#/reset` screens, with the token in the fragment so it never reaches an access log.
 
-## D-034 — NumberFlow was tried and removed; anime.js stays for entrances only
+## D-034: NumberFlow was tried and removed; anime.js stays for entrances only
 
 The brief asked for anime.js v4 and NumberFlow. NumberFlow rolls digits smoothly, which breaks
 the direction's whole-step motion rule (flaps turn, they do not tween), and the finish review
 flagged the counter strip it drove as a KPI pattern. Counters are now flap tiles in the board's
 title bar; NumberFlow is no longer vendored. anime.js (vendored, MIT) drives the plan and row
 entrances on the landing page, loads after first paint and never under reduced motion.
+
+## D-035: Critique fixes: legends in the app, honest quiet weeks, a confirmed mark-all
+
+The M13 critique (24/40) found the app relied on the landing page to explain its marks. Boards in
+the app now carry a legend of the marks they show; unread is spoken to screen readers; a quiet
+week tells an established account when it last checked instead of showing first-run copy;
+"mark all as read" asks first (there is no un-acknowledge endpoint, so no undo) and reports
+partial failure; plan check frequencies are words, not "1×/W". Plan names (Free, Pro, Business)
+stay untranslated: they are names, shared with the API and Stripe.

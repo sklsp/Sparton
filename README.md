@@ -1,16 +1,16 @@
-# SPARTON — Intelligence for small e-commerce sellers
+# SPARTON: Intelligence for small e-commerce sellers
 
 **Sparton Intelligence** watches your competitors so you do not have to.
 
 Add your shop URL. SPARTON discovers the competitors you are actually competing
 with, crawls them on a schedule, diffs their catalogues week over week, and
-writes a plain-English report of what changed — with a link to the evidence for
+writes a plain-English report of what changed, with a link to the evidence for
 every claim.
 
-- **Price changes** — who moved, by how much, in which direction.
-- **New and removed products** — assortment growth and shrinkage.
-- **Stock and availability** — who is quietly out of their best sellers.
-- **A weekly AI-written report** — the numbers are computed by our diff engine;
+- **Price changes**, who moved, by how much, in which direction.
+- **New and removed products**, assortment growth and shrinkage.
+- **Stock and availability**, who is quietly out of their best sellers.
+- **A weekly AI-written report**, the numbers are computed by our diff engine;
   the AI writes the summary. It never invents a price.
 
 **Status: feature-complete, pre-launch.** 397 tests pass, including 17 that drive
@@ -144,7 +144,7 @@ is how the test suite runs with no network and no API key.
 ## Architecture
 
 ```
-                      SPARTON — Intelligence
+                      SPARTON, Intelligence
                              |
                     shop URL ─┴─► competitor discovery
                              |            |
@@ -184,7 +184,7 @@ python -m workers.worker
 
 ## Frontend
 
-`app/web/` is a static ES-module SPA served directly by the API process —
+`app/web/` is a static ES-module SPA served directly by the API process,
 **no bundler, no `node_modules`, no build step**. Edit a file, reload the
 browser.
 

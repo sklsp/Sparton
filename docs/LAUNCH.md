@@ -1,7 +1,7 @@
 # Launching SPARTON
 
 The operational runbook is [DEPLOYMENT.md](DEPLOYMENT.md): how to build, run and
-operate the thing. This file is the *go-live* checklist — the decisions and
+operate the thing. This file is the *go-live* checklist, the decisions and
 values you must supply before real customers can use the product, and the
 evidence you must produce before you tell anyone it is ready.
 
@@ -16,7 +16,7 @@ Nothing here is theoretical. Each item names the failure it prevents, because
 
 | What | Why | Where to get it |
 |---|---|---|
-| OpenRouter API key | Every report and alert summary. Without it the product still works — change detection is pure arithmetic — but reports return a deterministic placeholder instead of prose. | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| OpenRouter API key | Every report and alert summary. Without it the product still works, change detection is pure arithmetic, but reports return a deterministic placeholder instead of prose. | [openrouter.ai/keys](https://openrouter.ai/keys) |
 | Stripe account | Payments. The product is free to try without one; `POST /billing/checkout` refuses to start rather than failing at the payment step. | [dashboard.stripe.com](https://dashboard.stripe.com) |
 | SMTP provider | Verification and password-reset email. **Without it nobody can confirm an email address, so in production nobody can use the product.** | Any provider, or your own relay |
 | A domain + TLS | `APP_URL` goes into every verification and reset link. Getting this wrong sends customers to `localhost:8000`. | Registrar + Let's Encrypt or equivalent |
@@ -26,7 +26,7 @@ Nothing here is theoretical. Each item names the failure it prevents, because
 
 **Do the model ids still exist.** The defaults ship as
 `anthropic/claude-sonnet-4.6` and `google/gemini-3.5-flash-lite`. They were
-retired once already in this project's history — the previous defaults 404'd the
+retired once already in this project's history, the previous defaults 404'd the
 first time a customer used a paid feature. Verify before launch:
 
 ```bash
@@ -58,7 +58,7 @@ openssl rand -hex 32   # OPENAI_API_KEY, if your provider issues one
 |---|---|---|
 | `POSTGRES_PASSWORD` | Full read/write on all customer data: shops, competitors, price history, email addresses. | Change in the DB and the env together; requires a restart. |
 | `STRIPE_SECRET_KEY` | Charges refunds, reads customer records. | Stripe dashboard → rotate. The old key stops working immediately. |
-| `STRIPE_WEBHOOK_SECRET` | Lets an attacker forge subscription events — i.e. grant themselves a paid plan. | Stripe dashboard → rotate. Re-deliver any events in flight. |
+| `STRIPE_WEBHOOK_SECRET` | Lets an attacker forge subscription events, i.e. grant themselves a paid plan. | Stripe dashboard → rotate. Re-deliver any events in flight. |
 | `OPENAI_API_KEY` / OpenRouter key | Someone else's bill, and access to your usage data. | Provider dashboard → rotate. |
 | `SMTP_PASSWORD` | Send mail as you. The cheapest spam relay there is. | Provider → rotate. |
 | `API_KEY` (if set) | Bypasses session auth entirely. | Restart. |
@@ -72,7 +72,7 @@ openssl rand -hex 32   # OPENAI_API_KEY, if your provider issues one
    `BILLING_ENABLED`.
 2. **Set `STRIPE_WEBHOOK_SECRET` in the same deploy as the webhook
    registration.** With no secret configured, `POST /stripe/webhook` returns
-   `503` — it refuses loudly rather than accepting unsigned events, which is the
+   `503`, it refuses loudly rather than accepting unsigned events, which is the
    correct behaviour, but it means payments silently do not apply.
 
 ### 2.1 Values that are not secrets but are still required
@@ -82,7 +82,7 @@ openssl rand -hex 32   # OPENAI_API_KEY, if your provider issues one
 | `APP_URL` | `https://sparton.ai` | Customers receive reset links pointing at localhost. Silent, and discovered only when someone clicks the email. |
 | `CORS_ORIGINS` | `https://app.sparton.ai` | A wrong value silently breaks the dashboard's fetches; the API still answers `curl`. |
 | `SPARTON_ENV` | `production` | In development, email verification is off and error detail is verbose. |
-| `POSTGRES_PASSWORD` | — | No default, on purpose: compose refuses to start without it rather than booting a database anyone can reach. |
+| `POSTGRES_PASSWORD` |, | No default, on purpose: compose refuses to start without it rather than booting a database anyone can reach. |
 | `FORWARDED_ALLOW_IPS` | `127.0.0.1` | `*` lets any caller forge `X-Forwarded-For` and bypass per-client rate limits on login, signup and password reset. See DEPLOYMENT.md. |
 
 ---
@@ -92,7 +92,7 @@ openssl rand -hex 32   # OPENAI_API_KEY, if your provider issues one
 1. Create two recurring prices: **Pro** and **Business**, matching the amounts in
    `app/billing/plans.py`. The landing page renders from `GET /billing/plans`, so
    the advertised price and the charged price are the same number by
-   construction — but they are still two places to check.
+   construction, but they are still two places to check.
 2. Put the price ids in `STRIPE_PRICE_PRO` and `STRIPE_PRICE_BUSINESS`.
 3. Add a webhook endpoint: `https://<your-domain>/stripe/webhook`.
 4. Subscribe it to at least:
@@ -118,7 +118,7 @@ been observed working is not a webhook.
 ## 4. Email
 
 Verification and password reset both depend on SMTP being correct. With
-`SMTP_HOST` unset, messages are written to `./data/outbox` instead of being sent —
+`SMTP_HOST` unset, messages are written to `./data/outbox` instead of being sent,
 which is right for development and catastrophic in production, because it looks
 like it worked.
 
@@ -148,8 +148,8 @@ docker compose ps             # wait for db/redis/api to report healthy
 Then verify the deployment is actually serving, not merely running:
 
 ```bash
-curl -fsS https://<domain>/live            # 200 — the process is up
-curl -fsS https://<domain>/ready           # 200 — the database answers
+curl -fsS https://<domain>/live            # 200, the process is up
+curl -fsS https://<domain>/ready           # 200, the database answers
 curl -sS https://<domain>/billing/plans    # the pricing table
 curl -sS -o /dev/null -w '%{http_code}\n' https://<domain>/shops   # 401, not 200
 ```
@@ -161,7 +161,7 @@ found twelve such endpoints. It is pinned by
 OpenAPI document, so it cannot silently regress.
 
 **Running more than one API replica?** Migrations become a one-off pre-deploy
-step, not part of the start command. See DEPLOYMENT.md — three replicas running
+step, not part of the start command. See DEPLOYMENT.md, three replicas running
 `alembic upgrade head` simultaneously crash-loop against each other.
 
 ---
@@ -203,7 +203,7 @@ Minimum, before the first paying customer:
       database; `/live` only checks the process.
 - [ ] `POSTGRES_PASSWORD` and disk space. A full disk is the most common
       self-inflicted outage, and it takes the queue with it.
-- [ ] Stripe webhook delivery failures — a 500 from our endpoint means a paying
+- [ ] Stripe webhook delivery failures, a 500 from our endpoint means a paying
       customer did not get their plan. The handler returns 500 on purpose so
       Stripe retries; alert on it.
 - [ ] OpenRouter error rate and spend. The provider is the only external
@@ -222,12 +222,12 @@ means an LLM outage should not page anyone at 3am.
 - [ ] `/legal/privacy`, `/legal/terms`, `/legal/dpa` are reachable and reflect
       how the product actually behaves. Specifically: what you collect (store
       URLs, crawled product data, email addresses), where it goes (OpenRouter
-      receives page content for summarisation — say so), how long you keep it,
+      receives page content for summarisation, say so), how long you keep it,
       and how to delete it.
 - [ ] The DPA is a real commitment if you sell to businesses. Read it.
 - [ ] The landing page makes no claim you cannot honour. In particular the
       pricing table is served from `GET /billing/plans`, so it cannot drift from
-      what the server enforces — but check that the copy around it is true.
+      what the server enforces, but check that the copy around it is true.
 - [ ] Decide your refund policy and put it where Stripe can enforce it.
 
 ---
@@ -245,7 +245,7 @@ item is a real user action; every one of them was a bug at least once.
       also shipped once.
 - [ ] **Sign up with a real email address.** The verification mail arrives and
       the link works.
-- [ ] **Password reset** — request it, receive it, use it.
+- [ ] **Password reset**, request it, receive it, use it.
 - [ ] **Add a shop** with a real public storefront URL. The API rejects
       non-public addresses, which is correct: if your own test shop is refused,
       the URL is not publicly resolvable.
@@ -256,7 +256,7 @@ item is a real user action; every one of them was a bug at least once.
       they will not act on.
 - [ ] **Generate a report** and read it. Confirm the model ids are live.
 - [ ] **Open billing**, start Checkout, complete it in Stripe, return. Confirm
-      the plan actually changed — this is the end-to-end check that the webhook
+      the plan actually changed, this is the end-to-end check that the webhook
       is registered, signed correctly, and mapping your price ids.
 - [ ] **Cancel** in the Customer Portal and confirm the plan drops.
 - [ ] **Sign out and back in** on a second browser. If logout appears broken,
@@ -280,7 +280,7 @@ not by a test someone said passed.
 - [ ] A real signup → verification → shop → competitor → crawl → report → payment
       → cancellation, performed by a person in a browser.
 - [ ] A backup has been taken *and restored into a scratch database*.
-- [ ] Alerting fires for `/ready`, webhook failures, and disk space — tested by
+- [ ] Alerting fires for `/ready`, webhook failures, and disk space, tested by
       waiting for it, not by assuming the integration is correct.
 - [ ] Legal pages reflect reality.
 - [ ] A rollback to the previous image has been rehearsed.

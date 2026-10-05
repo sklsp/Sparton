@@ -1,4 +1,4 @@
-# Naming — proposal only
+# Naming: proposal only
 
 **Nothing has been renamed.** Sparton stays Sparton (PRODUCT.md, brand commitments). This is a
 proposal for Jay to weigh, in case a name that says more to a Dutch or Belgian shop owner is
@@ -37,17 +37,17 @@ concourse). Checked on 1 October 2026.
 
 ## Top 3
 
-1. **Flapbord** — the only candidate that *is* the product's own image (the board whose flaps
+1. **Flapbord**, the only candidate that *is* the product's own image (the board whose flaps
    turn when a price moves), reads naturally to Dutch and English speakers, and has `.com`,
    `.nl` and `.eu` free. Risk: in Dutch "flap" also calls up "eruit flappen" (to blurt out) and
    "flaptekst" (a jacket blurb); harmless, but test it with a few owners.
-2. **Peilbord** — "peilen" (to gauge, to take a reading) is exactly what the owner does on
+2. **Peilbord**, "peilen" (to gauge, to take a reading) is exactly what the owner does on
    Sunday; calm, trustworthy, Dutch-first. All three domains free. English speakers can say it
    but won't hear the meaning.
-3. **Klapbord** — warm and concrete for Dutch ears, all three domains free; weaker in English,
+3. **Klapbord**, warm and concrete for Dutch ears, all three domains free; weaker in English,
    where it reads as "clapboard" (a type of siding).
 
-Names 4–10 lose on domains (taken `.com` or `.nl`) or on meaning travelling across languages.
+Names 4-10 lose on domains (taken `.com` or `.nl`) or on meaning travelling across languages.
 
 ## If Jay wants to go further
 

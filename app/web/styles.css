@@ -780,3 +780,9 @@ dialog[open]::backdrop { animation: fadeIn 200ms var(--ease) both; }
 .plan-board .plan-current-tag { color: var(--chalk); }
 .plan-board .btn:not(.btn-primary):not([data-variant="primary"]) { --btn-bg: transparent; --btn-fg: var(--chalk); --btn-bd: var(--chalk-2); }
 .plan-board .btn:not(.btn-primary):not([data-variant="primary"]):hover { --btn-bg: var(--flap); }
+
+/* in-app legend under a board: what the marks mean */
+.app-legend { list-style: none; margin: 0; padding: var(--s3) var(--s1) 0; border-top: 1px solid #000; }
+.legend-lamp { width: 10px; height: 10px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 2px rgb(245 197 24 / 0.25); }
+.verify-actions { display: inline-flex; gap: var(--s2); align-items: center; }
+.verify-hide { min-height: 36px; padding: 0 var(--s3); border: 1px solid var(--signal-ink); border-radius: var(--r-tile); background: transparent; font-weight: 700; }

@@ -5,7 +5,7 @@ import { api, settleAll, settledValue } from "../api.js";
 import { h, fill, errorState } from "../ui.js";
 import { t, fmtDate } from "../i18n.js";
 import { boardRow } from "../board.js";
-import { changeRow, weekLabel, boardCounts } from "./board-view.js";
+import { changeRow, weekLabel, boardCounts, boardLegend } from "./board-view.js";
 
 export default function overviewView(host, { navigate }) {
   const load = async () => {
@@ -41,9 +41,9 @@ export default function overviewView(host, { navigate }) {
         h("a.board-link", { href: "#/alerts" }, t("ov.board.all"))),
       counts,
       rows.length
-        ? [cols(), h("ol.board-rows", rows)]
-        : [quietWeek(ov), earlier.length
-            ? [h("h3.board-sub", t("ov.earlier")), cols(), h("ol.board-rows", earlier.map(toRow))]
+        ? [cols(), h("ol.board-rows", rows), boardLegend(ov.recent_changes, source)]
+        : [quietWeek(ov, competitors), earlier.length
+            ? [h("h3.board-sub", t("ov.earlier")), cols(), h("ol.board-rows", earlier.map(toRow)), boardLegend(earlier, source)]
             : null]);
 
     const report = ov.latest_report
@@ -81,11 +81,16 @@ export function reportTitle(r) {
 }
 
 /** A quiet week is one board line, so earlier moves still fill the first screen. */
-function quietWeek(ov) {
+function quietWeek(ov, competitors) {
+  const long = { weekday: "long", day: "numeric", month: "long" };
   const next = ov.shops.map((s) => s.next_crawl_at).filter(Boolean).sort()[0];
-  return h("p.board-quiet",
-    h("strong", t("ov.quiet.title")), " ",
-    next ? t("ov.quiet.next", { when: fmtDate(new Date(next), { weekday: "long", day: "numeric", month: "long" }) }) : t("ov.quiet.body"));
+  const last = competitors.map((c) => c.last_crawled_at).filter(Boolean).sort().at(-1);
+  // "Changes appear after the second check" is first-run copy; a watched account that saw
+  // nothing move is told when it last looked, so a quiet week never reads as a broken one.
+  const detail = last
+    ? t("ov.quiet.steady", { when: fmtDate(new Date(last), long) })
+    : next ? t("ov.quiet.next", { when: fmtDate(new Date(next), long) }) : t("ov.quiet.body");
+  return h("p.board-quiet", h("strong", t("ov.quiet.title")), " ", detail);
 }
 
 function firstRun() {

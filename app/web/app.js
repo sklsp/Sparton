@@ -74,7 +74,7 @@ function mountShell() {
   const app = h("div.app", { "data-nav": "closed" });
   contentEl = h("main.content#main", { tabindex: "-1" });
   app.append(buildHeader(app));
-  if (state.user && !state.user.email_verified) app.append(verifyBanner());
+  if (state.user && !state.user.email_verified && !sessionStorage.getItem("sparton.verifyHidden")) app.append(verifyBanner());
   app.append(contentEl);
   fill(root, h("a.skip-link", { href: "#main" }, t("a11y.skip")), app);
 
@@ -97,7 +97,11 @@ function verifyBanner() {
     } finally { delete resend.dataset.loading; }
   } });
   const note = h("span", t("verify.banner", { email: state.user.email }));
-  return h("div.verify-banner", { role: "status" }, h("div.verify-inner", note, resend));
+  const hide = h("button.verify-hide", { type: "button", onclick: (e) => {
+    sessionStorage.setItem("sparton.verifyHidden", "1");
+    e.currentTarget.closest(".verify-banner").remove();
+  } }, t("verify.hide"));
+  return h("div.verify-banner", { role: "status" }, h("div.verify-inner", note, h("span.verify-actions", resend, hide)));
 }
 
 /* ------------------------------------------------------------ route host */

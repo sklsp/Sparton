@@ -1,9 +1,9 @@
 // Every change, newest first, ruled by week: the same time axis as This week and the reports.
 
 import { api, settleAll, settledValue } from "../api.js";
-import { h, fill, button, toast, errorState } from "../ui.js";
+import { h, fill, button, toast, errorState, confirmDialog } from "../ui.js";
 import { t } from "../i18n.js";
-import { changeRow, isoWeek } from "./board-view.js";
+import { changeRow, isoWeek, boardLegend } from "./board-view.js";
 import { loadingBoard } from "./overview.js";
 
 const KINDS = ["price_decrease", "price_increase", "out_of_stock", "back_in_stock", "new_product", "removed_product"];
@@ -26,20 +26,24 @@ export default function alertsView(host, { navigate }) {
 
       const markAll = unacknowledged
         ? button(t("al.markAll", { n: unacknowledged }), { size: "sm", onClick: async () => {
+            // Unread is the owner's to-do list for the week, and there is no undo: ask first.
+            const ok = await confirmDialog({ title: t("al.markAllTitle", { n: unacknowledged }), message: t("al.markAllBody"), confirmLabel: t("al.markAllConfirm") });
+            if (!ok) return;
             markAll.dataset.loading = "true";
-            try {
-              const unread = changes.filter((c) => !c.acknowledged_at);
-              for (const c of unread) await api.acknowledgeChange(c.id);
-              toast(t("al.marked"), "success");
-              run();
-            } catch (err) { toast(err.message, "danger"); delete markAll.dataset.loading; }
+            const unread = changes.filter((c) => !c.acknowledged_at);
+            const results = await Promise.allSettled(unread.map((c) => api.acknowledgeChange(c.id)));
+            const done = results.filter((r) => r.status === "fulfilled").length;
+            if (done === unread.length) toast(t("al.marked"), "success");
+            else toast(t("al.markedSome", { done, n: unread.length }), "danger");
+            run();
           } })
         : null;
 
       fill(host, head(), toolbar(markAll), changes.length
         ? weeks(changes).map(([week, rows]) => h("section.board.week-board", { "aria-label": t("week.label", { n: week }) },
             h("div.board-head", h("h2.board-title", t("week.label", { n: week }))),
-            h("ol.board-rows", rows.map((c) => changeRow(c, source.get(c.competitor_id), () => navigate(`product?change=${c.id}`))))))
+            h("ol.board-rows", rows.map((c) => changeRow(c, source.get(c.competitor_id), () => navigate(`product?change=${c.id}`)))),
+            boardLegend(rows, source)))
         : empty(hasShops));
     } catch (err) {
       fill(host, head(), errorState({ title: t("al.error"), message: err.message, onRetry: run }));

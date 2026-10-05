@@ -38,7 +38,10 @@ export function changeCells(c, source) {
  * cell on top of the row link, so both stay reachable by keyboard and pointer.
  */
 export function changeRow(c, source, onOpen) {
-  const li = boardRow(changeCells(c, source));
+  const cells = changeCells(c, source);
+  // Unread is said, not only shown: the lamp is invisible to a screen reader.
+  if (!c.acknowledged_at) cells.say = `${t("ch.unread")} ${cells.say}`;
+  const li = boardRow(cells);
   li.classList.add("is-link");
   if (!c.acknowledged_at) li.dataset.unread = "";
   const open = h("a.row-open", { href: `#/product?change=${c.id}`, onclick: (e) => { if (onOpen) { e.preventDefault(); onOpen(); } } },
@@ -50,6 +53,22 @@ export function changeRow(c, source, onOpen) {
       h("span.ico-arrow", { "aria-hidden": "true" })));
   }
   return li;
+}
+
+/** What the marks on a board mean; only the marks the board actually shows. */
+export function boardLegend(changes, source) {
+  const marks = new Set();
+  for (const c of changes) {
+    marks.add(source.get(c.competitor_id) === "html" ? "extracted" : "exact");
+    if (c.kind === "out_of_stock" || c.kind === "removed_product") marks.add("struck");
+    if (!c.acknowledged_at) marks.add("unread");
+  }
+  const item = (cls, key) => h("li.legend-item", h(`span.${cls}`, { "aria-hidden": "true" }), t(key));
+  return h("ul.board-legend.app-legend", { "aria-label": t("legend.label") },
+    marks.has("exact") ? item("legend-tile.mark-exact", "legend.exact") : null,
+    marks.has("extracted") ? item("legend-tile.mark-extracted", "legend.extracted") : null,
+    marks.has("struck") ? h("li.legend-item", h("span.legend-struck", { "aria-hidden": "true" }, "ABC"), t("legend.struck")) : null,
+    marks.has("unread") ? item("legend-lamp", "legend.unread") : null);
 }
 
 /** "Week 40 · 28 Sep – 4 Oct": the one time axis every view lines up on. */

@@ -17,7 +17,7 @@ Four services, all in one repository:
 |---|---|---|
 | `api` | Serves the landing page, the dashboard, and the whole REST API | Customer traffic |
 | `worker` | Drains the crawl and report queue | How many shops you monitor |
-| `db` | PostgreSQL — every tenant's data | Disk and IOPS |
+| `db` | PostgreSQL, every tenant's data | Disk and IOPS |
 | `redis` | Job queue and distributed rate limiting | Queue depth |
 
 `api` and `worker` run the **same image** with different commands. They must
@@ -32,7 +32,7 @@ You need:
 
 - A host with Docker and the Compose plugin
 - A domain with DNS pointing at it (for TLS, and for the links in emails)
-- A PostgreSQL 16 instance — the Compose file provides one, but a managed one is
+- A PostgreSQL 16 instance, the Compose file provides one, but a managed one is
   better in production because it has backups you did not have to write
 - A Stripe account, if you want to charge anyone
 - An SMTP provider. **Without one, verification and password-reset emails go to
@@ -184,7 +184,7 @@ to anyone whose price id we do not recognise.
 ## The model provider
 
 SPARTON calls OpenRouter for report prose. Product prices, stock and change
-detection are computed locally and are never sent to a model — if the provider
+detection are computed locally and are never sent to a model, if the provider
 is down, the numbers still work and only the narrative is missing.
 
 ```ini
@@ -242,7 +242,7 @@ docker compose up -d --build
 ```
 
 Migrations run on start. Before deploying, read the new migration's `upgrade()`
-and check whether it is reversible — the test suite asserts a full
+and check whether it is reversible, the test suite asserts a full
 downgrade/upgrade round trip, but a destructive change (dropping or narrowing a
 column) is worth a second pair of eyes and a backup regardless.
 
@@ -259,7 +259,7 @@ Before you point a domain at this:
 - [ ] TLS is terminated in front, and HTTP redirects to HTTPS
 - [ ] `CORS_ORIGINS` does not contain `*`
 - [ ] `STRIPE_WEBHOOK_SECRET` is set and the endpoint is reachable
-- [ ] `SMTP_HOST` is set — the outbox fallback is for development only
+- [ ] `SMTP_HOST` is set, the outbox fallback is for development only
 - [ ] `.env` is not in the image and not in git
 - [ ] `pytest` is green
 - [ ] You have restored a database backup at least once, on this host
@@ -270,9 +270,9 @@ Before you point a domain at this:
 
 | Symptom | Look at |
 |---|---|
-| Container restarts on boot | `docker compose logs api` — almost always a failed migration |
+| Container restarts on boot | `docker compose logs api`, almost always a failed migration |
 | `/ready` fails, `/live` works | `docker compose logs db`; the database is not accepting connections |
-| Signup works, no email arrives | `SMTP_HOST` unset — check `/app/data/outbox` in development |
+| Signup works, no email arrives | `SMTP_HOST` unset, check `/app/data/outbox` in development |
 | Customer paid, still on Free | The Stripe webhook is not reaching `/stripe/webhook`; resend the event from the Stripe dashboard |
 | Reports have no narrative | The model provider is unreachable; the numbers are still correct, see "The model provider" |
 | A competitor shows 0 products | We respect `robots.txt` and the page may forbid crawling; check the crawl status on the Shops screen |
@@ -282,7 +282,7 @@ which is how you check the unit economics before they check you.
 
 The crawler identifies itself honestly in its user agent and respects
 `robots.txt`. A site owner can see SPARTON in their logs, contact you, or block
-you. That is the intended behaviour — please do not disable it to raise crawl
+you. That is the intended behaviour, please do not disable it to raise crawl
 volume.
 
 ### More than one API replica: run migrations once
@@ -290,7 +290,7 @@ volume.
 The container CMD runs `alembic upgrade head` before uvicorn. That is right for
 a single replica, and wrong for several: three replicas starting together run
 three concurrent `upgrade head` against one database, and the losers fail on a
-duplicate revision or a lock timeout — usually as a crash loop during a deploy,
+duplicate revision or a lock timeout, usually as a crash loop during a deploy,
 which is the worst time to be reading a migration error.
 
 With `--scale api=2` or more, take migrations out of the start command and run
@@ -322,10 +322,10 @@ host, and nothing else may speak for a client's address.
 
 The value goes to two places, and they must agree:
 
-- `FORWARDED_ALLOW_IPS` — the app's own setting, used to decide whether to
+- `FORWARDED_ALLOW_IPS`, the app's own setting, used to decide whether to
   believe the header when computing a rate-limit identity
   (`app/core/security/rate_limit.py`).
-- `--forwarded-allow-ips` — uvicorn's flag, which decides whether to rewrite
+- `--forwarded-allow-ips`, uvicorn's flag, which decides whether to rewrite
   `request.client` from that header. The Dockerfile passes the same variable.
 
 Set it when a proxy sits in front:
@@ -340,7 +340,7 @@ FORWARDED_ALLOW_IPS=127.0.0.1,10.0.0.0/8
 Do not set it to `*`. With a wildcard, any caller can assert any client
 address: rate limits key on an attacker-chosen value, so rotating the header
 per request produces a fresh bucket every time and every limit in the app
-becomes a suggestion. The same applies to the uvicorn flag — with `*`, it
+becomes a suggestion. The same applies to the uvicorn flag, with `*`, it
 overwrites `request.client` before the app ever sees the real peer, which also
 breaks the audit log.
 
