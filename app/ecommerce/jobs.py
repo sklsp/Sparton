@@ -219,6 +219,14 @@ def generate_report_job(payload: dict) -> None:
             days=int(payload.get("days") or 7),
             kind=str(payload.get("kind") or "weekly"),
         )
+        # D-032: the weekly report is also emailed to the plan owner. This is
+        # best-effort by contract -- send_weekly_digest swallows its own errors
+        # and claims the report atomically, so a mail failure can never fail
+        # the job that produced the report (and a retry cannot double-send).
+        if str(payload.get("kind") or "weekly") == "weekly":
+            from app.ecommerce.reports import send_weekly_digest
+
+            send_weekly_digest(db, report)
         job.result = {"report_id": report.id, "status": report.status}
         job.status = JobStatus.COMPLETED.value
         job.stage = "report ready"
