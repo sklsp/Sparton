@@ -44,10 +44,13 @@ from app.core.database.ecommerce_models import (
     Competitor,
     CompetitorProduct,
     CrawlStatus,
+    MatchConfidence,
     Platform,
+    ProductMatch,
     Report,
     ReportStatus,
     Shop,
+    ShopProduct,
 )
 from app.core.database.identity import AuditLog, Organization, Project, Session, User
 from app.core.database.usage_models import LLMUsage, tokens_used_today, usage_summary

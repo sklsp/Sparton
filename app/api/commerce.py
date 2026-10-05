@@ -48,6 +48,7 @@ from app.ecommerce.discovery import (
 )
 from app.ecommerce.urls import InvalidShopUrl, normalize_url
 from app.ecommerce.feeds import source_label
+from app.ecommerce.matching import comparisons, match_for, own_history
 from app.ecommerce.reports import report_to_dict
 
 router = APIRouter(tags=["intelligence"])
@@ -133,7 +134,7 @@ def _competitor_dict(row: Competitor) -> dict[str, Any]:
     }
 
 
-def _change_dict(row: ChangeEvent) -> dict[str, Any]:
+def _change_dict(row: ChangeEvent, vs_you: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "id": row.id,
         "shop_id": row.shop_id,
@@ -160,6 +161,9 @@ def _change_dict(row: ChangeEvent) -> dict[str, Any]:
         "acknowledged_at": (
             row.acknowledged_at.isoformat() if row.acknowledged_at else None
         ),
+        # The customer's matched product, when there is one: their price and
+        # the gap. `confidence` says how sure the pairing is (matching.py).
+        "vs_you": vs_you,
     }
 
 
@@ -512,10 +516,11 @@ def list_changes(
             ChangeEvent.organization_id == org, ChangeEvent.acknowledged_at.is_(None)
         )
     ).scalars().all()
+    vs = comparisons(db, org, list(rows))
     return {
         "count": len(rows),
         "unacknowledged": len(unacked),
-        "changes": [_change_dict(c) for c in rows],
+        "changes": [_change_dict(c, vs.get(c.id)) for c in rows],
     }
 
 
@@ -586,8 +591,30 @@ def change_history(
             ).scalars().all()
         points = list(reversed(points))
 
+    match = match_for(db, org, change.competitor_id, anchor.source_url if anchor else change.source_url)
+    own = None
+    if match is not None:
+        own = {
+            "product": match.own_name,
+            "source_url": match.own_url,
+            "method": match.method,
+            "score": match.score,
+            "confidence": match.confidence,
+            "points": [
+                {
+                    "captured_at": p.captured_at.isoformat() if p.captured_at else None,
+                    "price": p.price,
+                    "currency": p.currency,
+                    "in_stock": p.in_stock,
+                    "data_source": p.data_source,
+                }
+                for p in own_history(db, match, limit)
+            ],
+        }
+
     return {
-        "change": _change_dict(change),
+        "change": _change_dict(change, comparisons(db, org, [change]).get(change.id)),
+        "own": own,
         "product": change.product_name,
         "competitor": change.competitor_name or change.competitor_domain,
         "currency": change.currency,
@@ -709,6 +736,7 @@ def overview(
         .limit(1)
     ).scalars().first()
 
+    vs = comparisons(db, org, list(recent[:10]))
     return {
         "shops": [_shop_dict(s) for s in shops],
         "competitor_count": len(competitors),
@@ -718,7 +746,7 @@ def overview(
         ),
         "changes_this_week": len(recent),
         "unacknowledged": len(unacked),
-        "recent_changes": [_change_dict(c) for c in recent[:10]],
+        "recent_changes": [_change_dict(c, vs.get(c.id)) for c in recent[:10]],
         "latest_report": (
             report_to_dict(latest_report, include_markdown=False) if latest_report else None
         ),

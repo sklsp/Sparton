@@ -166,6 +166,7 @@ def capture_fields(product: ExtractedProduct, fallback_url: str) -> dict[str, An
         "compare_at_price": as_money(product.attributes.get("compare_at")),
         "data_source": product.attributes.get("data_source") or SOURCE_HTML,
         "variant_count": int(product.attributes.get("variants") or 1),
+        "gtin": str(product.attributes.get("gtin") or "")[:32],
         "extraction_method": product.method,
         "confidence": product.confidence,
     }
