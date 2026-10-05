@@ -130,6 +130,7 @@ PROTECTED_WRITE_ONLY = [
     ("post", "/agent/run"),
     ("post", "/auth/change-password"),
     ("put", "/auth/language"),
+    ("patch", "/auth/settings"),
     ("post", "/auth/logout"),
     ("post", "/auth/resend-verification"),
     ("post", "/billing/checkout"),

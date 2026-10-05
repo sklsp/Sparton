@@ -4,7 +4,7 @@ import { api, token, onUnauthorized } from "./api.js";
 import { h, fill, button, toast } from "./ui.js";
 import { renderAuth, authRoute } from "./auth.js";
 import { ROUTES } from "./routes.js";
-import { t, langSwitch } from "./i18n.js";
+import { t, lang, langSwitch } from "./i18n.js";
 import { flapWord } from "./board.js";
 
 const root = document.getElementById("root");

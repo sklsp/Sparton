@@ -6,9 +6,12 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 from typing import Any, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.billing.plans import get_plan
+from app.core import email as mailer
+from app.core.config import settings
 from app.core.database.ecommerce_models import (
     ChangeEvent,
     ChangeKind,
@@ -18,8 +21,10 @@ from app.core.database.ecommerce_models import (
     ReportStatus,
     Shop,
 )
+from app.core.database.identity import Organization, User
 from app.core.database.models import as_utc, utcnow
 from app.core.observability.metrics import inc
+from app.core.report_email import render_report_email
 from app.ecommerce.changes import money
 
 logger = logging.getLogger(__name__)
@@ -467,6 +472,105 @@ def generate_report(
     return report
 
 
+def _digest_changes(db: Session, report: Report) -> list[dict]:
+    """The report's change rows in the shape ``render_report_email`` expects."""
+    ids = [int(i) for i in (report.change_ids or [])]
+    if not ids:
+        return []
+    events = db.execute(
+        select(ChangeEvent).where(ChangeEvent.id.in_(ids))
+    ).scalars().all()
+    changes = []
+    for event in events:
+        change = {
+            "kind": event.kind,
+            "competitor": event.competitor_name or event.competitor_domain,
+            "product": event.product_name,
+            "evidence_url": event.source_url,
+        }
+        if event.previous_price is not None:
+            change["previous_price"] = float(event.previous_price)
+        if event.new_price is not None:
+            change["new_price"] = float(event.new_price)
+        if event.delta_pct is not None:
+            change["delta_pct"] = float(event.delta_pct)
+        changes.append(change)
+    return changes
+
+
+def send_weekly_digest(db: Session, report: Report) -> bool:
+    """Send the weekly email digest for one finished report (D-032).
+
+    Returns ``True`` when a mail was sent. Every other outcome -- ineligible
+    plan, no verified admin, preference off, already sent -- returns ``False``
+    without raising, and any transport error is swallowed: this runs inside the
+    job that produced the report, and a mail failure must never fail that job.
+
+    Idempotency is an atomic claim on ``Report.email_digest_sent``: two workers
+    racing on the same report both pass the read check, but only one UPDATE can
+    flip the flag from false to true, so the mail goes out exactly once.
+    """
+    try:
+        if report.status != ReportStatus.COMPLETED or not (report.markdown or "").strip():
+            return False
+
+        org = db.get(Organization, report.organization_id) if report.organization_id else None
+        plan = get_plan(org.plan if org is not None else "free")
+        if not bool(plan.features.get("email_digest")):
+            logger.info("Weekly digest skipped for shop %s: plan %r has no email digest",
+                        report.shop_id, org.plan if org else "?")
+            return False
+
+        # The roles are admin | manager | analyst | viewer; the oldest verified
+        # admin is the account that owns the subscription.
+        recipient = db.execute(
+            select(User).where(
+                User.organization_id == report.organization_id,
+                User.role == "admin",
+                User.is_active.is_(True),
+                User.email_verified.is_(True),
+            ).order_by(User.created_at.asc(), User.id.asc()).limit(1)
+        ).scalars().first()
+        if recipient is None:
+            logger.info("Weekly digest skipped for shop %s: no verified admin", report.shop_id)
+            return False
+        if not bool(getattr(recipient, "weekly_digest_enabled", True)):
+            logger.info("Weekly digest skipped for %s: preference off", recipient.email)
+            return False
+
+        claimed = db.execute(
+            update(Report)
+            .where(Report.id == report.id, Report.email_digest_sent.is_(False))
+            .values(email_digest_sent=True)
+        ).rowcount
+        if not claimed:
+            logger.info("Weekly digest skipped for shop %s: already sent", report.shop_id)
+            return False
+        report.email_digest_sent = True
+
+        lang = report_language(report.language)  # the email matches the report it carries
+        subject, text, html = render_report_email(
+            {
+                "period_start": report.period_start.isoformat(),
+                "period_end": report.period_end.isoformat(),
+                "facts": report.facts if isinstance(report.facts, dict) else {},
+            },
+            _digest_changes(db, report),
+            lang=lang,
+            report_url=f"{settings.app_url.rstrip('/')}/app/#/reports" if settings.app_url else "",
+        )
+        mailer.send_rich(recipient.email, subject, text, html)
+        db.commit()
+        logger.info("Weekly digest sent for shop %s report %s to %s (%s)",
+                    report.shop_id, report.id, recipient.email, lang)
+        return True
+    except Exception:  # noqa: BLE001 -- best-effort by contract (D-032)
+        db.rollback()
+        logger.exception("Weekly digest failed for shop %s report %s",
+                         report.shop_id, getattr(report, "id", "?"))
+        return False
+
+
 def _report_title(shop: Shop | None, kind: str, start: datetime, end: datetime) -> str:
     label = (shop.name if shop else "All shops") or "All shops"
     return f"{label}: {kind} report, {start:%d %b} to {end:%d %b %Y}"
@@ -508,4 +612,5 @@ __all__ = [
     "period_bounds",
     "render_facts",
     "report_to_dict",
+    "send_weekly_digest",
 ]

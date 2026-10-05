@@ -52,6 +52,12 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
+class UserSettingsUpdate(BaseModel):
+    """The caller's own account preferences (D-032). The account language is set
+    with PUT /auth/language and is shared by reports and the digest email."""
+    weekly_digest_enabled: bool | None = None
+
+
 # --- chat / documents --------------------------------------------------------
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)

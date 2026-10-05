@@ -55,6 +55,9 @@ class User(Base):
     # admin | manager | analyst | viewer
     role: Mapped[str] = mapped_column(String(20), default="viewer", index=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+    #: The owner may switch the weekly report email off in settings; plans that
+    #: include it start with it on (D-032).
+    weekly_digest_enabled: Mapped[bool] = mapped_column(default=True)
     #: A verified address is the only one we send transactional mail to, and
     #: the only one that makes a password reset meaningful (D-010).
     email_verified: Mapped[bool] = mapped_column(default=False, index=True)

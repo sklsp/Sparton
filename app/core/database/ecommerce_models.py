@@ -446,6 +446,9 @@ class Report(Base):
     #: "weekly" | "monthly" | "manual"
     kind: Mapped[str] = mapped_column(String(24), default="weekly", index=True)
     status: Mapped[str] = mapped_column(String(24), default=ReportStatus.PENDING, index=True)
+    #: Set once the email digest for this report has been claimed and sent, so a
+    #: retried job can never send it twice (D-032).
+    email_digest_sent: Mapped[bool] = mapped_column(Boolean, default=False)
 
     period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

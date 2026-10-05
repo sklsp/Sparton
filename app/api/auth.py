@@ -31,6 +31,7 @@ from app.api.schemas import (
     RegisterRequest,
     ResetPasswordRequest,
     TokenResponse,
+    UserSettingsUpdate,
     VerifyRequest,
 )
 
@@ -44,7 +45,10 @@ def _user_dict(user) -> dict:
         "role": user.role,
         "organization_id": user.organization_id,
         "email_verified": bool(getattr(user, "email_verified", False)),
+        # One language per account (Organization.language, v1.1): reports and the
+        # D-032 digest email follow it. getattr: machine principals have neither.
         "language": getattr(org, "language", None) or "en",
+        "weekly_digest_enabled": bool(getattr(user, "weekly_digest_enabled", True)),
     }
 
 
@@ -313,6 +317,31 @@ def change_password(
         organization_id=user.organization_id,
     )
     return {"changed": True}
+
+
+@router.patch("/settings")
+def update_settings(
+    payload: UserSettingsUpdate,
+    db: DbSession = None,
+    user: Annotated[object, Depends(unverified_user)] = None,
+) -> dict:
+    """Update your own account preferences: UI language and the weekly email digest.
+
+    ``unverified_user`` on purpose (like change-password): these are personal
+    preferences of your own account, not tenant data, and a freshly signed-up
+    customer should be able to set them before verifying their address. The
+    digest itself only ever goes out to verified addresses.
+    """
+    if getattr(user, "is_machine", False):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="API keys have no account preferences")
+    if payload.weekly_digest_enabled is not None:
+        user.weekly_digest_enabled = payload.weekly_digest_enabled
+    db.commit()
+    audit(
+        db, action="auth.settings_updated", actor_user_id=user.id,
+        organization_id=user.organization_id,
+    )
+    return _user_dict(user)
 
 
 __all__ = ["router"]

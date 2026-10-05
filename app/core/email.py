@@ -62,7 +62,29 @@ def send(to: str, subject: str, text: str) -> bool:
     Never raises: a failed send is logged, and the caller moves on. A
     verification mail that failed to send must not roll back a signup.
     """
+    return _deliver(build_message(to, subject, text), to, subject)
+
+
+def build_rich_message(to: str, subject: str, text: str, html: str) -> EmailMessage:
+    """An HTML mail with a plain-text alternative (the weekly digest).
+
+    Multipart on purpose: the digest is designed as HTML, but every client must
+    still get a readable version when it strips markup.
+    """
     message = build_message(to, subject, text)
+    message.add_alternative(html, subtype="html")
+    return message
+
+
+def send_rich(to: str, subject: str, text: str, html: str) -> bool:
+    """Send an HTML mail with a plain-text alternative.
+
+    Same contract as ``send``: never raises, falls back to the outbox.
+    """
+    return _deliver(build_rich_message(to, subject, text, html), to, subject)
+
+
+def _deliver(message: EmailMessage, to: str, subject: str) -> bool:
     if not is_configured():
         _write_to_outbox(message, to, subject)
         return False
@@ -142,11 +164,13 @@ __all__ = [
     "OUTBOX_DIR",
     "EmailError",
     "build_message",
+    "build_rich_message",
     "is_configured",
     "outbox_path",
     "reset_email",
     "send",
     "send_password_reset",
+    "send_rich",
     "send_verification",
     "verification_email",
 ]
