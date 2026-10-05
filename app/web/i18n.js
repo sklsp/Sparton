@@ -33,6 +33,16 @@ export function t(key, vars) {
 export function setLang(next) {
   if (!LANGS.includes(next) || next === lang) return;
   try { localStorage.setItem(KEY, next); } catch { /* still switch for this page */ }
+  // Signed in: the account follows, because the weekly report is written in its language.
+  // keepalive lets the request outlive the reload below.
+  let auth = null;
+  try { auth = localStorage.getItem("sparton.token"); } catch { /* no session to update */ }
+  if (auth) {
+    fetch("/auth/language", {
+      method: "PUT", keepalive: true, body: JSON.stringify({ language: next }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth}` },
+    }).catch(() => {});
+  }
   location.reload();
 }
 

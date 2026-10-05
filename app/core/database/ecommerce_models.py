@@ -261,6 +261,9 @@ class CompetitorProduct(Base):
     data_source: Mapped[str] = mapped_column(String(16), default="html", index=True)
     #: Number of purchasable variants, when the source reports one.
     variant_count: Mapped[int] = mapped_column(Integer, default=1)
+    #: Barcode (GTIN/EAN) when the shop publishes one. The strongest key for
+    #: pairing this product with one in the customer's own catalogue.
+    gtin: Mapped[str] = mapped_column(String(32), default="", index=True)
     #: json-ld / opengraph / html — how confidently we read the price.
     extraction_method: Mapped[str] = mapped_column(String(24), default="unknown")
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
@@ -270,6 +273,98 @@ class CompetitorProduct(Base):
     )
 
     competitor: Mapped["Competitor"] = relationship(back_populates="products")
+
+
+# --------------------------------------------------------------------------
+# The customer's own catalogue, and which competitor products are the same
+# --------------------------------------------------------------------------
+class ShopProduct(Base):
+    """One capture of one product in the customer's own shop.
+
+    A time series like ``competitor_products``, read the same way (shopfeed),
+    so "your price" on a chart is a reading with a date, not a value that
+    silently changes under old reports.
+    """
+
+    __tablename__ = "shop_products"
+    __table_args__ = (
+        Index("ix_sp_shop_url_time", "shop_id", "source_url", "captured_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    shop_id: Mapped[int] = mapped_column(
+        ForeignKey("shops.id", ondelete="CASCADE"), index=True
+    )
+    source_url: Mapped[str] = mapped_column(Text)
+    external_id: Mapped[str] = mapped_column(String(160), default="")
+    name: Mapped[str] = mapped_column(String(400))
+    brand: Mapped[str] = mapped_column(String(200), default="")
+    gtin: Mapped[str] = mapped_column(String(32), default="")
+    price: Mapped[Decimal | None] = mapped_column(MONEY, nullable=True)
+    currency: Mapped[str] = mapped_column(String(8), default="EUR")
+    in_stock: Mapped[bool] = mapped_column(Boolean, default=True)
+    data_source: Mapped[str] = mapped_column(String(16), default="feed")
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
+
+
+class MatchConfidence:
+    """How sure we are two products are the same. Shown to the customer.
+
+    Only a shared barcode is ``certain``. A title match is at best ``likely``:
+    two shops can word the same candle the same way and still sell different
+    ones, so the UI must never present it as fact.
+    """
+
+    CERTAIN = "certain"
+    LIKELY = "likely"
+    POSSIBLE = "possible"
+
+    #: A title score at or above this is "likely"; below it (down to the
+    #: matcher's own floor) the pair is only "possible".
+    LIKELY_SCORE = 0.9
+
+    @classmethod
+    def of(cls, method: str, score: float) -> str:
+        if method == "gtin":
+            return cls.CERTAIN
+        return cls.LIKELY if score >= cls.LIKELY_SCORE else cls.POSSIBLE
+
+
+class ProductMatch(Base):
+    """One of the customer's products paired with one competitor product.
+
+    Keyed by product URL, not capture id: captures are a time series, a match
+    is between products. Rebuilt per (shop, competitor) after each crawl.
+    """
+
+    __tablename__ = "product_matches"
+    __table_args__ = (
+        Index("ix_pm_competitor_url", "competitor_id", "competitor_url"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    shop_id: Mapped[int] = mapped_column(
+        ForeignKey("shops.id", ondelete="CASCADE"), index=True
+    )
+    competitor_id: Mapped[int] = mapped_column(
+        ForeignKey("competitors.id", ondelete="CASCADE"), index=True
+    )
+    own_url: Mapped[str] = mapped_column(Text)
+    own_name: Mapped[str] = mapped_column(String(400), default="")
+    competitor_url: Mapped[str] = mapped_column(Text)
+    competitor_name: Mapped[str] = mapped_column(String(400), default="")
+    #: "gtin" (same barcode) or "title" (shopfeed's title rules).
+    method: Mapped[str] = mapped_column(String(16))
+    score: Mapped[float] = mapped_column(Float)
+    matched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    @property
+    def confidence(self) -> str:
+        return MatchConfidence.of(self.method, self.score)
 
 
 # --------------------------------------------------------------------------
@@ -362,6 +457,8 @@ class Report(Base):
     change_ids: Mapped[list[Any]] = mapped_column(JSONType, default=list)
 
     model: Mapped[str] = mapped_column(String(120), default="")
+    #: The language the prose was written in ("nl" | "en"); the facts have none.
+    language: Mapped[str] = mapped_column(String(8), default="en", server_default="en")
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -379,8 +476,11 @@ __all__ = [
     "Competitor",
     "CompetitorProduct",
     "CrawlStatus",
+    "MatchConfidence",
     "Platform",
+    "ProductMatch",
     "Report",
     "ReportStatus",
     "Shop",
+    "ShopProduct",
 ]

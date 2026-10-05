@@ -1,4 +1,4 @@
-# SPARTON — local production-shaped stack.
+# SPARTON: local production-shaped stack.
 #
 # This is what runs on the box, not a dev convenience: PostgreSQL, Redis, the
 # API and the queue worker, all on the real dependency versions. The only
@@ -12,6 +12,13 @@
 # there is no separate migration step to forget.
 
 name: sparton
+
+# One image for api and worker. The build passes GH_TOKEN (if set) as the
+# gh_token BuildKit secret so the private shopfeed library is installed; with
+# GH_TOKEN unset the build still works, without it. See docs/DEPLOYMENT.md.
+x-build: &build
+  context: .
+  secrets: [gh_token]
 
 x-app-env: &app-env
   SPARTON_ENV: ${SPARTON_ENV:-production}
@@ -80,7 +87,8 @@ services:
       retries: 5
 
   api:
-    build: .
+    image: sparton:latest
+    build: *build
     restart: unless-stopped
     environment:
       <<: *app-env
@@ -98,10 +106,11 @@ services:
         condition: service_healthy
 
   worker:
-    build: .
+    image: sparton:latest
+    build: *build
     restart: unless-stopped
     # The same image, a different process: it drains the crawl and report queue.
-    # `depends_on: service_healthy` is intentionally absent — the worker is
+    # `depends_on: service_healthy` is intentionally absent: the worker is
     # safe to restart independently and should not wait on the API.
     command: ["python", "-m", "workers.worker"]
     environment:
@@ -131,6 +140,10 @@ services:
       # normal startup.
       start_period: 40s
       retries: 3
+
+secrets:
+  gh_token:
+    environment: GH_TOKEN
 
 volumes:
   db-data:

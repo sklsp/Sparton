@@ -35,6 +35,9 @@ class Organization(Base):
     subscription_ends_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    #: "nl" | "en": the language the weekly report's prose is written in. Set at
+    #: signup from the dashboard's language and by its language switch.
+    language: Mapped[str] = mapped_column(String(8), default="en", server_default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     users: Mapped[list["User"]] = relationship(back_populates="organization")

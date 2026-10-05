@@ -26,6 +26,7 @@ from app.core.security.rate_limit import rate_limit
 from app.api.schemas import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
+    LanguageRequest,
     LoginRequest,
     RegisterRequest,
     ResetPasswordRequest,
@@ -36,12 +37,14 @@ from app.api.schemas import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 def _user_dict(user) -> dict:
+    org = getattr(user, "organization", None)
     return {
         "id": user.id,
         "email": user.email,
         "role": user.role,
         "organization_id": user.organization_id,
         "email_verified": bool(getattr(user, "email_verified", False)),
+        "language": getattr(org, "language", None) or "en",
     }
 
 
@@ -66,6 +69,7 @@ def register(
     org = Organization(
         name=payload.organization_name,
         slug=unique_slug(db, payload.organization_name),
+        language=payload.language,
     )
     db.add(org)
     db.flush()
@@ -153,6 +157,25 @@ def me(user: Annotated[object, Depends(unverified_user)]) -> dict:
     that they need verifying.
     """
     return _user_dict(user)
+
+
+@router.put("/language")
+def set_language(
+    payload: LanguageRequest,
+    db: DbSession,
+    user: Annotated[object, Depends(unverified_user)],
+) -> dict:
+    """The account's report language, set by the dashboard's NL/EN switch.
+
+    Any member may set it: it decides which language the next weekly report is
+    written in, nothing else (D-038).
+    """
+    org = db.get(Organization, user.organization_id)
+    if org is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    org.language = payload.language
+    db.commit()
+    return {"language": org.language}
 
 
 # ---------------------------------------------------------------------------

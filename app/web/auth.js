@@ -4,7 +4,7 @@
 
 import { api, token } from "./api.js";
 import { h, fill, button } from "./ui.js";
-import { t, langSwitch } from "./i18n.js";
+import { t, lang, langSwitch } from "./i18n.js";
 import { flapWord, boardRow } from "./board.js";
 import { fmtMoney } from "./i18n.js";
 
@@ -134,7 +134,7 @@ function signup(params, onSignedIn) {
     h("p.auth-lede", t("auth.signupLede")),
     plan && plan !== "free" ? h("p.auth-note", t("auth.planNote", { plan: plan[0].toUpperCase() + plan.slice(1) })) : null,
     form("signup", [email.wrap, password.wrap, org.wrap], t("auth.create"), async () => {
-      const result = await api.register(email.el.value, password.el.value, org.el.value);
+      const result = await api.register(email.el.value, password.el.value, org.el.value, lang);
       token.set(result.token);
       if (plan && plan !== "free") sessionStorage.setItem("sparton.plan", plan);
       // New accounts go straight into onboarding: the first thing to do is add a shop.

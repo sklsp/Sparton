@@ -1,13 +1,30 @@
 // Board pieces the dashboard views share: a change as a board row, the week label, the counters.
 
 import { h } from "../ui.js";
-import { t, fmtMoney, fmtDate } from "../i18n.js";
+import { t, fmtMoney, fmtDate, fmtNumber } from "../i18n.js";
 import { boardRow, flapWord } from "../board.js";
 
 const pct = (v) => `${v > 0 ? "+" : "−"}${Math.abs(Math.round(v))}%`;
 
+/**
+ * "They are 10% cheaper than you", when the product is matched to one of the owner's own.
+ * Anything short of a barcode match says how sure it is: a title match is never stated as fact.
+ */
+export function vsYou(v) {
+  if (!v || v.gap_pct == null) return "";
+  const gap = Number(v.gap_pct);
+  const pct = `${fmtNumber(Math.abs(gap), { maximumFractionDigits: 1 })}%`;
+  const line = gap > 0 ? t("gap.cheaper", { pct }) : gap < 0 ? t("gap.dearer", { pct }) : t("gap.same");
+  if (v.confidence === "certain") return line;
+  return `${line} (${v.confidence === "likely" ? t("gap.likely") : t("gap.possible")})`;
+}
+
 /** A change event as board cells + one spoken sentence. `source` is the competitor's data tier. */
 export function changeCells(c, source) {
+  return { ...cells(c, source), note: vsYou(c.vs_you) };
+}
+
+function cells(c, source) {
   const who = c.competitor || c.competitor_domain || "—";
   const what = c.product || c.title || "—";
   const was = c.previous_price != null ? fmtMoney(c.previous_price, c.currency) : "";

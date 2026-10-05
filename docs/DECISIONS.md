@@ -470,6 +470,8 @@ backend records it.
 **Jay decides.** Whether to build own-catalogue reading + matching (then restore the claim), or
 drop it from the positioning.
 
+**Update (v1.1).** Built: see D-037. The claim can come back (D-031's copy is updated in v1.1 M4).
+
 ## D-032: "Email digest" is not shown as a plan feature
 
 **Context.** `app/billing/plans.py` sets `email_digest: true` on Pro and Business, but no code
@@ -503,3 +505,52 @@ week tells an established account when it last checked instead of showing first-
 "mark all as read" asks first (there is no un-acknowledge endpoint, so no undo) and reports
 partial failure; plan check frequencies are words, not "1×/W". Plan names (Free, Pro, Business)
 stay untranslated: they are names, shared with the API and Stripe.
+
+## D-036: shopfeed goes into the image through a BuildKit secret
+
+**Context.** v1.0 shipped without `shopfeed` in the image, so production read every competitor
+through the HTML crawl ("extracted" instead of "exact"). Options were a build secret, vendoring the
+code, or making the repository public.
+
+**Decision.** A BuildKit secret (`gh_token`) used by one `RUN pip install git+https://github.com/sklsp/shopfeed`
+step in its own build stage. The repository stays private and nothing is vendored. Without the
+secret the build succeeds with a warning and the app keeps its HTML fallback. The build command
+and the verification are in DEPLOYMENT.md.
+
+**Cost.** Whoever builds the image needs a read token for `sklsp/shopfeed`, and the build must use
+`--no-cache-filter shopfeed` (BuildKit does not key its cache on secrets).
+
+## D-037: Own catalogue and matching: shopfeed only, barcode or labelled
+
+**Context.** Closing D-031. The brief: read the owner's shop like a competitor, pair products with
+shopfeed's match module, show the gap, never present a weak match as certain.
+
+**Decision.**
+- The own shop is read with `read_feed_catalog` only (feed or structured data). No HTML fallback for
+  the own catalogue: a guessed "your price" next to an exact competitor price is worse than none.
+- Matches are rebuilt per competitor from the latest captures after each crawl (`rematch`), keyed
+  by product URL. Without shopfeed installed the old matches are kept, not wiped.
+- Confidence shown to the owner: `certain` only for a shared barcode; a title match is `likely`
+  (score at least 0.9) or `possible` (shopfeed's floor 0.72 up to 0.9), and the UI always says so.
+- The gap uses the owner's price in force when the change was detected, so both sides are from the
+  same moment. Decimal, rounded half up to 0.1%.
+- The own catalogue uses the same product budget as a competitor read (`CRAWLER_MAX_PAGES_PER_SHOP`).
+
+**Jay decides (conservative defaults taken).** The 0.9 line between "likely" and "possible"; whether
+owners should be able to confirm or reject a match (not built); whether the own catalogue deserves a
+bigger product budget than a competitor.
+
+## D-038: The weekly report is written in the account's language
+
+**Context.** v1.0 wrote report prose in English only and the NL UI said so (report frontend note).
+
+**Decision.** `organizations.language` ("nl" | "en") is set at signup from the dashboard's language
+and updated by the NL/EN switch when signed in. The report generator tells the model which language
+to write (the rules stay in English; headings are given in Dutch) and still hands it the same FACTS,
+so every number is the diff engine's in both languages. The no-model fallback text is rendered in
+the same language. Each report records its `language`.
+
+**Conservative defaults taken.** Existing accounts stay "en" (what their reports were written in)
+until someone uses the switch. Any member of the account may change it, verified or not: it only
+picks the language of the next report. Product names are never translated; prices keep the
+diff engine's formatting (`€27.50`) in both languages.

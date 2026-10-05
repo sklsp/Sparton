@@ -271,7 +271,7 @@ item is a real user action; every one of them was a bug at least once.
 Do not call it launched until every one of these is proven by a command you ran,
 not by a test someone said passed.
 
-- [ ] `pytest` is green: **507 passed, 0 failed** (487 API + 20 browser).
+- [ ] `pytest` is green: **581 passed, 0 failed** (552 API + 29 browser).
 - [ ] `pytest tests/test_browser_smoke.py` is green in CI with a real Chromium.
 - [ ] The image builds and runs non-root, and `/live` answers from the running
       container.
@@ -315,8 +315,8 @@ the local checkout:
 pip install -e W:/shopfeed
 ```
 
-In the image, add that line to the builder stage of the `Dockerfile` (alongside
-`pip install -r requirements.txt`) and add `shopfeed` to the `COPY` paths.
+The image installs it from GitHub with a BuildKit secret (`gh_token`); the build
+command is in [DEPLOYMENT.md](DEPLOYMENT.md#building-the-image-the-private-shopfeed-library).
 
 **It is optional at runtime.** If the import fails, `read_feed_catalog` returns
 an empty result and the crawl falls back to the HTML path: slower, costs tokens,
@@ -367,8 +367,8 @@ Expect ~9 GB. A default deployment should never need it, and if you find
 yourself reaching for it, the flag on the *app* is probably the thing to set:
 `ENABLED_DOMAINS=...,documents,...`.
 
-`shopfeed` is not in the image either: it is private and installed from a local
-path. Without it the product still crawls -- the HTML path, which costs tokens
+`shopfeed` is in the image only when it is built with the `gh_token` secret
+(see DEPLOYMENT.md). Without it the product still crawls -- the HTML path, which costs tokens
 and labels its prices "extracted from the page" rather than "exact". The image
 verifies this on startup, so a missing feed degrades the data's provenance
 rather than the product's availability.

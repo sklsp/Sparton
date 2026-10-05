@@ -92,17 +92,20 @@ function figure(text, cls) {
   return w;
 }
 
-export function boardRow({ a, b, c = "", d = "", e = "", span = "", mark = "exact", struck = false, tone = "", say, extractedNote = "" }, tag = "li") {
+export function boardRow({ a, b, c = "", d = "", e = "", span = "", mark = "exact", struck = false, tone = "", say, extractedNote = "", note = "" }, tag = "li") {
   const li = node(tag, `board-row mark-row-${mark}`);
   li.dataset.tone = tone;
   li.dataset.span = span ? "1" : "";
   if (struck) li.classList.add("is-struck");
   const cells = node("span", "board-cells");
   cells.setAttribute("aria-hidden", "true");
-  cells.append(strip(a, "cell-a"), strip(b, "cell-b"), figure(c, "cell-c"));
+  const name = strip(b, "cell-b");
+  // A second line under the product name: how this price compares with the owner's own.
+  if (note) name.append(node("span", "strip-note", note));
+  cells.append(strip(a, "cell-a"), name, figure(c, "cell-c"));
   if (span) cells.append(strip(span, "cell-span"));
   else cells.append(figure(d, "cell-d"), figure(e, "cell-e"));
-  const sentence = say || [a, b, c, d, e, span].filter(Boolean).join(", ");
+  const sentence = (say || [a, b, c, d, e, span].filter(Boolean).join(", ")) + (note ? `. ${note}` : "");
   li.append(node("span", "visually-hidden row-say", sentence + (mark === "extracted" && extractedNote ? ` (${extractedNote})` : "")), cells);
   return li;
 }

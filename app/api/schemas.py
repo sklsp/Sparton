@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -12,9 +12,15 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     organization_name: str = Field(default="Default", max_length=160)
+    #: The dashboard's language at signup; the weekly report is written in it.
+    language: Literal["nl", "en"] = "en"
     # Registration creates the first admin of a NEW organization only;
     # joining an existing org is an invite/admin flow.
     role: str = Field(default="admin", exclude=True)
+
+
+class LanguageRequest(BaseModel):
+    language: Literal["nl", "en"]
 
 
 class LoginRequest(BaseModel):
