@@ -1,7 +1,7 @@
 """Simple SPARTON launcher.
 
 Usage:
-    .venv python:  w:/Sparton/Apollo/.venv/Scripts/python.exe start_sparton.py
+    venv python:   .venv/Scripts/python start_sparton.py   (Windows; .venv/bin/python elsewhere)
     any python:    python start_sparton.py   (deps must be installed)
 
 Options:

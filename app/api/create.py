@@ -59,7 +59,7 @@ def _org_id(user) -> int | None:
 # ComfyUI status + workflows
 # --------------------------------------------------------------------------
 @router.get("/comfyui/status")
-def comfyui_status() -> dict:
+def comfyui_status(user: Annotated[object, Depends(current_user)] = None) -> dict:
     try:
         return _get_comfyui().status()
     except ComfyUIError as exc:
@@ -67,13 +67,18 @@ def comfyui_status() -> dict:
 
 
 @router.get("/comfyui/workflows")
-def list_workflows() -> dict:
+def list_workflows(user: Annotated[object, Depends(current_user)] = None) -> dict:
     workflows = _get_comfyui().list_workflows()
     return {"count": len(workflows), "workflows": [w.to_dict() for w in workflows]}
 
 
 @router.post("/comfyui/workflows", status_code=201)
-def import_workflow(payload: WorkflowImportRequest) -> dict:
+def import_workflow(
+    payload: WorkflowImportRequest,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
+    # This route writes JSON files into the server's workflow directory, so it
+    # must never be reachable without an authenticated principal.
     try:
         info = _get_comfyui().save_workflow(
             payload.name, payload.graph,
@@ -85,7 +90,10 @@ def import_workflow(payload: WorkflowImportRequest) -> dict:
 
 
 @router.delete("/comfyui/workflows/{workflow_id}")
-def delete_workflow(workflow_id: str) -> dict:
+def delete_workflow(
+    workflow_id: str,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     deleted = _get_comfyui().delete_workflow(workflow_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -96,7 +104,10 @@ def delete_workflow(workflow_id: str) -> dict:
 # Generation
 # --------------------------------------------------------------------------
 @router.post("/comfyui/validate-generation")
-def validate_generation(payload: GenerationRequest) -> dict:
+def validate_generation(
+    payload: GenerationRequest,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     params = {k: v for k, v in payload.model_dump().items() if v is not None}
     return _get_comfyui().validate_workflow_request(payload.workflow_id, params)
 
@@ -147,7 +158,12 @@ def list_generated(limit: int = 50, db: DbSession = None, user: Annotated[object
 
 
 @router.get("/generated/{filename}")
-def read_generated(filename: str) -> FileResponse:
+def read_generated(
+    filename: str,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> FileResponse:
+    # Serves arbitrary files from the generation output directory, so it is
+    # authenticated like every other file read.
     service = _get_comfyui()
     try:
         content = service.read_generated(filename)
@@ -269,17 +285,18 @@ def generate_captions(dataset_id: int, payload: CaptionRequest, db: DbSession = 
 # Training (Leonidas)
 # --------------------------------------------------------------------------
 @router.get("/training/status")
-def training_status() -> dict:
+def training_status(user: Annotated[object, Depends(current_user)] = None) -> dict:
     return LoRATrainingService().status()
 
 
 @router.get("/training/presets")
-def training_presets() -> dict:
+def training_presets(user: Annotated[object, Depends(current_user)] = None) -> dict:
     return {"presets": LoRATrainingService().presets()}
 
 
 @router.get("/training/hardware")
-def hardware_info() -> dict:
+def hardware_info(user: Annotated[object, Depends(current_user)] = None) -> dict:
+    # Reveals the host's GPU inventory — never expose it anonymously.
     return detect_hardware().to_dict()
 
 

@@ -19,7 +19,25 @@ class Organization(Base):
     __tablename__ = "organizations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(160), unique=True)
+    # Display name. NOT unique: on a public signup form a global unique
+    # constraint lets one user squat "Acme" and deny it to every other shop
+    # (docs/DECISIONS.md D-009). The unique key is `id` (and `slug`).
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    # URL-safe, unique, derived from `name` with a numeric suffix on collision.
+    slug: Mapped[str] = mapped_column(String(160), unique=True, index=True, default="")
+    #: Our plan key: "free" | "pro" | "business". Denormalised onto the
+    #: organization so that a plan lookup is a single indexed read on the hot
+    #: path of every mutating route, and so a historic invoice still makes
+    #: sense after a downgrade.
+    plan: Mapped[str] = mapped_column(String(24), default="free", index=True)
+    #: Set when a subscription was cancelled, so the UI can show "cancels on
+    #: <date>" without a Stripe round trip.
+    subscription_ends_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    #: "nl" | "en": the language the weekly report's prose is written in. Set at
+    #: signup from the dashboard's language and by its language switch.
+    language: Mapped[str] = mapped_column(String(8), default="en", server_default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     users: Mapped[list["User"]] = relationship(back_populates="organization")
@@ -37,6 +55,17 @@ class User(Base):
     # admin | manager | analyst | viewer
     role: Mapped[str] = mapped_column(String(20), default="viewer", index=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+    #: The owner may switch the weekly report email off in settings; plans that
+    #: include it start with it on (D-032).
+    weekly_digest_enabled: Mapped[bool] = mapped_column(default=True)
+    #: A verified address is the only one we send transactional mail to, and
+    #: the only one that makes a password reset meaningful (D-010).
+    email_verified: Mapped[bool] = mapped_column(default=False, index=True)
+    #: When the verification link was consumed. Null for a user who has not
+    #: verified, and also for a user who never needed to.
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     organization: Mapped[Organization] = relationship(back_populates="users")

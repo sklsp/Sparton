@@ -32,22 +32,97 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
+    # --- Core -----------------------------------------------------------
+    #: "development" | "production". Drives defaults that must differ between
+    #: a laptop and a real deployment (email verification, log level).
+    sparton_env: str = "development"
+
     # --- Database -------------------------------------------------------
     # Postgres is the target database (docker compose provides one). The
     # SQLite default keeps `pytest` and a quick local run dependency free.
     database_url: str = "sqlite:///./sparton.db"
     db_echo: bool = False
 
+    # --- Feature flags ---------------------------------------------------
+    # Which domains are mounted. A disabled domain has NO routes at all rather
+    # than routes that 403, which is strictly less attack surface. Unknown
+    # names are ignored so a typo cannot take the API down at import.
+    enabled_domains: str = "intelligence,commerce,agent"
+    # Enforce email verification. Defaults to on in production, where
+    # transactional mail to an unverified address is both a GDPR problem and
+    # the cheapest spam vector available.
+    email_verification_required: bool | None = None
+
+    @property
+    def require_email_verification(self) -> bool:
+        if self.email_verification_required is not None:
+            return self.email_verification_required
+        return (self.sparton_env or "").lower() == "production"
+
+    # --- Public URL -------------------------------------------------------
+    #: Base URL of the deployment. Used to build Stripe redirect targets and
+    #: verification / reset links in email. Getting this wrong means the
+    #: customer receives a link to localhost, so it is a required production
+    #: setting rather than something inferred.
+    app_url: str = "http://localhost:8000"
+
+    # --- Billing (Stripe) -------------------------------------------------
+    # Never hardcoded, never committed. `stripe listen --forward-to
+    # localhost:8000/stripe/webhook` in development.
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_price_pro: str | None = None
+    stripe_price_business: str | None = None
+    #: Refuse to start Checkout when Stripe is unconfigured, rather than
+    #: failing with a confusing error at the payment step.
+    billing_enabled: bool = True
+
+    # --- Email -------------------------------------------------------------
+    # With no SMTP_HOST, messages are written to ./data/outbox instead of being
+    # sent, so local development works with no mail server at all.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "no-reply@sparton.ai"
+    smtp_starttls: bool = True
+    #: How long a verification / reset token stays valid.
+    auth_token_ttl_minutes: int = 60 * 24
+
     # --- LLM ------------------------------------------------------------
     llm_provider: str = "ollama"  # "ollama" | "openai_compatible" | "test"
     llm_timeout_seconds: float = 120.0
+    # Extra attempts after a 429/5xx/timeout. 0 disables retrying.
+    llm_max_retries: int = 3
+    # First backoff step in seconds; doubles per attempt, capped below.
+    llm_retry_base_seconds: float = 1.0
+    llm_retry_cap_seconds: float = 30.0
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
 
-    openai_base_url: str = "https://api.openai.com/v1"
+    # OpenRouter is an OpenAI-compatible endpoint. The default base URL is
+    # OpenRouter; the provider is the same class either way, so a
+    # self-hosted vLLM/Together/LiteLLM proxy works by changing one value.
+    openai_base_url: str = "https://openrouter.ai/api/v1"
     openai_api_key: str | None = None
-    openai_model: str = "gpt-4o-mini"
+    # Model ids below are real on OpenRouter, verified against GET /api/v1/models.
+    # The previous defaults (anthropic/claude-3.5-sonnet,
+    # google/gemini-2.0-flash-001) are no longer served: they would 404 the first
+    # time a customer triggered a paid feature, which is the worst place to find
+    # out. Re-verify before changing them; `tests/test_security_guards.py` pins
+    # that the configured ids still exist in the published catalogue.
+    # Backwards-compatible single-model setting. `llm_model_strong` wins when set.
+    openai_model: str = "anthropic/claude-sonnet-4.6"
+    # Model routing: the agent and the weekly report need reasoning quality and
+    # run once per shop per week; structured extraction runs on every crawled
+    # page and needs to be cheap (see docs/DECISIONS.md D-006).
+    llm_model_strong: str = "anthropic/claude-sonnet-4.6"
+    llm_model_cheap: str = "google/gemini-3.5-flash-lite"
+    # OpenRouter asks every app to identify itself on the HTTP-Referer and
+    # X-Title headers; it uses them for its leaderboard and abuse contact.
+    openrouter_site_url: str = "http://localhost:8000"
+    openrouter_app_name: str = "Sparton Intelligence"
 
     # --- Agent limits ---------------------------------------------------
     agent_max_iterations: int = 10
@@ -67,17 +142,23 @@ class Settings(BaseSettings):
     strict_tool_grounding: bool = True
 
     # --- HTTP -----------------------------------------------------------
-    cors_origins: str = (
-        "http://localhost:3000,http://127.0.0.1:3000,https://sparton.vercel.app"
-    )
+    # Only first-party origins by default. The dashboard and landing page are
+    # served from this same process, so the browser never needs CORS at all —
+    # this list exists purely for third-party API clients.
+    cors_origins: str = "http://localhost:8000,http://127.0.0.1:8000"
     log_level: str = "INFO"
-    # When set, every API request must present this value in X-API-Key.
-    # Leave empty for open local development.
+    # Machine principal for server-to-server calls and Prometheus scrapes.
+    # Leave empty to disable the X-API-Key path entirely; note that there is no
+    # anonymous fallback, so an empty value does NOT open the API.
     api_key: str | None = None
 
     # --- Documents & RAG (Apollo) ----------------------------------------
     embedding_model: str = "nomic-embed-text"
     embedding_fallback_model: str = "all-MiniLM-L6-v2"
+    # Which embedding backend to use: "auto" walks ollama -> sentence-transformers
+    # -> hash. Force "hash" for an offline, deterministic, no-download setup —
+    # this is what keeps `pytest` from hanging on a model fetch.
+    embedding_backend: str = "auto"
     rag_chunk_size: int = 800
     rag_chunk_overlap: int = 150
     rag_top_k: int = 4
@@ -132,6 +213,15 @@ class Settings(BaseSettings):
     # SSRF guard: private/loopback destinations are blocked unless this is
     # explicitly enabled for local development fixtures.
     crawler_allow_private_addresses: bool = False
+    # Identify ourselves honestly. Sites use this for abuse contact, and some
+    # block obvious bots outright.
+    crawler_user_agent: str = "SpartonIntelligence/1.0 (+https://sparton.ai/bot)"
+    # Page budget per competitor, per crawl. The plan limits cap this further.
+    crawler_max_pages_per_shop: int = 40
+    # Competitors proposed by search are stored as suggestions, not facts, and
+    # are not crawled until the customer confirms them.
+    competitor_discovery_auto_add: bool = False
+    competitor_discovery_limit: int = 10
 
     # --- Background jobs -----------------------------------------------------
     # Local development: the API runs an embedded worker. Production: run
@@ -143,10 +233,22 @@ class Settings(BaseSettings):
     rate_limit_agent_per_minute: int = 10
     rate_limit_research_per_minute: int = 10
     rate_limit_login_per_minute: int = 20
+    # Public signup. Deliberately generous for humans behind one NAT, tight
+    # enough to stop a script filling the database with organizations.
+    rate_limit_register_per_minute: int = 10
+    # Password reset is rate limited harder: each request can send an email, so
+    # an unthrottled endpoint is a mail-bomb amplifier.
+    rate_limit_forgot_password_per_minute: int = 5
     rate_limit_default_per_minute: int = 120
     # When set, rate limits are shared across API replicas via Redis.
     # Leave empty for single-process local development (in-process limiter).
     redis_url: str | None = None
+    # Which peers may set X-Forwarded-For. Defaults to loopback only.
+    #
+    # This is the same list uvicorn needs in `--forwarded-allow-ips`, and both
+    # must be set. `*` is not a safe value: it lets any caller assert any client
+    # address, which defeats per-client rate limiting entirely.
+    forwarded_allow_ips: str = "127.0.0.1"
 
     # --- Observability ------------------------------------------------------------
     # Tracing is optional: with OTEL_ENABLED=false the app runs identically

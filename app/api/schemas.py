@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -12,9 +12,15 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     organization_name: str = Field(default="Default", max_length=160)
+    #: The dashboard's language at signup; the weekly report is written in it.
+    language: Literal["nl", "en"] = "en"
     # Registration creates the first admin of a NEW organization only;
     # joining an existing org is an invite/admin flow.
     role: str = Field(default="admin", exclude=True)
+
+
+class LanguageRequest(BaseModel):
+    language: Literal["nl", "en"]
 
 
 class LoginRequest(BaseModel):
@@ -25,6 +31,31 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     token: str
     user: dict[str, Any]
+
+
+# --- email verification / password reset -----------------------------------
+class VerifyRequest(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class UserSettingsUpdate(BaseModel):
+    """The caller's own account preferences (D-032). The account language is set
+    with PUT /auth/language and is shared by reports and the digest email."""
+    weekly_digest_enabled: bool | None = None
 
 
 # --- chat / documents --------------------------------------------------------

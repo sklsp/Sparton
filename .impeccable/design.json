@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-01T00:00:00Z",
+  "title": "Design System: Sparton",
+  "extensions": {
+    "colorMeta": {
+      "signal": { "role": "primary", "displayName": "Station Yellow", "canonical": "#f5c518", "tonalRamp": ["#2e2400", "#4f3e00", "#8a6a00", "#c99f00", "#f5c518", "#ffd43b", "#ffe382", "#fff4cc"] },
+      "signal-deep": { "role": "primary", "displayName": "Station Yellow, deep", "canonical": "#8a6a00" },
+      "down": { "role": "secondary", "displayName": "Cheaper Red (board)", "canonical": "#e2553f" },
+      "up": { "role": "secondary", "displayName": "Dearer Green (board)", "canonical": "#4cb874" },
+      "down-ink": { "role": "secondary", "displayName": "Cheaper Red (wall)", "canonical": "#a8301c" },
+      "up-ink": { "role": "secondary", "displayName": "Dearer Green (wall)", "canonical": "#1c6e3f" },
+      "board": { "role": "neutral", "displayName": "Graphite Board", "canonical": "#17191b", "tonalRamp": ["#0b0c0d", "#17191b", "#202326", "#26292d", "#2e3236", "#43474b", "#5c6065", "#8d918b"] },
+      "chalk": { "role": "neutral", "displayName": "Chalk", "canonical": "#f0ede4" },
+      "chalk-2": { "role": "neutral", "displayName": "Chalk 2", "canonical": "#b5b3ab" },
+      "wall": { "role": "neutral", "displayName": "Concourse Wall", "canonical": "#e3e4e0", "tonalRamp": ["#5c6065", "#8d918b", "#b9bcb6", "#d6d8d3", "#e3e4e0", "#ecedea", "#f7f7f4", "#ffffff"] },
+      "plate": { "role": "neutral", "displayName": "Enamel Plate", "canonical": "#f7f7f4" },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#17191b" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Landing and comparison hero h1 only." },
+      "headline": { "displayName": "Headline", "purpose": "View titles, story steps, report and plan headings." },
+      "title": { "displayName": "Title", "purpose": "Plate headings, shop names, plan names." },
+      "lede": { "displayName": "Lede", "purpose": "Hero lede, step body, section ledes." },
+      "body": { "displayName": "Body", "purpose": "Default running text; prose capped at 72ch." },
+      "label": { "displayName": "Label / Meta", "purpose": "Hints, legends, footers, fine print." },
+      "board-title": { "displayName": "Board Title", "purpose": "Uppercase station signage in board title bars and column heads." },
+      "flap": { "displayName": "Flap", "purpose": "One uppercase tabular character per split-flap tile." }
+    },
+    "shadows": [
+      { "name": "plate", "value": "0 1px 0 rgb(255 255 255 / 0.6) inset, 0 2px 6px -2px rgb(23 25 27 / 0.18)", "purpose": "Enamel plates sitting on the wall." },
+      { "name": "board", "value": "0 18px 40px -18px rgb(23 25 27 / 0.55), 0 2px 4px rgb(23 25 27 / 0.2)", "purpose": "Boards hanging on the wall; combine with inset 0 0 0 6px #17191b for the painted frame." },
+      { "name": "tile-lip", "value": "0 1px 0 rgb(0 0 0 / 0.5)", "purpose": "Under every flap tile and strip." }
+    ],
+    "motion": [
+      { "name": "flap-step", "value": "55ms", "purpose": "One drum step of a flap; tiles start one step after their left neighbour, at most 8 steps." },
+      { "name": "flap-turn", "value": "calc(55ms * 2) steps(2, jump-none)", "purpose": "The scaleY(1 → 0.12 → 1) turn of a tile; strips use 110ms steps(2)." },
+      { "name": "ease-out", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "UI transitions (buttons, drawer, FAQ chevron). Never on flaps." },
+      { "name": "t-fast", "value": "140ms", "purpose": "Button and hover transitions." },
+      { "name": "t-base", "value": "220ms", "purpose": "Nav drawer, story step colour." },
+      { "name": "demo-cycle", "value": "3200ms", "purpose": "Landing board flips a new demo row while in view." },
+      { "name": "reduced-motion", "value": "prefers-reduced-motion: reduce", "purpose": "Flaps snap to target; all animations and transitions collapse to 0.01ms." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "640px" },
+      { "name": "table-stack", "value": "760px" },
+      { "name": "narrow", "value": "860px" },
+      { "name": "nav-drawer", "value": "900px" },
+      { "name": "single-column", "value": "1100px" },
+      { "name": "container", "value": "1240px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one action on a screen, in station yellow.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Start free</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; font-family: var(--font, Archivo, 'Arial Narrow', sans-serif); font-weight: 650; font-size: 0.9375rem; font-stretch: 87%; letter-spacing: 0.01em; border-radius: 3px; cursor: pointer; transition: background 140ms cubic-bezier(0.16,1,0.3,1), transform 140ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-primary { background: #f5c518; color: #17191b; border: 1px solid #c99f00; } .ds-btn-primary:hover { background: #ffd43b; } .ds-btn:active { transform: translateY(1px); } .ds-btn:focus-visible { outline: 3px solid #f5c518; outline-offset: 2px; box-shadow: 0 0 0 5px #17191b; }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Secondary actions on the wall.",
+      "html": "<button class=\"ds-btn-default\">Add competitor</button>",
+      "css": ".ds-btn-default { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; font-family: Archivo, 'Arial Narrow', sans-serif; font-weight: 650; font-size: 0.9375rem; font-stretch: 87%; background: #f7f7f4; color: #17191b; border: 1px solid #8d918b; border-radius: 3px; cursor: pointer; transition: background 140ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-default:hover { background: #d6d8d3; } .ds-btn-default:active { transform: translateY(1px); } .ds-btn-default:focus-visible { outline: 3px solid #f5c518; outline-offset: 2px; box-shadow: 0 0 0 5px #17191b; }"
+    },
+    {
+      "name": "Flap Word",
+      "kind": "custom",
+      "refersTo": "flap",
+      "description": "Split-flap tiles, one character each, with the seam across the middle.",
+      "html": "<span class=\"ds-flaps\" role=\"img\" aria-label=\"€27.50\"><span class=\"ds-flap\">€</span><span class=\"ds-flap\">2</span><span class=\"ds-flap\">7</span><span class=\"ds-flap\">.</span><span class=\"ds-flap\">5</span><span class=\"ds-flap\">0</span></span>",
+      "css": ".ds-flaps { display: inline-flex; gap: 2px; font-family: Archivo, 'Arial Narrow', sans-serif; font-stretch: 75%; font-weight: 650; font-size: 1.4rem; text-transform: uppercase; font-variant-numeric: tabular-nums; } .ds-flap { position: relative; isolation: isolate; display: inline-grid; place-items: center; min-width: 0.78em; height: 1.32em; padding: 0 0.06em; color: #f0ede4; background: linear-gradient(#2e3236 0 50%, #26292d 50% 100%); border-radius: 3px; box-shadow: 0 1px 0 rgb(0 0 0 / 0.5); line-height: 1; } .ds-flap::after { content: ''; position: absolute; inset: 50% 0 auto; height: 1px; background: #0b0c0d; z-index: -1; }"
+    },
+    {
+      "name": "Board Row",
+      "kind": "custom",
+      "refersTo": "board",
+      "description": "A board with one exact row and one extracted (hatched) row.",
+      "html": "<div class=\"ds-board\"><div class=\"ds-board-head\"><span class=\"ds-board-title\">Competitor prices · this week</span><span class=\"ds-demo\">Demo data</span></div><div class=\"ds-row\"><span class=\"ds-strip\">Kade &amp; Co</span><span class=\"ds-strip\">Leather belt 35 mm</span><span class=\"ds-fig ds-down\">−19%</span></div><div class=\"ds-row ds-extracted\"><span class=\"ds-strip\">Noord Supply</span><span class=\"ds-strip\">Merino socks, 3-pack</span><span class=\"ds-fig ds-up\">+13%</span></div></div>",
+      "css": ".ds-board { background: #202326; color: #f0ede4; border: 1px solid #000; border-radius: 6px; padding: 16px; box-shadow: 0 18px 40px -18px rgb(23 25 27 / 0.55), inset 0 0 0 6px #17191b; font-family: Archivo, 'Arial Narrow', sans-serif; } .ds-board-head { display: flex; justify-content: space-between; align-items: center; padding: 0 4px 12px; } .ds-board-title { font-stretch: 75%; font-weight: 700; font-size: 0.8125rem; letter-spacing: 0.08em; text-transform: uppercase; } .ds-demo { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 8px; border-radius: 2px; background: #f5c518; color: #17191b; } .ds-row { display: grid; grid-template-columns: 1.2fr 2fr 5.6em; gap: 8px; align-items: center; padding: 3px 4px; border-top: 1px solid #000; } .ds-strip, .ds-fig { display: flex; align-items: center; height: 1.9em; padding: 0 0.5em; background: linear-gradient(#2e3236 0 50%, #26292d 50% 100%); border-radius: 3px; font-stretch: 80%; font-weight: 600; white-space: nowrap; overflow: hidden; } .ds-fig { justify-content: flex-end; font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: 0.15em; } .ds-down { color: #e2553f; } .ds-up { color: #4cb874; } .ds-extracted .ds-strip, .ds-extracted .ds-fig { background: repeating-linear-gradient(-45deg, #26292d 0 4px, #3a3e43 4px 6px); }"
+    },
+    {
+      "name": "Language Switch",
+      "kind": "nav",
+      "refersTo": "lang-switch-active",
+      "description": "NL / EN toggle; the pressed language is yellow.",
+      "html": "<div class=\"ds-lang\" role=\"group\" aria-label=\"Language\"><button aria-pressed=\"false\" lang=\"nl\">NL</button><button aria-pressed=\"true\" lang=\"en\">EN</button></div>",
+      "css": ".ds-lang { display: inline-flex; border: 1px solid #17191b; border-radius: 3px; overflow: hidden; font-family: Archivo, 'Arial Narrow', sans-serif; font-stretch: 75%; font-weight: 700; font-size: 0.8125rem; letter-spacing: 0.06em; } .ds-lang button { min-width: 40px; min-height: 36px; padding: 0 8px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; } .ds-lang button[aria-pressed='true'] { background: #f5c518; color: #17191b; } .ds-lang button:not([aria-pressed='true']):hover { background: rgb(127 127 127 / 0.18); } .ds-lang button:focus-visible { outline: 3px solid #f5c518; outline-offset: 2px; }"
+    },
+    {
+      "name": "Source Tag",
+      "kind": "chip",
+      "refersTo": "plate",
+      "description": "Certainty mark in tables on the wall: solid exact, hatched extracted, dashed none.",
+      "html": "<span class=\"ds-src\">Exact</span> <span class=\"ds-src ds-src-x\">Extracted</span> <span class=\"ds-src ds-src-none\">No data</span>",
+      "css": ".ds-src { display: inline-flex; align-items: center; gap: 6px; margin-right: 16px; font-family: Archivo, 'Arial Narrow', sans-serif; font-size: 0.8125rem; font-weight: 600; color: #17191b; } .ds-src::before { content: ''; width: 14px; height: 14px; border-radius: 2px; background: #17191b; } .ds-src-x::before { background: repeating-linear-gradient(-45deg, #17191b 0 3px, #8d918b 3px 5px); } .ds-src-none::before { background: transparent; border: 1px dashed #8d918b; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labelled input on a plate.",
+      "html": "<label class=\"ds-field\">Email<input type=\"email\" placeholder=\"you@shop.nl\"></label>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 4px; font-family: Archivo, 'Arial Narrow', sans-serif; font-weight: 600; font-size: 0.8125rem; color: #43474b; } .ds-field input { min-height: 44px; padding: 0 12px; font: 400 0.9375rem Archivo, sans-serif; color: #17191b; background: #fff; border: 1px solid #8d918b; border-radius: 3px; } .ds-field input:focus-visible { outline: 3px solid #f5c518; outline-offset: 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Price Board",
+    "overview": "Sparton is a departure board for competitor prices. Data lives on graphite boards built from split-flap tiles (one character per tile) and whole-word name strips, the way a station board shows times and destinations. Everything around the boards is a light concourse wall (`wall`) carrying enamel plates (`plate`) for forms, reports and settings. Station yellow (`signal`) is the one action colour. The landing page's first viewport is the board itself, cycling a labelled demo week; the dashboard's first view is the same board with the user's real changes.\n\nThe system is dense where the data is and quiet everywhere else. Boards are the only dark surfaces inside the app; the wall stays light so reading sections (reports, plans, settings) read like printed notices. Certainty is the product's honesty claim, and the visual system carries it as a mark: exact rows are solid tiles, extracted rows are hatched, sold-out items are struck through. Motion obeys the physical object: flaps turn in whole steps, never tween.",
+    "keyCharacteristics": [
+      "Graphite board, chalk characters, concourse-grey wall, one yellow.",
+      "Certainty shown by texture and line (solid / hatched / struck / dashed), never by hue alone.",
+      "Counts and prices are flap tiles in board title bars, not KPI cards.",
+      "Whole-step motion (`steps()`), snapped under reduced motion.",
+      "One condensed variable family (Archivo, width axis 62–125%) for everything.",
+      "Every visible string comes from i18n keys in Dutch and English."
+    ],
+    "rules": [
+      { "name": "The One Yellow Rule", "body": "Station yellow marks the one thing to do (or the one thing that is \"now\"). A screen has one yellow button; a second CTA is a ghost or board button.", "section": "colors" },
+      { "name": "The Mark-Not-Hue Rule", "body": "Certainty is never a colour. Exact = solid tile, extracted = hatched tile (`repeating-linear-gradient(-45deg, flap 0 4px, #3a3e43 4px 6px)`), sold out = struck text (2px line-through), unknown = dashed outline. Direction colours always travel with a sign.", "section": "colors" },
+      { "name": "The Squeeze Rule", "body": "Headings (h1–h3) default to width 75%, line-height 1.08, `text-wrap: balance`. Body text is never condensed.", "section": "typography" },
+      { "name": "The Tabular Rule", "body": "Every price, count and percentage uses tabular lining figures, so columns of numbers align like a timetable.", "section": "typography" },
+      { "name": "The Physical Object Rule", "body": "A shadow is allowed only if the thing exists in the world: a plate on a wall, a board on a wall, a tile in a board.", "section": "elevation" }
+    ],
+    "dos": [
+      "**Do** put data on a board: shops and products as strips, prices and percentages as flap tiles, through `boardRow` / `flapWord` rather than hand-built markup.",
+      "**Do** show certainty with marks: solid for exact, hatched for extracted, struck for sold out, dashed for unknown; in charts, the user's price solid and competitors dashed.",
+      "**Do** animate flaps only with `steps()` and the 55ms step; let `prefers-reduced-motion` snap them (both `board.js` and the global reduced-motion rule do this).",
+      "**Do** put counters in the board title bar as tiles.",
+      "**Do** label demo data with the yellow DEMO plate on the board frame.",
+      "**Do** add every string as an i18n key in both `i18n/en.json` and `i18n/nl.json`, and translate static HTML with `data-i18n` / `data-i18n-attr`.",
+      "**Do** give each board row one screen-reader sentence and hide the tiles from assistive tech.",
+      "**Do** keep focus visible: 3px yellow outline, 2px offset, 5px ink halo.",
+      "**Do** use screenshots of real HTML (like `og-card.html` → `og-image.png`) for any raster."
+    ],
+    "donts": [
+      "**Don't** tween a flap, fade a digit, or count numbers up smoothly; a tile shows one character or the next.",
+      "**Don't** add a second action colour or a second yellow button on the same screen.",
+      "**Don't** encode exact/extracted in hue, and don't use `up`/`down` without the sign.",
+      "**Don't** build KPI cards or metric tiles for counts; the legacy `.metric` grid is not a pattern.",
+      "**Don't** hard-code copy in JS or HTML without an i18n key.",
+      "**Don't** use generated imagery, stock photos or illustrations.",
+      "**Don't** put `down`/`up` (the bright board hues) on the light wall; use `down-ink`/`up-ink`.",
+      "**Don't** add new shadows beyond plate, board and tile lip."
+    ]
+  }
+}

@@ -7,7 +7,7 @@ Destination: this repository. Apollo and Ares are never modified.
 
 | # | Phase | Commit prefix | Status |
 |---|---|---|---|
-| 1 | Inspect both repositories | — | ✅ done |
+| 1 | Inspect both repositories |, | ✅ done |
 | 2 | Shared core from Ares | `core:` | in progress |
 | 3 | Apollo documents/RAG | `documents:` | pending |
 | 4 | Ares e-commerce + research | `ecommerce:` / `research:` | pending |
@@ -39,7 +39,7 @@ Destination: this repository. Apollo and Ares are never modified.
 | `backend/app/intelligence/crawler.py` | `app/research/crawling/` (+ ecommerce wrapper) | split | httpx | test_intelligence.py SSRF cases |
 | `backend/app/intelligence/discovery.py` | `app/research/search/` | keep | httpx | intelligence tests |
 | `backend/app/services/intelligence*.py` | `app/ecommerce/intelligence/` | keep | crawler, db, jobs | test_intelligence_api.py (4) |
-| `backend/app/integrations/base.py` | `app/integrations/ecommerce/` | keep | — | provider tests |
+| `backend/app/integrations/base.py` | `app/integrations/ecommerce/` | keep |, | provider tests |
 | `src/` (Next.js frontend) | `frontend/` | adapt into unified shell | API | Playwright: smoke.spec.ts, auth.spec.ts |
 
 ### From Apollo
@@ -47,7 +47,7 @@ Destination: this repository. Apollo and Ares are never modified.
 | Source | Destination | Strategy | Dependencies | Tests to preserve |
 |---|---|---|---|---|
 | `app/rag/ingestion.py` | `app/documents/parsers/` | keep | pypdf, python-docx | integration_pass tests |
-| `app/rag/chunking.py` | `app/documents/rag/chunking.py` | keep | — | RAG tests |
+| `app/rag/chunking.py` | `app/documents/rag/chunking.py` | keep |, | RAG tests |
 | `app/rag/embeddings.py` | `app/documents/rag/embeddings.py` | keep | ollama, sentence-transformers | embedding tests |
 | `app/rag/vector_store.py` | `app/documents/rag/vector_store.py` | keep | faiss | persistence tests |
 | `app/rag/service.py` | `app/documents/rag/service.py` | adapt to projects/orgs | jobs, storage | RAG persistence tests |
@@ -59,10 +59,10 @@ Destination: this repository. Apollo and Ares are never modified.
 | `services/run_history.py` | `app/training/monitoring/` | adapt to DB | db | run-history tests |
 | `clients/comfyui_client.py` | `app/generation/comfyui/client.py` | keep | requests/httpx | test_comfyui.py (36) |
 | `services/comfyui_service.py` | `app/generation/comfyui/service.py` | adapt to shared jobs | jobs | generation API tests (25) |
-| `workflows/*.json` + `.map.json` | `workflows/` | copy as-is | — | workflow validation tests |
-| `core/paths.py` safety helpers | `app/core/security/paths.py` | keep | — | test_security.py (21), hardening tests (33) |
+| `workflows/*.json` + `.map.json` | `workflows/` | copy as-is |, | workflow validation tests |
+| `core/paths.py` safety helpers | `app/core/security/paths.py` | keep |, | test_security.py (21), hardening tests (33) |
 | `clients/ollama_client.py` | `app/integrations/ollama/` | merge with Ares LLM layer | requests | ollama client tests |
-| `ai_agent/*` legacy CLI | — | remove (absorbed by Athena) | — | answer-mode heuristics only |
+| `ai_agent/*` legacy CLI |, | remove (absorbed by Athena) |, | answer-mode heuristics only |
 
 ## Data migration utilities (planned)
 

@@ -143,15 +143,30 @@ def extract_page(html: str, url: str) -> tuple[list[ExtractedProduct], list[str]
     parser.feed(html)
     products = [_from_structured(item, url) for item in _parse_json_ld(html)]
     if not products:
+        # OpenGraph fallback, for sites with no JSON-LD.
+        #
+        # The signal must be a PRICE, not the word "product": every listing
+        # page contains the substring "product" in its product URLs, so
+        # matching on that turned each competitor's category page into a
+        # phantom product named after the site — which then alerted as "new
+        # product" on every single crawl.
         title = parser.meta.get("og:title") or parser.title.strip()
-        description = parser.meta.get("og:description") or parser.meta.get("description", "")
-        if title and ("product" in html.lower() or parser.meta.get("product:price:amount")):
+        price = _number(parser.meta.get("product:price:amount"))
+        looks_like_a_product = (
+            parser.meta.get("og:type") == "product"
+            or parser.meta.get("product:price:amount")
+            or parser.meta.get("product:price:currency")
+        )
+        if title and price is not None and looks_like_a_product:
             products = [ExtractedProduct(
-                name=title, description=description,
-                price=_number(parser.meta.get("product:price:amount")),
+                name=title,
+                description=parser.meta.get("og:description", ""),
+                price=price,
                 currency=parser.meta.get("product:price:currency", ""),
                 image_url=urljoin(url, parser.meta.get("og:image", "")),
-                url=url, method="opengraph", confidence=0.65,
+                url=url,
+                method="opengraph",
+                confidence=0.65,
             )]
     links = [
         urljoin(url, href)

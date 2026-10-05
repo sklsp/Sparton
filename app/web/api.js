@@ -3,10 +3,11 @@
 const TOKEN_KEY = "sparton.token";
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, detail) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -45,13 +46,16 @@ async function request(path, { method = "GET", body, form, signal } = {}) {
   }
 
   if (!response.ok) {
-    let detail = `Request failed (${response.status})`;
+    let message = `Request failed (${response.status})`;
+    let detail;
     try {
       const payload = await response.json();
-      if (typeof payload.detail === "string") detail = payload.detail;
-      else if (Array.isArray(payload.detail)) detail = payload.detail.map((d) => d.msg).join(", ");
+      detail = payload.detail;
+      if (typeof detail === "string") message = detail;
+      else if (Array.isArray(detail)) message = detail.map((d) => d.msg).join(", ");
+      else if (detail?.message) message = detail.message; // plan limits: { message, limit, plan }
     } catch { /* non-JSON error body — keep the generic message */ }
-    throw new ApiError(detail, response.status);
+    throw new ApiError(message, response.status, detail);
   }
 
   if (response.status === 204) return null;
@@ -68,15 +72,66 @@ const del = (path) => request(path, { method: "DELETE" });
 export const api = {
   // --- auth
   login: (email, password) => post("/auth/login", { email, password }),
-  register: (email, password, organization_name) =>
-    post("/auth/register", { email, password, organization_name }),
+  register: (email, password, organization_name, language) =>
+    post("/auth/register", { email, password, organization_name, language }),
   logout: () => post("/auth/logout"),
   me: () => get("/auth/me"),
+  verifyEmail: (token) => post("/auth/verify-email", { token }),
+  resendVerification: () => post("/auth/resend-verification"),
+  forgotPassword: (email) => post("/auth/forgot-password", { email }),
+  resetPassword: (token, password) => post("/auth/reset-password", { token, password }),
+  changePassword: (currentPassword, newPassword) =>
+    post("/auth/change-password", {
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  updateSettings: (payload) => patch("/auth/settings", payload),
 
   // --- system
   health: () => get("/health"),
   tools: () => get("/tools"),
   metrics: () => request("/metrics"),
+
+  // --- product: the intelligence loop
+  overview: () => get("/overview"),
+
+  shops: () => get("/shops"),
+  shop: (id) => get(`/shops/${id}`),
+  createShop: (payload) => post("/shops", payload),
+  updateShop: (id, payload) => patch(`/shops/${id}`, payload),
+  deleteShop: (id) => del(`/shops/${id}`),
+  crawlShop: (id) => post(`/shops/${id}/crawl`),
+  discoverCompetitors: (id) => post(`/shops/${id}/discover`),
+  shopReports: (id) => get(`/shops/${id}/reports`),
+  generateReport: (id, days = 7) => post(`/shops/${id}/report?days=${days}`),
+
+  competitors: (shopId) =>
+    get(`/competitors${shopId ? `?shop_id=${shopId}` : ""}`),
+  createCompetitor: (payload) => post("/competitors", payload),
+  deleteCompetitor: (id) => del(`/competitors/${id}`),
+  crawlCompetitor: (id) => post(`/competitors/${id}/crawl`),
+
+  changes: ({ shopId, kind, severity, unacknowledgedOnly, days = 30, limit = 50 } = {}) => {
+    const q = new URLSearchParams({ days: String(days), limit: String(limit) });
+    if (shopId) q.set("shop_id", String(shopId));
+    if (kind) q.set("kind", kind);
+    if (severity) q.set("severity", severity);
+    if (unacknowledgedOnly) q.set("unacknowledged_only", "true");
+    return get(`/changes?${q}`);
+  },
+  acknowledgeChange: (id) => post(`/changes/${id}/ack`),
+  changeHistory: (id) => get(`/changes/${encodeURIComponent(id)}/history`),
+
+  reports: (limit = 20) => get(`/reports?limit=${limit}`),
+  report: (id) => get(`/reports/${id}`),
+
+  // --- billing
+  // `plans` is public: the landing page prices itself from it before signup.
+  plans: () => get("/billing/plans"),
+  plan: () => get("/billing/plan"),
+  checkout: (plan) => post("/billing/checkout", { plan }),
+  portal: () => post("/billing/portal"),
+  usage: (days = 30) => get(`/billing/usage?days=${days}`),
 
   // --- agent
   runs: (limit = 20) => get(`/agent/runs?limit=${limit}`),
@@ -85,52 +140,6 @@ export const api = {
   approvals: (statusFilter) =>
     get(`/approvals${statusFilter ? `?status_filter=${statusFilter}` : ""}`),
   resolveApproval: (id, approved, note) => post(`/approvals/${id}/resolve`, { approved, note }),
-
-  // --- knowledge
-  documents: (limit = 50) => get(`/documents?limit=${limit}`),
-  deleteDocument: (id) => del(`/documents/${id}`),
-  uploadDocuments: (files) => {
-    const form = new FormData();
-    for (const file of files) form.append("files", file);
-    return request("/documents/upload", { method: "POST", form });
-  },
-  ragStatus: () => get("/rag/status"),
-  chat: (message, conversation_id, use_rag = true) =>
-    post("/chat", { message, conversation_id, use_rag }),
-  conversationHistory: (id) => get(`/conversations/${id}/history`),
-  clearConversation: (id) => del(`/conversations/${id}/history`),
-  prompts: () => get("/prompts"),
-  createPrompt: (payload) => post("/prompts", payload),
-
-  // --- intelligence
-  researchJobs: (limit = 20) => get(`/intelligence/jobs?limit=${limit}`),
-  startResearch: (query, start_urls = []) => post("/intelligence/jobs", { query, start_urls }),
-  stores: (limit = 50) => get(`/intelligence/stores?limit=${limit}`),
-  opportunities: (kind, limit = 50) =>
-    get(`/intelligence/opportunities?limit=${limit}${kind ? `&kind=${kind}` : ""}`),
-  opportunity: (id) => get(`/intelligence/opportunities/${id}`),
-
-  // --- catalog
-  products: (search, limit = 50) =>
-    get(`/products?limit=${limit}${search ? `&search=${encodeURIComponent(search)}` : ""}`),
-  product: (id) => get(`/products/${id}`),
-  analytics: () => get("/analytics/summary"),
-
-  // --- create
-  comfyStatus: () => get("/comfyui/status"),
-  workflows: () => get("/comfyui/workflows"),
-  validateGeneration: (payload) => post("/comfyui/validate-generation", payload),
-  generate: (payload) => post("/comfyui/generate", payload),
-  generated: (limit = 50) => get(`/generated?limit=${limit}`),
-  datasets: () => get("/datasets"),
-  createDataset: (payload) => post("/datasets", payload),
-  datasetImages: (id) => get(`/datasets/${id}/images`),
-  validateDataset: (id) => get(`/datasets/${id}/validate`),
-  trainingStatus: () => get("/training/status"),
-  trainingPresets: () => get("/training/presets"),
-  hardware: () => get("/training/hardware"),
-  trainingProjects: () => get("/training/projects"),
-  createTrainingProject: (payload) => post("/training/projects", payload),
 
   // --- admin
   users: () => get("/admin/users"),

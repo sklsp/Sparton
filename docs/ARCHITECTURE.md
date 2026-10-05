@@ -40,7 +40,7 @@ weaker one's useful behavior merged into it.
 |---|---|---|
 | Configuration | Ares | Single pydantic-settings `Settings`, all env-driven |
 | Authentication | Ares | Opaque session tokens (SHA-256 at rest), scrypt password hashing, revocable sessions |
-| Tenancy | Ares | `TenantContext` from authenticated user; per-query org scoping; `scoped_or_404` (404, not 403 — no existence leaks) |
+| Tenancy | Ares | `TenantContext` from authenticated user; per-query org scoping; `scoped_or_404` (404, not 403, no existence leaks) |
 | RBAC | Ares | `admin > manager > analyst > viewer`; `require_role` dependency |
 | Database | Ares | SQLAlchemy 2.0 typed ORM + Alembic; PostgreSQL in prod, SQLite for dev/tests; JSON columns with JSONB variant |
 | Jobs | Ares | Durable DB-backed state machine: idempotency keys, retries w/ backoff, stale reclaim, dead-letter, cancellation |
@@ -55,12 +55,12 @@ weaker one's useful behavior merged into it.
 ## 3. Domain boundaries
 
 Each domain owns its models, services, and routes. Domains never import each
-other's internals directly — cross-domain behavior flows through:
+other's internals directly, cross-domain behavior flows through:
 
-1. **Projects** — the central workspace entity linking documents, research,
+1. **Projects**, the central workspace entity linking documents, research,
    stores, datasets, training runs, LoRAs, workflows, generated assets.
-2. **The Athena agent** — namespaced tools exposed across domains.
-3. **Asset provenance** — every generated artifact records its lineage.
+2. **The Athena agent**, namespaced tools exposed across domains.
+3. **Asset provenance**, every generated artifact records its lineage.
 
 ### documents (Hector)
 Ingestion (PDF/DOCX/TXT), sentence-aware chunking, FAISS flat IP index over
@@ -183,7 +183,7 @@ job status components, toasts, tables/forms, permission-aware UI.
 
 One integration layer (`app/integrations`) with connection status, config,
 credentials (org-scoped), health, capabilities for: Ollama, ComfyUI,
-e-commerce store APIs (provider protocol — mock today, real connectors later),
+e-commerce store APIs (provider protocol, mock today, real connectors later),
 web search.
 
 ## 9. Apollo → SPARTON mapping

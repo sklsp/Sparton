@@ -7,8 +7,10 @@ sentence-transformers fallback. Rewired to SPARTON's provider abstraction
 
 from __future__ import annotations
 
+import hashlib
 import logging
-from typing import TYPE_CHECKING
+import re
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -18,6 +20,12 @@ if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
+
+#: Vector width of the offline hash backend. Fixed so a persisted index built
+#: in one process is still readable in the next.
+HASH_EMBEDDING_DIM = 256
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
 class EmbeddingError(Exception):
@@ -29,7 +37,13 @@ class EmbeddingError(Exception):
 
 
 class EmbeddingClient:
-    """Generate text embeddings using Ollama or a local sentence-transformers model."""
+    """Generate text embeddings using Ollama, sentence-transformers, or a
+    deterministic offline hash projection.
+
+    The hash backend is the last resort and the one the test suite uses. It
+    needs no network and no model download, which is what keeps `pytest` from
+    hanging on a HuggingFace fetch (see docs/DECISIONS.md D-025).
+    """
 
     def __init__(
         self,
@@ -66,16 +80,26 @@ class EmbeddingClient:
         if not texts:
             return np.empty((0, 0), dtype=np.float32)
 
-        try:
-            vectors = self._embed_with_ollama(texts)
-            self._backend = "ollama"
-        except Exception as exc:  # noqa: BLE001 — any Ollama failure falls back
-            logger.warning("Ollama embeddings unavailable (%s); using fallback.", exc)
-            vectors = self._embed_with_sentence_transformers(texts)
-            self._backend = "sentence-transformers"
+        # `settings.embedding_backend` forces a backend. "auto" walks the chain.
+        wanted = (settings.embedding_backend or "auto").lower()
+        attempts: list[tuple[str, Any]] = []
+        if wanted in ("auto", "ollama"):
+            attempts.append(("ollama", self._embed_with_ollama))
+        if wanted in ("auto", "sentence-transformers"):
+            attempts.append(("sentence-transformers", self._embed_with_sentence_transformers))
+        attempts.append(("hash", self._embed_with_hash))
 
-        self._dimension = int(vectors.shape[1])
-        return _normalize(vectors.astype(np.float32))
+        for backend, fn in attempts:
+            try:
+                vectors = fn(texts)
+            except Exception as exc:  # noqa: BLE001 — any failure falls through
+                logger.warning("Embedding backend %s unavailable (%s).", backend, exc)
+                continue
+            self._backend = backend
+            self._dimension = int(vectors.shape[1])
+            return _normalize(vectors.astype(np.float32))
+
+        raise EmbeddingError("No embedding backend is available")
 
     def _embed_with_ollama(self, texts: list[str]) -> np.ndarray:
         import requests
@@ -106,6 +130,24 @@ class EmbeddingClient:
             texts, convert_to_numpy=True, show_progress_bar=False
         )
         return np.asarray(vectors, dtype=np.float32)
+
+    def _embed_with_hash(self, texts: list[str]) -> np.ndarray:
+        """Deterministic, offline, no-download bag-of-words projection.
+
+        Each token is hashed to a coordinate and its count accumulated; the
+        caller then L2-normalizes. Two identical texts always produce identical
+        vectors, which is all the test suite needs — similarity quality is
+        deliberately mediocre (see docs/DECISIONS.md D-025).
+        """
+        vectors = np.zeros((len(texts), HASH_EMBEDDING_DIM), dtype=np.float32)
+        for row, text in enumerate(texts):
+            for token in _TOKEN_RE.findall(text.lower()):
+                # blake2b is stable across processes and platforms, unlike
+                # hash() which is salted per interpreter run.
+                digest = hashlib.blake2b(token.encode(), digest_size=8).digest()
+                index = int.from_bytes(digest[:4], "big") % HASH_EMBEDDING_DIM
+                vectors[row, index] += 1.0 if digest[4] & 1 else -1.0
+        return vectors
 
 
 def _normalize(vectors: np.ndarray) -> np.ndarray:

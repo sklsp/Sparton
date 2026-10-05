@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import secrets
 from datetime import timedelta
 from enum import StrEnum
@@ -130,8 +131,37 @@ def audit(
 def ensure_default_organization(db: Session) -> Organization:
     org = db.execute(select(Organization)).scalars().first()
     if org is None:
-        org = Organization(name="Default")
+        org = Organization(name="Default", slug=unique_slug(db, "Default"))
         db.add(org)
         db.commit()
         db.refresh(org)
     return org
+
+
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
+MAX_SLUG_LENGTH = 48
+
+
+def slugify(value: str) -> str:
+    """Lowercase, ASCII-ish, hyphen-separated. Never empty."""
+    slug = _SLUG_RE.sub("-", value.strip().lower()).strip("-")
+    return (slug[:MAX_SLUG_LENGTH].strip("-")) or "org"
+
+
+def unique_slug(db: Session, name: str, *, exclude_id: int | None = None) -> str:
+    """A slug derived from `name` that is not already taken.
+
+    Display names are free-form and repeatable (D-009), so the slug is what
+    carries uniqueness. Appends `-2`, `-3`, ... on collision.
+    """
+    base = slugify(name)
+    candidate = base
+    suffix = 1
+    while True:
+        query = select(Organization.id).where(Organization.slug == candidate)
+        if exclude_id is not None:
+            query = query.where(Organization.id != exclude_id)
+        if db.execute(query).first() is None:
+            return candidate
+        suffix += 1
+        candidate = f"{base}-{suffix}"
