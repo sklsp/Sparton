@@ -85,6 +85,7 @@ export const api = {
       current_password: currentPassword,
       new_password: newPassword,
     }),
+  updateSettings: (payload) => patch("/auth/settings", payload),
 
   // --- system
   health: () => get("/health"),

@@ -18,6 +18,7 @@ export default function settingsView(host, { state }) {
       h("h2#st-lang", t("lang.label")),
       h("p", t("st.langBody")),
       h("div.st-lang", langSwitch())),
+    digestBlock(user, state),
     h("section.plate.settings-block", { "aria-labelledby": "st-out" },
       h("h2#st-out", t("nav.signout")),
       h("p", t("st.signoutBody")),
@@ -55,4 +56,31 @@ function passwordBlock() {
         } finally { delete submit.dataset.loading; }
       },
     }, curWrap, nextWrap, h("p.field-hint", t("auth.passwordHint")), msg, submit));
+}
+
+/** D-032: weekly report email toggle. Shown only on plans that include the digest; otherwise an upgrade hint. */
+function digestBlock(user, state) {
+  const section = h("section.plate.settings-block", { "aria-labelledby": "st-digest" },
+    h("h2#st-digest", t("st.digest")),
+    h("p", t("st.digestBody")));
+
+  // Plan gate: the toggle is meaningless on a plan without the feature, so swap it for the hint.
+  api.plan().then((plan) => {
+    if (!plan?.plan?.features?.email_digest) fill(section, h("h2#st-digest", t("st.digest")), h("p", t("st.digestPlan")));
+  }).catch(() => {});
+
+  const box = h("input", { id: "st-digest-toggle", type: "checkbox", checked: user.weekly_digest_enabled !== false });
+  box.addEventListener("change", async () => {
+    const next = box.checked;
+    try {
+      await api.updateSettings({ weekly_digest_enabled: next });
+      state.user = { ...(state.user || {}), weekly_digest_enabled: next };
+      toast(t("st.digestSaved"), "success");
+    } catch (err) {
+      box.checked = !next; // revert the switch when the save failed
+      toast(err.message, "danger");
+    }
+  });
+  section.append(h("label.field", h("span", t("st.digestToggle")), box));
+  return section;
 }
