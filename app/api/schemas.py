@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -44,6 +44,17 @@ class ResetPasswordRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
     new_password: str = Field(min_length=8, max_length=128)
+
+
+class UserSettingsUpdate(BaseModel):
+    """Partial update of the caller's own account preferences (D-032).
+
+    Both fields optional so one request can change either or both. The language
+    is what the weekly email digest is written in; it must be a known UI code,
+    not free text.
+    """
+    language: Literal["nl", "en"] | None = None
+    weekly_digest_enabled: bool | None = None
 
 
 # --- chat / documents --------------------------------------------------------
