@@ -271,7 +271,7 @@ item is a real user action; every one of them was a bug at least once.
 Do not call it launched until every one of these is proven by a command you ran,
 not by a test someone said passed.
 
-- [ ] `pytest` is green: **507 passed, 0 failed** (487 API + 20 browser).
+- [ ] `pytest` is green: **574 passed, 0 failed**.
 - [ ] `pytest tests/test_browser_smoke.py` is green in CI with a real Chromium.
 - [ ] The image builds and runs non-root, and `/live` answers from the running
       container.

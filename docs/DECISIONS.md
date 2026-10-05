@@ -481,6 +481,19 @@ The plan data is unchanged (API contract kept).
 **Jay decides.** Build the weekly report email (the M10 template is the design for it), or drop the
 flag from the plans.
 
+**Built (2026-10-05).** The flag now means something: after each successful *weekly* report,
+`send_weekly_digest()` (`app/ecommerce/reports.py`) emails the M10 report to the organisation's
+oldest verified active admin, one email per generated report. Eligibility is the plan's
+`email_digest` feature (Pro/Business) plus the owner's `weekly_digest_enabled` preference;
+recipients without a verified address are skipped. Dispatch is best-effort: a failure never fails
+the job, and an atomic claim on `Report.email_digest_sent` makes retries idempotent (no double
+send). The report renders in the persisted language (`User.language`, default Dutch) through the
+existing M10 renderer; `app/core/email.py` gained a rich text+HTML sender used by this digest
+(verification/reset mails stay plain). Preferences live on Settings → "Weekly report email"
+(`PATCH /auth/settings`), which also persists the UI language switch. The pricing cards still do
+not list the feature; the weekly-report line covers it; `tests/test_email_digest.py` (15 tests)
+covers eligibility, recipient choice, idempotency, language and the settings endpoint.
+
 ## D-033: Comparison and email links are served by small static routes
 
 `/vs/prisync` serves `app/web/vs-prisync.html`; `/verify-email` and `/reset-password` (the links in
