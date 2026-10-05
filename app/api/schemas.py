@@ -12,9 +12,15 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     organization_name: str = Field(default="Default", max_length=160)
+    #: The dashboard's language at signup; the weekly report is written in it.
+    language: Literal["nl", "en"] = "en"
     # Registration creates the first admin of a NEW organization only;
     # joining an existing org is an invite/admin flow.
     role: str = Field(default="admin", exclude=True)
+
+
+class LanguageRequest(BaseModel):
+    language: Literal["nl", "en"]
 
 
 class LoginRequest(BaseModel):
@@ -47,13 +53,8 @@ class ChangePasswordRequest(BaseModel):
 
 
 class UserSettingsUpdate(BaseModel):
-    """Partial update of the caller's own account preferences (D-032).
-
-    Both fields optional so one request can change either or both. The language
-    is what the weekly email digest is written in; it must be a known UI code,
-    not free text.
-    """
-    language: Literal["nl", "en"] | None = None
+    """The caller's own account preferences (D-032). The account language is set
+    with PUT /auth/language and is shared by reports and the digest email."""
     weekly_digest_enabled: bool | None = None
 
 

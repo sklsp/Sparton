@@ -39,10 +39,10 @@ export default function productView(host) {
           h("ol.board-rows", boardRow(changeCells(data.change, comp?.data_source)))),
         h("section.plate.pd-chart", { "aria-labelledby": "pd-chart-title" },
           h("h2#pd-chart-title", t("pd.chart.title")),
-          legend(),
+          legend(data.own),
           chartHost),
         readings(data));
-      const draw = () => fill(chartHost, chart(data.points, data.currency, chartHost.clientWidth || 640));
+      const draw = () => fill(chartHost, chart(data.points, data.currency, chartHost.clientWidth || 640, data.own));
       draw();
       onResize = () => draw();
       addEventListener("resize", onResize);
@@ -55,30 +55,38 @@ export default function productView(host) {
   return () => onResize && removeEventListener("resize", onResize);
 }
 
-function legend() {
+/** "Your price" names the matched own product and how sure the match is; a title match is never stated as fact. */
+function legend(own) {
+  const sure = { certain: t("pd.match.certain"), likely: t("pd.match.likely"), possible: t("pd.match.possible") };
+  const note = own ? ` · ${own.product} · ${sure[own.confidence] || sure.possible}` : t("pd.legend.yoursNote");
   return h("ul.chart-legend",
-    h("li", h("span.swatch.swatch-solid", { "aria-hidden": "true" }), t("pd.legend.yours"), h("span.legend-note", t("pd.legend.yoursNote"))),
+    h("li", h("span.swatch.swatch-solid", { "aria-hidden": "true" }), h("span", t("pd.legend.yours"), h("span.legend-note", note))),
     h("li", h("span.swatch.swatch-dashed", { "aria-hidden": "true" }), t("pd.legend.theirs")),
     h("li", h("span.pt-dot.dot-exact", { "aria-hidden": "true" }), t("pd.legend.exact")),
     h("li", h("span.pt-dot.dot-extracted", { "aria-hidden": "true" }), t("pd.legend.extracted")));
 }
 
-function chart(points, currency, width) {
+function chart(points, currency, width, own) {
   const priced = points.filter((p) => p.price != null);
   if (!priced.length) return h("p.chart-empty", t("pd.chart.none"));
+  // Your own readings share the axes only when they are in the same currency.
+  const mine = (own?.points || []).filter((p) => p.price != null && (p.currency || currency) === currency);
+  const mineTimes = mine.map((p) => new Date(p.captured_at).getTime());
+  const minePrices = mine.map((p) => Number(p.price));
   const W = Math.max(300, Math.round(width));
   const H = W < 520 ? 220 : 280;
   const pad = { l: W < 520 ? 52 : 64, r: 16, t: 16, b: 34 };
   const times = priced.map((p) => new Date(p.captured_at).getTime());
   const prices = priced.map((p) => Number(p.price));
-  let t0 = Math.min(...times); let t1 = Math.max(...times);
+  const allPrices = [...prices, ...minePrices];
+  let t0 = Math.min(...times, ...mineTimes); let t1 = Math.max(...times, ...mineTimes);
   if (t1 - t0 < 7 * 864e5) { t0 -= 3.5 * 864e5; t1 += 3.5 * 864e5; }
   // Round axis steps (1, 2, 2.5 or 5 × 10^k), like the figures on a printed timetable.
-  const raw = Math.max(...prices) - Math.min(...prices) || Math.max(...prices) * 0.2 || 1;
+  const raw = Math.max(...allPrices) - Math.min(...allPrices) || Math.max(...allPrices) * 0.2 || 1;
   const mag = 10 ** Math.floor(Math.log10(raw / 3));
   const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => raw / s <= 3);
-  const lo = Math.max(0, Math.floor(Math.min(...prices) / step) * step - (Math.min(...prices) % step === 0 ? step : 0));
-  const hi = Math.ceil(Math.max(...prices) / step) * step + (Math.max(...prices) % step === 0 ? step : 0);
+  const lo = Math.max(0, Math.floor(Math.min(...allPrices) / step) * step - (Math.min(...allPrices) % step === 0 ? step : 0));
+  const hi = Math.ceil(Math.max(...allPrices) / step) * step + (Math.max(...allPrices) % step === 0 ? step : 0);
   const x = (v) => pad.l + ((v - t0) / (t1 - t0)) * (W - pad.l - pad.r);
   const y = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * (H - pad.t - pad.b);
 
@@ -101,10 +109,13 @@ function chart(points, currency, width) {
   }
 
   // Prices hold until the next reading changes them: a step line, not a slope that never happened.
-  let d = `M${x(times[0])},${y(prices[0])}`;
-  for (let i = 1; i < priced.length; i++) d += ` H${x(times[i])} V${y(prices[i])}`;
-  d += ` H${x(Math.max(t1, times.at(-1)))}`;
-  const line = s("path", { d, class: "line-theirs" });
+  const steps = (ts, ps) => {
+    let d = `M${x(ts[0])},${y(ps[0])}`;
+    for (let i = 1; i < ts.length; i++) d += ` H${x(ts[i])} V${y(ps[i])}`;
+    return `${d} H${x(Math.max(t1, ts.at(-1)))}`;
+  };
+  const line = s("path", { d: steps(times, prices), class: "line-theirs" });
+  const yours = mine.length ? s("path", { d: steps(mineTimes, minePrices), class: "line-yours" }) : "";
 
   const dots = s("g");
   priced.forEach((p, i) => {
@@ -119,8 +130,8 @@ function chart(points, currency, width) {
     n: priced.length,
     first: fmtMoney(prices[0], currency),
     last: fmtMoney(prices.at(-1), currency),
-  });
-  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", "aria-label": summary }, grid, line, dots);
+  }) + (mine.length ? ` ${t("pd.chart.yours", { last: fmtMoney(minePrices.at(-1), currency) })}` : "");
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", "aria-label": summary }, grid, yours, line, dots);
   return [svg, priced.length < 2 ? h("p.chart-note", t("pd.chart.one")) : null];
 }
 

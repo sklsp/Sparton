@@ -227,6 +227,11 @@ html { scrollbar-color: var(--rule-strong) var(--wall-2); }
 .strip { isolation: isolate; }
 .strip::after { content: ""; position: absolute; inset: 50% 0 auto; height: 1px; background: var(--flap-seam); z-index: -1; }
 .strip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* "They are 10% cheaper than you": a quieter second line on the product strip. It wraps
+   rather than truncating, so the "possible match" qualifier is never cut off. */
+.strip:has(.strip-note) { height: auto; min-height: 1.9em; flex-direction: column; align-items: flex-start; justify-content: center; padding-block: 0.2em; }
+.strip:has(.strip-note)::after { display: none; }
+.strip-note { max-width: 100%; line-height: 1.25; font-size: 0.78em; font-weight: 500; font-stretch: 100%; color: var(--chalk-2); }
 .strip.turning { animation: flap-turn 110ms steps(2, jump-none) both; }
 .cell-span { grid-column: 4 / -1; justify-content: center; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; font-stretch: 70%; }
 .board-row[data-tone="stock"] .cell-span, .board-row[data-tone="new"] .cell-span { color: var(--signal); }

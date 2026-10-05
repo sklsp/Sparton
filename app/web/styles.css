@@ -633,6 +633,7 @@ dialog[open]::backdrop { animation: fadeIn 200ms var(--ease) both; }
 .chart-grid .chart-hline { stroke-dasharray: 2 4; }
 .chart-tick { fill: var(--ink-3); font: 600 12px/1 var(--font); font-variant-numeric: tabular-nums; }
 .line-theirs { fill: none; stroke: var(--ink-2); stroke-width: 2.5; stroke-dasharray: 7 5; }
+.line-yours { fill: none; stroke: var(--ink); stroke-width: 3; }
 .pt-exact { fill: var(--ink); stroke: var(--plate); stroke-width: 2; }
 .pt-extracted { fill: var(--plate); stroke: var(--ink); stroke-width: 2; }
 .pt-struck { stroke: var(--danger); stroke-width: 2.5; }

@@ -53,7 +53,9 @@ openssl rand -base64 48   # API_KEY
 git clone <your-repo> sparton && cd sparton
 cp .env.example .env
 $EDITOR .env          # see "The settings that matter" below
-docker compose up -d --build
+export GH_TOKEN=...   # read access to sklsp/shopfeed, see "Building the image" below
+docker build --secret id=gh_token,env=GH_TOKEN --no-cache-filter shopfeed -t sparton:latest .
+docker compose up -d
 docker compose logs -f api
 ```
 
@@ -75,6 +77,43 @@ model provider, or any tenant data.
 
 If the container is running but `/ready` fails, the database is the thing to
 look at: `docker compose logs db`.
+
+### Building the image: the private `shopfeed` library
+
+`shopfeed` reads a competitor's own product feed (exact prices, no LLM tokens).
+Its repository is private, so the image installs it from GitHub with a token
+passed as a BuildKit secret. The exact build command:
+
+```bash
+GH_TOKEN=<token with read access to sklsp/shopfeed> docker build --secret id=gh_token,env=GH_TOKEN --no-cache-filter shopfeed -t sparton:latest .
+```
+
+- The token is mounted only for the one `RUN` step that runs `pip install`.
+  It is never a build arg or env var, so it is not in `docker history`, and it
+  is not in the git URL, so it is not in the installed package's metadata.
+  Checked on a real build: zero hits for the token (raw or base64) in
+  `docker history --no-trunc`, `docker image inspect`, every file in the
+  exported image and the build log.
+- `--no-cache-filter shopfeed` matters. BuildKit leaves secrets out of the cache
+  key, so without it a build with the token can silently reuse a cached build
+  without it, and a cached shopfeed never picks up new commits.
+- A fine-grained token with read-only "Contents" on `sklsp/shopfeed` is enough.
+  `gh auth token` works for a quick local build.
+- `--build-arg SHOPFEED_REF=<tag or commit>` pins a version (default `master`).
+
+**Without the token the build still succeeds.** It prints three `WARNING:`
+lines saying shopfeed is not installed, and the app falls back to the HTML
+crawl: competitor prices are then labelled "extracted from the page" instead of
+"exact". To check a built image:
+
+```bash
+docker run --rm sparton:latest python -c "import shopfeed; print('shopfeed ok')"
+```
+
+`docker compose up -d --build` also passes `GH_TOKEN` as the same secret when it
+is set (see `secrets:` in `docker-compose.yml`), but compose has no
+`--no-cache-filter`, so prefer the `docker build` line above and then
+`docker compose up -d`, which uses the `sparton:latest` image it produced.
 
 ---
 

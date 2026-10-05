@@ -145,13 +145,6 @@ addEventListener("hashchange", () => {
   else signedOut();
 });
 
-/** D-032: persist the UI language on the account so the weekly email digest is written in it. Best-effort: a failed sync must never block boot; the server-side default (nl) covers it. */
-function syncLanguage(user) {
-  if (!user || user.language === lang) return;
-  state.user = { ...user, language: lang };
-  api.updateSettings({ language: lang }).catch(() => {});
-}
-
 async function boot() {
   // The landing page sends every prospective customer to `/app/#signup`; email links land on
   // `#/verify` and `#/reset`. Signed-out screens own those hashes.
@@ -159,7 +152,6 @@ async function boot() {
   if (isVerifyLink()) return signedOut();
   try {
     state.user = await api.me();
-    syncLanguage(state.user);
     if (AUTH_ONLY.has(authRoute().view) && /^#\/?(login|signup|register|forgot|reset)/.test(location.hash)) {
       history.replaceState(null, "", "#/overview");
     }

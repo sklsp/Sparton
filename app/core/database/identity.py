@@ -35,6 +35,9 @@ class Organization(Base):
     subscription_ends_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    #: "nl" | "en": the language the weekly report's prose is written in. Set at
+    #: signup from the dashboard's language and by its language switch.
+    language: Mapped[str] = mapped_column(String(8), default="en", server_default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     users: Mapped[list["User"]] = relationship(back_populates="organization")
@@ -52,10 +55,6 @@ class User(Base):
     # admin | manager | analyst | viewer
     role: Mapped[str] = mapped_column(String(20), default="viewer", index=True)
     is_active: Mapped[bool] = mapped_column(default=True)
-    #: The language this account uses in the app ("nl" | "en"). Persisted so the
-    #: weekly email digest can be written in it (D-032); the UI syncs it on boot.
-    #: Defaults to Dutch, the product's home market.
-    language: Mapped[str] = mapped_column(String(5), default="nl")
     #: The owner may switch the weekly report email off in settings; plans that
     #: include it start with it on (D-032).
     weekly_digest_enabled: Mapped[bool] = mapped_column(default=True)

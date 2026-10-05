@@ -20,6 +20,7 @@ import hashlib
 import random
 import sys
 from datetime import timedelta
+from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -223,7 +224,7 @@ def _seed_history(db, org_id: int, shop: Shop, competitors, rng, weeks: int) -> 
                     name=name,
                     normalized_name=normalize_name(name),
                     category="Homeware",
-                    price=round(live[competitor.id][name], 2),
+                    price=Decimal(str(round(live[competitor.id][name], 2))),
                     currency="EUR",
                     availability="in_stock",
                     in_stock=True,

@@ -72,8 +72,8 @@ const del = (path) => request(path, { method: "DELETE" });
 export const api = {
   // --- auth
   login: (email, password) => post("/auth/login", { email, password }),
-  register: (email, password, organization_name) =>
-    post("/auth/register", { email, password, organization_name }),
+  register: (email, password, organization_name, language) =>
+    post("/auth/register", { email, password, organization_name, language }),
   logout: () => post("/auth/logout"),
   me: () => get("/auth/me"),
   verifyEmail: (token) => post("/auth/verify-email", { token }),

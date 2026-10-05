@@ -63,6 +63,9 @@ PyYAML>=6.0                   # parses compose/CI in tests/test_deployment.py
 #
 #     pip install -e W:/shopfeed
 #
+# The Docker image installs it from GitHub with a BuildKit secret instead; the
+# build command is in docs/DEPLOYMENT.md ("Building the image").
+#
 # It is genuinely optional at runtime: app/ecommerce/feeds.py returns the HTML
 # crawl when the import fails, so a deployment without it still works -- slower
 # and less exact, but correct. The feed tests skip when it is absent.

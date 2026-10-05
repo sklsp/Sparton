@@ -96,8 +96,12 @@ def crawl_shop(payload: dict) -> None:
             ).scalars().all()
 
         job.status = JobStatus.RUNNING.value
-        job.stage = f"crawling {len(competitors)} competitor(s)"
+        job.stage = "reading your own catalogue"
         job.started_at = utcnow()
+        db.commit()
+        own = _read_own(db, shop)
+
+        job.stage = f"crawling {len(competitors)} competitor(s)"
         db.commit()
 
         # One crawler for the whole shop: the robots cache and the per-host
@@ -118,6 +122,8 @@ def crawl_shop(payload: dict) -> None:
             crawler.close()
 
         totals = {
+            "own_products": own["products"],
+            "matches": _rematch(db, shop),
             "competitors": len(outcomes),
             "products": sum(o.captures_written for o in outcomes),
             "changes": sum(o.changes for o in outcomes),
@@ -149,6 +155,32 @@ def crawl_shop(payload: dict) -> None:
         db.close()
 
 
+def _read_own(db, shop: Shop) -> dict:
+    """The shop's own catalogue (matching.py). Never fails the crawl job."""
+    from app.ecommerce.matching import read_own_catalog
+
+    try:
+        return read_own_catalog(db, shop)
+    except Exception as exc:  # noqa: BLE001 - competitors still get crawled
+        db.rollback()
+        logger.warning("Own catalogue read failed for shop %s: %s", shop.id, exc)
+        return {"products": 0, "data_source": "", "error": str(exc)[:200]}
+
+
+def _rematch(db, shop: Shop | None) -> int:
+    """Re-pair own and competitor products. Never fails the crawl job."""
+    from app.ecommerce.matching import rematch
+
+    if shop is None:
+        return 0
+    try:
+        return rematch(db, shop)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        logger.warning("Matching failed for shop %s: %s", shop.id, exc)
+        return 0
+
+
 def _mark_shop_crawled(db, shop: Shop) -> None:
     """Stamp the shop and push its next scheduled crawl into the future."""
     from datetime import timedelta
@@ -178,6 +210,7 @@ def crawl_one_competitor(payload: dict) -> None:
         outcome = crawl_competitor(
             db, competitor, shop_id=payload.get("shop_id"), crawl_id=job.id
         )
+        _rematch(db, competitor.shop)
         job.status = JobStatus.COMPLETED.value
         job.stage = "complete"
         job.progress = 1.0

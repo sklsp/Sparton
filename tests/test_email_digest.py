@@ -50,7 +50,6 @@ def _admin(
     *,
     verified: bool = True,
     digest_enabled: bool = True,
-    language: str | None = None,
     created_at: datetime | None = None,
 ) -> User:
     user = User(
@@ -62,8 +61,6 @@ def _admin(
         email_verified=verified,
         weekly_digest_enabled=digest_enabled,
     )
-    if language is not None:
-        user.language = language
     if created_at is not None:
         user.created_at = created_at
     db.add(user)
@@ -71,7 +68,7 @@ def _admin(
     return user
 
 
-def _report(db, org: Organization, *, status: str = ReportStatus.COMPLETED) -> Report:
+def _report(db, org: Organization, *, status: str = ReportStatus.COMPLETED, language: str = "en") -> Report:
     end = datetime(2026, 10, 5, 12, 0, 0)
     report = Report(
         organization_id=org.id,
@@ -83,6 +80,7 @@ def _report(db, org: Organization, *, status: str = ReportStatus.COMPLETED) -> R
         markdown="# Weekly report\n\nAll quiet this week.",
         facts={"shop": {"name": "Digest Shop"}, "total_changes": 0},
         change_ids=[],
+        language=language,
     )
     db.add(report)
     db.commit()
@@ -188,20 +186,20 @@ class TestDigestIdempotency:
 
 
 class TestDigestLanguage:
-    def test_english_preference_renders_an_english_email(self, db_session, captured_mail):
+    def test_an_english_report_gets_an_english_email(self, db_session, captured_mail):
         org = _org(db_session, plan="pro")
-        _admin(db_session, org, language="en")
-        report = _report(db_session, org)
+        _admin(db_session, org)
+        report = _report(db_session, org, language="en")
 
         assert _send(db_session, report) is True
         mail = captured_mail[0]
         assert '<html lang="en">' in mail["html"]
         assert "nothing moved at your competitors" in mail["subject"]
 
-    def test_the_default_is_dutch(self, db_session, captured_mail):
+    def test_a_dutch_report_gets_a_dutch_email(self, db_session, captured_mail):
         org = _org(db_session, plan="pro")
-        _admin(db_session, org)  # language left at its default ("nl")
-        report = _report(db_session, org)
+        _admin(db_session, org)
+        report = _report(db_session, org, language="nl")
 
         assert _send(db_session, report) is True
         mail = captured_mail[0]
@@ -215,39 +213,21 @@ class TestDigestLanguage:
 class TestSettingsEndpoints:
     def test_me_exposes_the_account_preferences(self, client, auth_headers):
         body = client.get("/auth/me", headers=auth_headers).json()
-        assert body["language"] == "nl"  # the product's home market is the default
+        assert body["language"] in ("nl", "en")
         assert body["weekly_digest_enabled"] is True
 
-    def test_patch_settings_persists_both_fields(self, client, auth_headers):
-        response = client.patch(
-            "/auth/settings",
-            headers=auth_headers,
-            json={"language": "en", "weekly_digest_enabled": False},
-        )
-        assert response.status_code == 200, response.text
-        body = response.json()
-        assert body["language"] == "en"
-        assert body["weekly_digest_enabled"] is False
-
-        # A fresh request re-reads the row: this proves persistence, not echo.
-        again = client.get("/auth/me", headers=auth_headers).json()
-        assert again["language"] == "en"
-        assert again["weekly_digest_enabled"] is False
-
-    def test_patch_settings_accepts_a_partial_update(self, client, auth_headers):
+    def test_patch_settings_persists_the_digest_toggle(self, client, auth_headers):
+        before = client.get("/auth/me", headers=auth_headers).json()["language"]
         response = client.patch(
             "/auth/settings", headers=auth_headers, json={"weekly_digest_enabled": False}
         )
         assert response.status_code == 200, response.text
-        body = response.json()
-        assert body["language"] == "nl"  # untouched
-        assert body["weekly_digest_enabled"] is False
+        assert response.json()["weekly_digest_enabled"] is False
 
-    def test_patch_rejects_an_unknown_language(self, client, auth_headers):
-        response = client.patch(
-            "/auth/settings", headers=auth_headers, json={"language": "fr"}
-        )
-        assert response.status_code == 422
+        # A fresh request re-reads the row: this proves persistence, not echo.
+        again = client.get("/auth/me", headers=auth_headers).json()
+        assert again["weekly_digest_enabled"] is False
+        assert again["language"] == before  # the language is PUT /auth/language's job
 
     def test_machine_principal_cannot_update_settings(self, client, monkeypatch):
         # conftest blanks API_KEY; enable the machine principal for this test.
@@ -255,7 +235,6 @@ class TestSettingsEndpoints:
         response = client.patch(
             "/auth/settings",
             headers={"X-API-Key": "test-machine-key"},
-            json={"language": "en"},
+            json={"weekly_digest_enabled": False},
         )
         assert response.status_code == 403
-

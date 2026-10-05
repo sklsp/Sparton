@@ -26,6 +26,7 @@ from app.core.security.rate_limit import rate_limit
 from app.api.schemas import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
+    LanguageRequest,
     LoginRequest,
     RegisterRequest,
     ResetPasswordRequest,
@@ -37,15 +38,16 @@ from app.api.schemas import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 def _user_dict(user) -> dict:
+    org = getattr(user, "organization", None)
     return {
         "id": user.id,
         "email": user.email,
         "role": user.role,
         "organization_id": user.organization_id,
         "email_verified": bool(getattr(user, "email_verified", False)),
-        # D-032 account preferences. getattr: machine principals have no such
-        # columns and /me must still answer for them.
-        "language": getattr(user, "language", None) or "nl",
+        # One language per account (Organization.language, v1.1): reports and the
+        # D-032 digest email follow it. getattr: machine principals have neither.
+        "language": getattr(org, "language", None) or "en",
         "weekly_digest_enabled": bool(getattr(user, "weekly_digest_enabled", True)),
     }
 
@@ -71,6 +73,7 @@ def register(
     org = Organization(
         name=payload.organization_name,
         slug=unique_slug(db, payload.organization_name),
+        language=payload.language,
     )
     db.add(org)
     db.flush()
@@ -158,6 +161,25 @@ def me(user: Annotated[object, Depends(unverified_user)]) -> dict:
     that they need verifying.
     """
     return _user_dict(user)
+
+
+@router.put("/language")
+def set_language(
+    payload: LanguageRequest,
+    db: DbSession,
+    user: Annotated[object, Depends(unverified_user)],
+) -> dict:
+    """The account's report language, set by the dashboard's NL/EN switch.
+
+    Any member may set it: it decides which language the next weekly report is
+    written in, nothing else (D-038).
+    """
+    org = db.get(Organization, user.organization_id)
+    if org is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    org.language = payload.language
+    db.commit()
+    return {"language": org.language}
 
 
 # ---------------------------------------------------------------------------
@@ -312,8 +334,6 @@ def update_settings(
     """
     if getattr(user, "is_machine", False):
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="API keys have no account preferences")
-    if payload.language is not None:
-        user.language = payload.language
     if payload.weekly_digest_enabled is not None:
         user.weekly_digest_enabled = payload.weekly_digest_enabled
     db.commit()

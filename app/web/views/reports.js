@@ -95,8 +95,11 @@ async function reportBody(id, navigate) {
     report.markdown
       ? h("section.plate.report-prose", { "aria-label": t("rp.summary") },
           h("h3", t("rp.summary")),
-          lang !== "en" ? h("p.report-lang", t("rp.englishOnly")) : null,
-          markdown(report.markdown))
+          // Only when the prose is not in the language on screen (older reports, or a switch since).
+          (report.language || "en") !== lang
+            ? h("p.report-lang", report.language === "nl" ? t("rp.writtenIn.nl") : t("rp.writtenIn.en"))
+            : null,
+          h("div", { lang: report.language || "en" }, markdown(report.markdown)))
       : null,
     h("p.report-fine", t("rp.fine")));
 }
