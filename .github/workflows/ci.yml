@@ -121,7 +121,9 @@ jobs:
           # Catches a Dockerfile that copies a directory which no longer
           # exists, and a compose file that will not parse.
           docker build --check .
-          docker compose config -q
+          # POSTGRES_PASSWORD is required (:?) and deliberately empty in the
+          # example env, so the parse check gets a placeholder.
+          POSTGRES_PASSWORD=ci-placeholder docker compose config -q
 
   image:
     name: Build image

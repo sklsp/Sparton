@@ -131,6 +131,15 @@ def all_domains_client(db_session, llm):
     from app.core.config import settings
     from app.main import create_app
 
+    # The experimental routers need requirements-experimental.txt, which the
+    # product image and CI do not install (test_product_dependencies.py checks
+    # that they refuse to start without it). Without the extras these tests skip.
+    try:
+        import app.api.create  # noqa: F401
+        import app.api.knowledge  # noqa: F401
+    except ImportError as exc:
+        pytest.skip(f"needs requirements-experimental.txt ({exc})")
+
     saved = settings.enabled_domains
     settings.enabled_domains = ",".join([
         "intelligence", "commerce", "agent", "research",
