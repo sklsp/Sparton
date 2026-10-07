@@ -1,5 +1,7 @@
 # SPARTON: Intelligence for small e-commerce sellers
 
+[![CI](https://github.com/sklsp/Sparton/actions/workflows/ci.yml/badge.svg)](https://github.com/sklsp/Sparton/actions/workflows/ci.yml)
+
 **Sparton Intelligence** watches your competitors so you do not have to.
 
 Add your shop URL. SPARTON discovers the competitors you are actually competing

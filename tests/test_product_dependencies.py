@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parent.parent
 HEAVY_MODULES = {"faiss", "torch", "sentence_transformers", "transformers"}
 
 #: The libraries the experimental domains need, in full.
-EXPERIMENTAL_IMPORTS = HEAVY_MODULES | {"PIL", "pypdf", "docx"}
+EXPERIMENTAL_IMPORTS = HEAVY_MODULES | {"PIL", "pypdf", "docx", "numpy"}
 
 #: Packages behind flags that are off by default.
 EXPERIMENTAL_PACKAGES = {"documents", "datasets", "generation", "training"}
@@ -237,7 +237,7 @@ class TestExperimentalDomainsFailLoudlyWithoutTheirDeps:
             "enabling `documents` without the extras started the app anyway\n"
             + result.stdout[-1200:] + result.stderr[-1200:]
         )
-        assert any(n in result.stdout.lower() for n in ("faiss", "sentence")), (
+        assert any(n in result.stdout.lower() for n in ("faiss", "sentence", "numpy")), (
             f"the error does not name the missing package: {result.stdout}"
         )
 

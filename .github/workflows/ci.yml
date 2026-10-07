@@ -73,7 +73,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install playwright
-          python -m playwright install --with-deps chromium
+          python -m playwright install chromium   # no --with-deps: the runner image has the libraries, and apt mirrors can hang
 
       - name: Browser smoke
         # Runs against a real uvicorn on a real port, which the suite starts
@@ -121,7 +121,9 @@ jobs:
           # Catches a Dockerfile that copies a directory which no longer
           # exists, and a compose file that will not parse.
           docker build --check .
-          docker compose config -q
+          # POSTGRES_PASSWORD is required (:?) and deliberately empty in the
+          # example env, so the parse check gets a placeholder.
+          POSTGRES_PASSWORD=ci-placeholder docker compose config -q
 
   image:
     name: Build image
@@ -131,6 +133,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # The default "docker" driver cannot export the GitHub Actions cache
+      # (cache-to: type=gha); buildx's docker-container driver can, and with
+      # load: true the image still lands in the local daemon for the next step.
+      - uses: docker/setup-buildx-action@v3
 
       - name: Build
         uses: docker/build-push-action@v6
