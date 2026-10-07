@@ -70,7 +70,8 @@ export function langSwitch() {
     b.textContent = code.toUpperCase();
     b.lang = code;
     b.setAttribute("aria-pressed", String(code === lang));
-    b.setAttribute("aria-label", t(`lang.${code}`));
+    // The accessible name contains the visible text (WCAG 2.5.3): "NL, Nederlands".
+    b.setAttribute("aria-label", `${code.toUpperCase()}, ${t(`lang.${code}`)}`);
     b.addEventListener("click", () => setLang(code));
     wrap.append(b);
   }

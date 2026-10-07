@@ -69,7 +69,7 @@ function renderHealth(health) {
   const wrap = h("div");
   const degraded = health.status !== "ok";
   if (degraded) {
-    wrap.append(banner("The platform is degraded — one or more dependencies are unavailable.", { tone: "warning" }));
+    wrap.append(banner("The platform is degraded: one or more dependencies are unavailable.", { tone: "warning" }));
   }
 
   wrap.append(h("div.grid.grid-metrics", { style: { marginTop: degraded ? "16px" : "0" } },

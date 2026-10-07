@@ -93,7 +93,7 @@ export function weekLabel(date = new Date()) {
   const day = (date.getDay() + 6) % 7; // Monday = 0
   const monday = new Date(date); monday.setDate(date.getDate() - day);
   const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
-  return `${t("week.label", { n: isoWeek(date) })} · ${fmtDate(monday)} – ${fmtDate(sunday)}`;
+  return `${t("week.label", { n: isoWeek(date) })} · ${fmtDate(monday)} → ${fmtDate(sunday)}`;
 }
 
 export function isoWeek(date) {

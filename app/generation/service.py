@@ -499,7 +499,7 @@ class ComfyUIService:
         if not connected:
             checks.append({
                 "name": "ComfyUI connection", "passed": False,
-                "detail": f"not reachable at {self.client.base_url} — start ComfyUI, then retry",
+                "detail": f"not reachable at {self.client.base_url}. Start ComfyUI, then retry",
             })
             ok = False
         else:

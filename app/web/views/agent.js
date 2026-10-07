@@ -94,7 +94,7 @@ export default function agentView(view, { refreshApprovalBadge }) {
   const runsBody = h("div.card-body.flush");
   runsHost.append(
     h("header.card-head",
-      h("div", h("h2", "Runs"), h("div.sub", "Most recent first — select a run for its full step trace"))),
+      h("div", h("h2", "Runs"), h("div.sub", "Most recent first. Select a run for its full step trace"))),
     runsBody);
   view.append(runsHost);
 
@@ -239,7 +239,7 @@ function renderApprovals(data, reload, refreshApprovalBadge, filter) {
       row.querySelectorAll("button").forEach((b) => { b.disabled = true; });
       try {
         await api.resolveApproval(approval.id, approved, null);
-        toast(approved ? "Approved — the run is resuming" : "Rejected", approved ? "success" : "info");
+        toast(approved ? "Approved. The run is resuming" : "Rejected", approved ? "success" : "info");
         refreshApprovalBadge();
         reload();
       } catch (err) {
@@ -266,7 +266,7 @@ function showPreview(approval) {
   const preview = approval.preview || {};
   const changes = Array.isArray(preview.changes) ? preview.changes : null;
   const el = dialog({
-    title: `${approval.tool} — proposed change`,
+    title: `${approval.tool}: proposed change`,
     body: [
       h("p", { style: { color: "var(--text-2)" } }, approval.summary || "No summary provided."),
       changes

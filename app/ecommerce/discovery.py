@@ -198,7 +198,7 @@ def add_competitor(
 
     if _is_blocked_host(normalized.domain):
         raise ShopError(
-            "That is not a shop — it looks like a search engine or marketplace. "
+            "That is not a shop: it looks like a search engine or marketplace. "
             "Enter the competitor's own store URL."
         )
 
