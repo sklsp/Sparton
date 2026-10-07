@@ -73,7 +73,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install playwright
-          python -m playwright install --with-deps chromium
+          python -m playwright install chromium   # no --with-deps: the runner image has the libraries, and apt mirrors can hang
 
       - name: Browser smoke
         # Runs against a real uvicorn on a real port, which the suite starts
