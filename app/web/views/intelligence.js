@@ -66,7 +66,7 @@ export default function intelligence(view) {
   const filterHost = h("div.card-head-actions");
   oppsHost.append(
     h("header.card-head",
-      h("div", h("h2", "Opportunities"), h("div.sub", "Ranked by score — open one for its evidence")),
+      h("div", h("h2", "Opportunities"), h("div.sub", "Ranked by score. Open one for its evidence")),
       filterHost),
     oppsBody);
   view.append(oppsHost);

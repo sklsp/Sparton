@@ -155,7 +155,7 @@ async function showProduct(id) {
         h("h3", { style: { font: "var(--t-title)", marginBottom: "6px" } }, product.title),
         h("div.chips", h("span.chip", product.sku), statusBadge(product.status),
           product.category ? badge(product.category, "neutral") : null)),
-      h("p", { style: { color: "var(--text-2)" } }, product.description || "No description — a good candidate for the agent to rewrite."),
+      h("p", { style: { color: "var(--text-2)" } }, product.description || "No description yet. A good candidate for the agent to rewrite."),
       h("dl.kv",
         h("dt", "Price"), h("dd", money(product.price)),
         h("dt", "Inventory"), h("dd", num(product.inventory)),

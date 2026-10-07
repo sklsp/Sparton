@@ -89,7 +89,7 @@ function renderStatus({ comfy, hardware, training }) {
     // Transport errors arrive as multi-line stack text — keep the headline.
     const reason = String(comfy.error || "").split(/[(\n]/)[0].trim().slice(0, 120);
     wrap.append(banner(
-      `ComfyUI is not reachable at ${comfy.base_url || "the configured address"}${reason ? ` — ${reason}` : ""}. Start it locally to generate images; datasets and training remain available.`,
+      `ComfyUI is not reachable at ${comfy.base_url || "the configured address"}${reason ? ` (${reason})` : ""}. Start it locally to generate images; datasets and training remain available.`,
       { tone: "warning" }));
   }
 
@@ -177,7 +177,7 @@ function renderGenerateForm(data, onQueued) {
         h("label.field", h("span", "Seed"), seed)),
       validationHost,
       h("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" } },
-        h("span.metric-sub", { style: { marginRight: "auto" } }, "Runs on the shared job queue — the gallery updates when it lands."),
+        h("span.metric-sub", { style: { marginRight: "auto" } }, "Runs on the shared job queue. The gallery updates when it lands."),
         button("Dry run", { iconName: "check", onClick: async (event) => {
           const btn = event.currentTarget;
           if (!prompt.value.trim()) { prompt.focus(); return; }
@@ -189,7 +189,7 @@ function renderGenerateForm(data, onQueued) {
               ? banner(`${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.map((p) => p.message || p).join("; ")}`, { tone: "danger" })
               : banner(report.warnings?.length
                   ? `Valid, with warnings: ${report.warnings.join("; ")}`
-                  : "Valid — this request will run against the selected workflow.",
+                  : "Valid: this request will run against the selected workflow.",
                 { tone: report.warnings?.length ? "warning" : "info" }));
           } catch (err) {
             fill(validationHost, banner(err.message, { tone: "danger" }));
@@ -352,7 +352,7 @@ function renderTraining({ projects, presets, status }) {
       iconName: "cpu",
       title: "No training projects",
       message: presets.length
-        ? `${presets.length} presets available — create a project against a dataset to start.`
+        ? `${presets.length} presets available. Create a project against a dataset to start.`
         : "Create a dataset first, then attach a training project to it.",
     }));
   }

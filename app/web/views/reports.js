@@ -55,7 +55,7 @@ function writeNow(shops, reload) {
 
 const period = (r) => {
   const a = new Date(r.period_start); const b = new Date(r.period_end);
-  return `${fmtDate(a)} – ${fmtDate(b, { day: "numeric", month: "short", year: "numeric" })}`;
+  return `${fmtDate(a)} → ${fmtDate(b, { day: "numeric", month: "short", year: "numeric" })}`;
 };
 
 function listItem(r, current) {
