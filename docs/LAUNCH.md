@@ -309,10 +309,10 @@ the shop charges; an HTML-parsed price is our best reading of a rendering, and
 the competitor view says which of the two you are looking at.
 
 `shopfeed` is **private** and is not installed from a git URL. Install it from
-the local checkout:
+a checkout next to this one:
 
 ```bash
-pip install -e W:/shopfeed
+pip install -e ../shopfeed
 ```
 
 The image installs it from GitHub with a BuildKit secret (`gh_token`); the build

@@ -59,9 +59,9 @@ PyYAML>=6.0                   # parses compose/CI in tests/test_deployment.py
 # shopfeed reads a webshop's public catalog as exact data (Shopify / WooCommerce
 # feeds, then schema.org JSON-LD) instead of parsing rendered HTML: exact prices,
 # real compare-at values, and no LLM tokens. It is a private repository, so it
-# cannot be listed here as a git URL -- install it from the local checkout:
+# cannot be listed here as a git URL -- install it from a checkout next to this one:
 #
-#     pip install -e W:/shopfeed
+#     pip install -e ../shopfeed
 #
 # The Docker image installs it from GitHub with a BuildKit secret instead; the
 # build command is in docs/DEPLOYMENT.md ("Building the image").
