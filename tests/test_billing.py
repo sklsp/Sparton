@@ -316,6 +316,54 @@ class TestWebhookHandler:
         assert row.status == SubscriptionStatus.CANCELED
         assert db_session.get(Organization, org_id).plan == FREE
 
+    def test_a_stale_update_cannot_revive_a_cancelled_subscription(self, db_session, org_id, stripe_env):
+        """Stripe does not deliver in order: an old 'updated' arriving after 'deleted' must not re-grant."""
+        from app.billing.service import handle_event
+
+        handle_event(db_session, subscription_event("evt_s1", org_id, "price_business_123"))
+        deleted = subscription_event("evt_s2", org_id, "price_business_123")
+        deleted["type"] = "customer.subscription.deleted"
+        handle_event(db_session, deleted)
+
+        # The earlier "active" update, retried late under its own event id.
+        handle_event(db_session, subscription_event("evt_s3", org_id, "price_business_123"))
+        row = db_session.execute(select(Subscription)).scalars().one()
+        assert row.status == SubscriptionStatus.CANCELED
+        assert db_session.get(Organization, org_id).plan == FREE
+
+    def test_updates_apply_the_live_subscription_not_the_event_copy(self, db_session, org_id, stripe_env):
+        from app.billing.service import handle_event
+
+        class LiveStripe:
+            def get_subscription(self, subscription_id):
+                assert subscription_id == "sub_123"
+                live = subscription_event("x", org_id, "price_pro_123")["data"]["object"]
+                return {**live, "status": "past_due"}
+
+        # The event says Business and active; Stripe says it is now Pro and past due.
+        handle_event(db_session, subscription_event("evt_l1", org_id, "price_business_123"), client=LiveStripe())
+        row = db_session.execute(select(Subscription)).scalars().one()
+        assert row.stripe_price_id == "price_pro_123"
+        assert row.status == "past_due"
+
+    def test_an_old_subscription_ending_cannot_cancel_the_new_one(self, db_session, org_id, stripe_env):
+        """A customer whose first subscription lapsed subscribes again and gets a new
+        id. When the old one is deleted later, the new paid plan must stay."""
+        from app.billing.service import handle_event
+
+        old = subscription_event("evt_o1", org_id, "price_pro_123", status="unpaid")
+        handle_event(db_session, old)
+        new = subscription_event("evt_o2", org_id, "price_business_123")
+        new["data"]["object"]["id"] = "sub_new"
+        handle_event(db_session, new)
+
+        old_deleted = subscription_event("evt_o3", org_id, "price_pro_123")
+        old_deleted["type"] = "customer.subscription.deleted"
+        handle_event(db_session, old_deleted)
+        row = db_session.execute(select(Subscription)).scalars().one()
+        assert (row.stripe_subscription_id, row.status) == ("sub_new", SubscriptionStatus.ACTIVE)
+        assert db_session.get(Organization, org_id).plan == BUSINESS
+
     def test_an_unknown_price_fails_closed_to_free(self, db_session, org_id, stripe_env):
         """A typo in a Stripe price id must not grant unlimited access."""
         from app.billing.service import handle_event
