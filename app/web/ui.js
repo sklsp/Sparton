@@ -241,8 +241,8 @@ export const banner = (message, { tone: t = "info", action } = {}) =>
 
 export const field = (label, control) => h("label.field", h("span", label), control);
 
-export const meter = (fraction, t) =>
-  h("div.meter", { "data-tone": t, role: "presentation" },
+export const meter = (fraction, tone) =>
+  h("div.meter", { "data-tone": tone, role: "presentation" },
     h("span", { style: { width: `${Math.max(0, Math.min(1, fraction || 0)) * 100}%` } }));
 
 /** Scroll behaviour that honours the reduced-motion preference. */
@@ -252,10 +252,10 @@ export const scrollBehavior = () =>
 /* -------------------------------------------------------------- toasts */
 let toastHost;
 
-export function toast(message, t = "info") {
+export function toast(message, tone = "info") {
   toastHost ||= document.body.appendChild(h("div.toasts", { "aria-live": "polite" }));
-  const el = h("div.toast", { "data-tone": t, role: "status" },
-    h("span.toast-icon", icon(t === "success" ? "check" : t === "danger" ? "alert" : "info", 16)),
+  const el = h("div.toast", { "data-tone": tone, role: "status" },
+    h("span.toast-icon", icon(tone === "success" ? "check" : tone === "danger" ? "alert" : "info", 16)),
     h("div", message),
     h("button.toast-close", { "aria-label": t("ui.dismiss"), onclick: () => close() }, icon("close", 14)));
 
@@ -266,7 +266,7 @@ export function toast(message, t = "info") {
     setTimeout(() => el.remove(), 400);
   };
   toastHost.append(el);
-  setTimeout(close, t === "danger" ? 7000 : 4000);
+  setTimeout(close, tone === "danger" ? 7000 : 4000);
   return close;
 }
 
