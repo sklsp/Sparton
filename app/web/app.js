@@ -152,6 +152,11 @@ async function boot() {
   if (isVerifyLink()) return signedOut();
   try {
     state.user = await api.me();
+    // Stripe sends customers back to /app/?checkout=... (Checkout) or /app/?tab=billing (portal).
+    const fromStripe = new URLSearchParams(location.search);
+    if (!location.hash && (fromStripe.has("checkout") || fromStripe.get("tab") === "billing")) {
+      history.replaceState(null, "", `${location.pathname}${location.search}#/billing`);
+    }
     if (AUTH_ONLY.has(authRoute().view) && /^#\/?(login|signup|register|forgot|reset)/.test(location.hash)) {
       history.replaceState(null, "", "#/overview");
     }

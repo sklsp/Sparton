@@ -280,6 +280,19 @@ class TestSignupToDashboard:
             assert label in text, f"{label} is not in the navigation"
         _assert_no_js_errors(page, "the navigation")
 
+    def test_returning_from_stripe_opens_billing(self, page):
+        """Stripe sends customers back to /app/?checkout=success, or /app/?tab=billing
+        from the portal. Both used to land on the overview with nothing said."""
+        self._register(page, "browser-stripe-return@example.com")
+        page.goto(f"{page.base}/app/?checkout=success", wait_until="networkidle")
+        page.wait_for_selector(".bl-note[role=status]", timeout=5000)
+        assert page.evaluate("() => location.hash") == "#/billing"
+        assert "checkout=" not in page.url, "a reload would say it again"
+
+        page.goto(f"{page.base}/app/?tab=billing", wait_until="networkidle")
+        page.wait_for_function("() => location.hash === '#/billing'", timeout=5000)
+        _assert_no_js_errors(page, "the return from Stripe")
+
     def test_logout_returns_to_the_login_form(self, page):
         self._register(page, "browser-logout@example.com")
         page.wait_for_timeout(800)
