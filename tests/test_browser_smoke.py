@@ -646,10 +646,19 @@ class TestAccountRecovery:
     def test_forgot_password_confirms_without_revealing_the_account(self, page):
         page.goto(f"{page.base}/app/#/login", wait_until="networkidle")
         page.click("a[href='#/forgot']")
+        # The login form has an email field too: wait until the forgot view has
+        # replaced it, or the next lines can fill the login form instead.
+        page.wait_for_selector("a[href='#/forgot']", state="detached")
         page.wait_for_selector("input[type=email]")
         page.fill("input[type=email]", "nobody-here@example.com")
         page.click("button[type=submit]")
-        page.wait_for_function("() => document.body.innerText.includes('Check your inbox')", timeout=5000)
+        try:
+            page.wait_for_function("() => document.body.innerText.includes('Check your inbox')", timeout=5000)
+        except Exception:
+            # This step failed now and then in CI and never locally; say what the page showed.
+            seen = page.evaluate("() => ({ email: document.querySelector('input[type=email]')?.value ?? null,"
+                                 " main: document.querySelector('main')?.innerText.slice(0, 300) })")
+            raise AssertionError(f"no confirmation after submitting: {seen}") from None
         assert "nobody-here@example.com" in page.locator("body").inner_text()
         _assert_no_js_errors(page, "forgot password")
 
