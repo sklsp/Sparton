@@ -104,6 +104,9 @@ openssl rand -hex 32   # OPENAI_API_KEY, if your provider issues one
 5. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
 6. Deploy, then confirm delivery in the Stripe dashboard (it shows recent
    deliveries and their HTTP status).
+7. In the Customer Portal settings, let customers **switch plans** between Pro
+   and Business. A paying customer who picks another plan in Sparton is sent to
+   the portal, because Checkout would start a second subscription and bill both.
 
 **An unknown price id fails closed to Free.** That is deliberate: a typo in
 `STRIPE_PRICE_PRO` downgrades rather than silently granting unlimited access. If
@@ -258,6 +261,8 @@ item is a real user action; every one of them was a bug at least once.
 - [ ] **Open billing**, start Checkout, complete it in Stripe, return. Confirm
       the plan actually changed, this is the end-to-end check that the webhook
       is registered, signed correctly, and mapping your price ids.
+- [ ] **Switch plans** in Sparton (Pro to Business). It must open the Customer
+      Portal, and afterwards Stripe shows one subscription, not two.
 - [ ] **Cancel** in the Customer Portal and confirm the plan drops.
 - [ ] **Sign out and back in** on a second browser. If logout appears broken,
       note that it returned 500 for every caller at one point.

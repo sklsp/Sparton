@@ -32,7 +32,7 @@ export default function billingView(host) {
         !enabled ? h("p.bl-note", { role: "note" }, t("bl.disabled")) : null,
         h("section.bl-plans", { "aria-labelledby": "bl-plans-title" },
           h("h2#bl-plans-title", t("bl.plans")),
-          h("div.plans", plans.map((p) => planCard(p, plan.id, enabled, chosen === p.id)))),
+          h("div.plans", plans.map((p) => planCard(p, plan.id, enabled, chosen === p.id, Boolean(subscription) && plan.price_cents > 0)))),
         h("p.bl-fine", t("bl.fine")));
       sessionStorage.removeItem("sparton.plan");
     } catch (err) {
@@ -55,7 +55,9 @@ function limit(label, used, max) {
     h("p", h("strong", t("bl.usedOf", { used, max })), ` ${label}`, full ? h("span.limit-full", ` · ${t("bl.full")}`) : null));
 }
 
-function planCard(p, currentId, enabled, highlighted) {
+// A paying customer changes plan in the portal: Checkout would start a second
+// subscription and bill both.
+function planCard(p, currentId, enabled, highlighted, subscribed) {
   const current = p.id === currentId;
   const action = current
     ? h("p.plan-current-tag", t("bl.yourPlan"))
@@ -68,7 +70,7 @@ function planCard(p, currentId, enabled, highlighted) {
             const b = e.currentTarget;
             b.dataset.loading = "true";
             try {
-              const { url } = await api.checkout(p.id);
+              const { url } = await (subscribed ? api.portal() : api.checkout(p.id));
               location.assign(url);
             } catch (err) { toast(err.message, "danger"); delete b.dataset.loading; }
           },
