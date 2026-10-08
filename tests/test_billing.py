@@ -346,6 +346,24 @@ class TestWebhookHandler:
         assert row.stripe_price_id == "price_pro_123"
         assert row.status == "past_due"
 
+    def test_an_old_subscription_ending_cannot_cancel_the_new_one(self, db_session, org_id, stripe_env):
+        """A customer whose first subscription lapsed subscribes again and gets a new
+        id. When the old one is deleted later, the new paid plan must stay."""
+        from app.billing.service import handle_event
+
+        old = subscription_event("evt_o1", org_id, "price_pro_123", status="unpaid")
+        handle_event(db_session, old)
+        new = subscription_event("evt_o2", org_id, "price_business_123")
+        new["data"]["object"]["id"] = "sub_new"
+        handle_event(db_session, new)
+
+        old_deleted = subscription_event("evt_o3", org_id, "price_pro_123")
+        old_deleted["type"] = "customer.subscription.deleted"
+        handle_event(db_session, old_deleted)
+        row = db_session.execute(select(Subscription)).scalars().one()
+        assert (row.stripe_subscription_id, row.status) == ("sub_new", SubscriptionStatus.ACTIVE)
+        assert db_session.get(Organization, org_id).plan == BUSINESS
+
     def test_an_unknown_price_fails_closed_to_free(self, db_session, org_id, stripe_env):
         """A typo in a Stripe price id must not grant unlimited access."""
         from app.billing.service import handle_event

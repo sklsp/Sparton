@@ -176,23 +176,27 @@ def apply_subscription(
 ) -> Subscription:
     """Create or update the subscription row from a Stripe subscription object."""
     subscription_id = str(subscription.get("id") or "") or None
-    existing = get_subscription(db, org.id)
-    if (
-        not deleted
-        and existing is not None
-        and subscription_id
-        and existing.stripe_subscription_id == subscription_id
-        and existing.status == SubscriptionStatus.CANCELED
-    ):
-        # Stripe never reactivates a canceled subscription (resubscribing makes a new
-        # one with a new id), so this event is stale: it must not re-grant the plan.
-        logger.warning("Ignoring a stale event for canceled subscription %s", subscription_id)
-        return existing
-    items = (subscription.get("items") or {}).get("data") or []
-    price_id = items[0].get("price", {}).get("id") if items else None
     status = str(subscription.get("status") or "").lower()
     if deleted:
         status = SubscriptionStatus.CANCELED
+    existing = get_subscription(db, org.id)
+    if existing is not None and subscription_id and existing.stripe_subscription_id:
+        same = existing.stripe_subscription_id == subscription_id
+        if same and not deleted and existing.status == SubscriptionStatus.CANCELED:
+            # Stripe never reactivates a canceled subscription (resubscribing makes a new
+            # one with a new id), so this event is stale: it must not re-grant the plan.
+            logger.warning("Ignoring a stale event for canceled subscription %s", subscription_id)
+            return existing
+        if not same and existing.grants_plan and status not in SubscriptionStatus.GRANTING:
+            # An older subscription ending, or a late event about it, must not
+            # overwrite the newer one this organization is paying for.
+            logger.warning(
+                "Ignoring ended subscription %s; the live one is %s",
+                subscription_id, existing.stripe_subscription_id,
+            )
+            return existing
+    items = (subscription.get("items") or {}).get("data") or []
+    price_id = items[0].get("price", {}).get("id") if items else None
 
     plan = DEFAULT_PLAN if deleted else plan_for_price(price_id)
     customer_id = subscription.get("customer")
