@@ -20,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database.domain_models import Job, JobStatus, utcnow
-from app.core.jobs import MAX_ATTEMPTS, RETRY_DELAYS_SECONDS, can_transition
+from app.core.jobs import MAX_ATTEMPTS, RETRY_DELAYS_SECONDS, InvalidTransition, can_transition
 
 
 def job_signature(payload: dict[str, Any]) -> str:
