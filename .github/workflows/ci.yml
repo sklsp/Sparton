@@ -41,7 +41,7 @@ jobs:
       - name: Suite
         # The suite uses a per-process SQLite database and deterministic
         # providers, so it needs no services and makes no network calls.
-        run: pytest -q --junitxml=report.xml
+        run: pytest --junitxml=report.xml   # pytest.ini already passes -q; a second -q hides the "N passed" line
 
       - name: Publish results
         if: always()
@@ -78,7 +78,7 @@ jobs:
       - name: Browser smoke
         # Runs against a real uvicorn on a real port, which the suite starts
         # itself. No services, no network.
-        run: pytest tests/test_browser_smoke.py -q --junitxml=browser-report.xml
+        run: pytest tests/test_browser_smoke.py --junitxml=browser-report.xml
 
       - name: Publish results
         if: always()
