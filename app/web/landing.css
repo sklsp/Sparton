@@ -210,3 +210,9 @@ html[lang="nl"] [data-lang="en"], html:not([lang="nl"]) [data-lang="nl"] { displ
 .seo-block p { margin-top: var(--s2); color: var(--ink-2); max-width: 60ch; }
 .seo-more { grid-column: 1 / -1; font-weight: 700; }
 @media (max-width: 760px) { .seo-body { grid-template-columns: 1fr; } }
+
+/* The hero board's six demo rows are added by landing.js after the first paint. Until then the
+   list is empty, so reserve the rows' height (6 rows and their gaps) or everything below the
+   board jumps down when they arrive: Lighthouse measured a layout shift of 0.19 on phones. */
+#hero-rows:empty { min-height: 17.2rem; }
+@media (max-width: 640px) { #hero-rows:empty { min-height: 25.8rem; } }
