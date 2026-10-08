@@ -116,6 +116,22 @@ def create_app() -> FastAPI:
     # Correlation IDs + request metrics.
     app.add_middleware(RequestInstrumentation)
 
+    # Security headers on every response. The CSP holds only directives that cannot break a
+    # page (no framing, no <base> hijack, no plugins); a script/style policy needs its own
+    # review. HSTS only in production, where the site is served over HTTPS.
+    @app.middleware("http")
+    async def security_headers(request, call_next):
+        response = await call_next(request)
+        headers = response.headers
+        headers.setdefault("X-Content-Type-Options", "nosniff")
+        headers.setdefault("X-Frame-Options", "DENY")
+        headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'")
+        headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        if (settings.sparton_env or "").lower() == "production":
+            headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+        return response
+
     # Routers are registered conditionally. A disabled domain has NO routes at
     # all rather than routes that 403 — strictly less attack surface
     # (docs/DECISIONS.md D-020).
