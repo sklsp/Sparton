@@ -57,8 +57,9 @@ def _org_id(user) -> int | None:
 
 
 def _price_id(plan: str) -> str:
+    # price_env names the env var (STRIPE_PRICE_PRO); the setting is lowercase.
     price = PLANS[plan].price_env
-    return str(getattr(settings, price) or "") if price else ""
+    return str(getattr(settings, price.lower()) or "") if price else ""
 
 
 @router.get("/billing/plans")
@@ -174,6 +175,19 @@ def start_checkout(
 
     org = db.get(Organization, org_id)
     subscription = get_subscription(db, org_id)
+    if (
+        subscription is not None
+        and subscription.stripe_subscription_id
+        and subscription.grants_plan
+    ):
+        # Checkout always starts a NEW subscription. A Pro customer choosing
+        # Business here would be billed for both, so plan changes go through
+        # the Customer Portal, which changes the existing subscription.
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="This organization already has a subscription. "
+            "Change plans in the billing portal.",
+        )
     customer_id = subscription.stripe_customer_id if subscription else ""
     client = StripeClient()
 

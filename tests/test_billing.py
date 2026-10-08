@@ -513,6 +513,57 @@ class TestBillingApi:
         response = client.post("/billing/portal", headers=auth_headers)
         assert response.status_code == 400
 
+    @pytest.fixture()
+    def checkout_env(self, client, auth_headers, stripe_env, monkeypatch):
+        """Billing on and Stripe faked. Returns the caller's org id and the
+        Checkout sessions that were started."""
+        monkeypatch.setattr(stripe_env, "billing_enabled", True, raising=False)
+        monkeypatch.setattr(stripe_env, "stripe_secret_key", "sk_test_fake", raising=False)
+        calls = []
+        monkeypatch.setattr(
+            StripeClient, "create_checkout_session",
+            lambda self, **kw: calls.append(kw) or "https://checkout.stripe.com/c/pay/cs_1",
+        )
+        monkeypatch.setattr(StripeClient, "create_customer", lambda self, *a, **kw: "cus_new")
+        org_id = client.get("/auth/me", headers=auth_headers).json()["organization_id"]
+        return org_id, calls
+
+    def test_checkout_refuses_a_second_subscription(self, client, auth_headers,
+                                                     checkout_env, db_session):
+        """Checkout always starts a new subscription, so a Pro customer choosing
+        Business there would pay for both. Plan changes go to the portal."""
+        org_id, calls = checkout_env
+        db_session.add(Subscription(
+            organization_id=org_id, plan=PRO, status=SubscriptionStatus.ACTIVE,
+            stripe_customer_id="cus_1", stripe_subscription_id="sub_1",
+        ))
+        db_session.commit()
+
+        response = client.post("/billing/checkout", headers=auth_headers,
+                               json={"plan": "business"})
+        assert response.status_code == 409
+        assert "portal" in response.json()["detail"]
+        assert calls == []
+
+    @pytest.mark.parametrize("status, subscription_id", [
+        (SubscriptionStatus.CANCELED, "sub_old"),  # subscribing again after a cancellation
+        (SubscriptionStatus.ACTIVE, None),  # a Checkout that was never finished
+    ])
+    def test_checkout_is_allowed_without_a_live_subscription(
+        self, client, auth_headers, checkout_env, db_session, status, subscription_id
+    ):
+        org_id, calls = checkout_env
+        db_session.add(Subscription(
+            organization_id=org_id, status=status,
+            stripe_customer_id="cus_1", stripe_subscription_id=subscription_id,
+        ))
+        db_session.commit()
+
+        response = client.post("/billing/checkout", headers=auth_headers,
+                               json={"plan": "pro"})
+        assert response.status_code == 200, response.text
+        assert [(c["customer_id"], c["price_id"]) for c in calls] == [("cus_1", "price_pro_123")]
+
 
 # ---------------------------------------------------------------------------
 # The Stripe HTTP client

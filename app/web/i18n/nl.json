@@ -386,6 +386,8 @@
   "bl.plans": "Alle abonnementen",
   "bl.yourPlan": "Je huidige abonnement",
   "bl.fine": "Prijzen exclusief btw. Betalen gaat via Stripe; Sparton ziet je kaart nooit.",
+  "bl.paid": "Bedankt! Je nieuwe abonnement is actief zodra Stripe de betaling bevestigt, meestal binnen een minuut.",
+  "bl.notPaid": "Afrekenen is geannuleerd. Er is niets afgeschreven.",
   "st.account": "Account",
   "st.verified": "E-mail bevestigd",
   "st.yes": "Ja",

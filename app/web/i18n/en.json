@@ -386,6 +386,8 @@
   "bl.plans": "All plans",
   "bl.yourPlan": "Your current plan",
   "bl.fine": "Prices exclude VAT. Payment runs through Stripe; Sparton never sees your card.",
+  "bl.paid": "Thank you! Your new plan is active as soon as Stripe confirms the payment, usually within a minute.",
+  "bl.notPaid": "Checkout was cancelled. Nothing was charged.",
   "st.account": "Account",
   "st.verified": "Email confirmed",
   "st.yes": "Yes",

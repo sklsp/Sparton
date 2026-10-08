@@ -9,8 +9,17 @@ import { planBoard, cadence } from "../plans.js";
 import { loadingBoard } from "./overview.js";
 
 export default function billingView(host) {
-  const run = async () => {
-    fill(host, head(), loadingBoard(2));
+  // Back from Stripe Checkout: say what happened, and drop the query so a reload
+  // does not say it again. The plan changes when Stripe's webhook lands, so
+  // after a payment the view checks again a few times.
+  const back = new URLSearchParams(location.search).get("checkout");
+  if (back) history.replaceState(null, "", location.pathname + location.hash);
+  const note = back === "success" ? t("bl.paid") : back ? t("bl.notPaid") : null;
+  let polls = back === "success" ? 5 : 0;
+  let timer;
+
+  const run = async (quiet = false) => {
+    if (quiet !== true) fill(host, head(), loadingBoard(2));
     try {
       const [cur, all] = await settleAll([api.plan(), api.plans()]);
       if (cur.status === "rejected") throw cur.reason;
@@ -19,6 +28,7 @@ export default function billingView(host) {
       const chosen = sessionStorage.getItem("sparton.plan");
 
       fill(host, head(),
+        note ? h("p.bl-note", { role: "status" }, note) : null,
         h("section.plate.plan-now", { "aria-labelledby": "plan-now-title" },
           h("div.plan-now-head",
             h("h2#plan-now-title", t("bl.currentIs", { plan: plan.name })),
@@ -32,14 +42,16 @@ export default function billingView(host) {
         !enabled ? h("p.bl-note", { role: "note" }, t("bl.disabled")) : null,
         h("section.bl-plans", { "aria-labelledby": "bl-plans-title" },
           h("h2#bl-plans-title", t("bl.plans")),
-          h("div.plans", plans.map((p) => planCard(p, plan.id, enabled, chosen === p.id)))),
+          h("div.plans", plans.map((p) => planCard(p, plan.id, enabled, chosen === p.id, Boolean(subscription) && plan.price_cents > 0)))),
         h("p.bl-fine", t("bl.fine")));
       sessionStorage.removeItem("sparton.plan");
+      if (polls > 0 && plan.price_cents === 0) { polls -= 1; timer = setTimeout(() => run(true), 3000); }
     } catch (err) {
       fill(host, head(), errorState({ title: t("bl.error"), message: err.message, onRetry: run }));
     }
   };
   run();
+  return () => clearTimeout(timer);
 }
 
 const head = () => h("header.view-head", h("h1.view-title", t("nav.billing")), h("p.view-sub", t("bl.sub")));
@@ -55,7 +67,9 @@ function limit(label, used, max) {
     h("p", h("strong", t("bl.usedOf", { used, max })), ` ${label}`, full ? h("span.limit-full", ` · ${t("bl.full")}`) : null));
 }
 
-function planCard(p, currentId, enabled, highlighted) {
+// A paying customer changes plan in the portal: Checkout would start a second
+// subscription and bill both.
+function planCard(p, currentId, enabled, highlighted, subscribed) {
   const current = p.id === currentId;
   const action = current
     ? h("p.plan-current-tag", t("bl.yourPlan"))
@@ -68,7 +82,7 @@ function planCard(p, currentId, enabled, highlighted) {
             const b = e.currentTarget;
             b.dataset.loading = "true";
             try {
-              const { url } = await api.checkout(p.id);
+              const { url } = await (subscribed ? api.portal() : api.checkout(p.id));
               location.assign(url);
             } catch (err) { toast(err.message, "danger"); delete b.dataset.loading; }
           },
