@@ -189,18 +189,25 @@ def set_language(
 def verify_email(payload: VerifyRequest, db: DbSession = None) -> dict:
     """Redeem a verification link.
 
-    The token is single-use, and redeeming it marks the user verified. A token
-    that has already been used reports success anyway: the honest answer is
-    "this link is not valid any more", and telling a second visitor that their
-    link already worked is not worth the enumeration surface.
+    The token is single-use, and redeeming it marks the user verified. An unknown,
+    used or expired link gets one and the same 400. It used to report success,
+    which told someone whose link had expired that their account was "fully
+    active" while the product kept refusing them. The 400 tells only the holder
+    of a link that this link does not work now; tokens are random, so there is
+    nothing to enumerate.
     """
     user = tokens.consume(db, payload.token, AuthTokenPurpose.VERIFY_EMAIL)
-    if user is not None:
-        tokens.mark_verified(db, user)
-        audit(
-            db, action="auth.email_verified", actor_user_id=user.id,
-            organization_id=user.organization_id,
+    if user is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="This link no longer works. If the dashboard still asks you to confirm your "
+            "email, send a new link from there.",
         )
+    tokens.mark_verified(db, user)
+    audit(
+        db, action="auth.email_verified", actor_user_id=user.id,
+        organization_id=user.organization_id,
+    )
     return {"verified": True}
 
 

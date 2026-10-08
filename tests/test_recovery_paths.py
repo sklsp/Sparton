@@ -151,6 +151,47 @@ class TestVerificationRoundTrip:
         # Verified: open.
         assert client.get("/shops", headers=headers).status_code == 200
 
+    def test_a_dead_link_says_so_and_unlocks_nothing(self, client, production,
+                                                    monkeypatch, db_session):
+        """An expired, used or unknown link gets a 400. It used to answer
+        "verified", so the page told someone with an expired link that the
+        account was fully active while the product kept refusing them."""
+        from datetime import timedelta
+
+        from app.core.auth.tokens import hash_token
+        from app.core.database.billing_models import AuthToken
+        from app.core.database.models import utcnow
+
+        sent = capture_emails(monkeypatch, "send_verification")
+        registered = client.post(
+            "/auth/register",
+            json={
+                "email": "late@example.com",
+                "password": "correct-horse-battery",
+                "organization_name": "Late Click",
+            },
+        )
+        headers = {"Authorization": f"Bearer {registered.json()['token']}"}
+
+        # The link is opened a day too late.
+        row = db_session.execute(
+            select(AuthToken).where(AuthToken.token_hash == hash_token(sent[-1][1]))
+        ).scalar_one()
+        row.expires_at = utcnow() - timedelta(minutes=1)
+        db_session.commit()
+        for dead in (sent[-1][1], "not-a-real-token"):
+            response = client.post("/auth/verify-email", json={"token": dead})
+            assert response.status_code == 400
+            assert "no longer works" in response.json()["detail"]
+        assert client.get("/shops", headers=headers).status_code == 403
+
+        # A new link works once.
+        assert client.post("/auth/resend-verification", headers=headers).status_code == 200
+        fresh = sent[-1][1]
+        assert client.post("/auth/verify-email", json={"token": fresh}).status_code == 200
+        assert client.post("/auth/verify-email", json={"token": fresh}).status_code == 400
+        assert client.get("/shops", headers=headers).status_code == 200
+
     def test_password_reset_yields_a_working_session(self, client, production,
                                                      monkeypatch):
         sent = capture_emails(monkeypatch, "send_password_reset")

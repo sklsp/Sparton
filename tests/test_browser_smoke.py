@@ -696,6 +696,16 @@ class TestAccountRecovery:
         assert "expired" in page.locator(".form-error").inner_text()
         _assert_no_js_errors(page, "an invalid reset link")
 
+    @pytest.mark.parametrize("token", ["x" * 43, "cut-off"])
+    def test_a_dead_verification_link_says_so(self, page, token):
+        """It used to say "Your account is fully active" for any link, even an expired
+        one that unlocks nothing. A link cut short by a mail client fails validation (422)
+        and gets the same message, not the sign-up form's."""
+        page.goto(f"{page.base}/verify-email?token={token}", wait_until="networkidle")
+        page.wait_for_function("() => document.body.innerText.includes('no longer works')", timeout=5000)
+        assert "fully active" not in page.locator("main").inner_text()
+        _assert_no_js_errors(page, "a dead verification link")
+
 
 class TestOnboarding:
     """Signup lands in onboarding; shop URL, competitors, first check, with live progress."""
