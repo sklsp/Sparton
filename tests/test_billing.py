@@ -166,10 +166,16 @@ class TestEnforcement:
         check_competitors(db_session, org_id, FREE)
 
     def test_crawl_frequency_is_clamped_by_plan(self):
-        assert check_crawl_frequency(FREE, 1) == 6        # floor: politeness
-        assert check_crawl_frequency(FREE, 24) == 24      # clamped to weekly
+        """The plan sets the fastest cadence; a request can only slow a shop down."""
+        assert check_crawl_frequency(FREE, 1) == 168      # never faster than weekly
+        assert check_crawl_frequency(FREE, 24) == 168     # clamped to weekly
+        assert check_crawl_frequency(FREE, 6) == 168
         assert check_crawl_frequency(PRO, 24) == 24
-        assert check_crawl_frequency(FREE, 6) == 6
+        assert check_crawl_frequency(PRO, 6) == 24
+        assert check_crawl_frequency(PRO, 168) == 168     # slower is kept
+        assert check_crawl_frequency(PRO, None) == 24     # no request: the plan's cadence
+        assert check_crawl_frequency(BUSINESS, None) == 12
+        assert check_crawl_frequency(BUSINESS, 2000) == 720
 
     def test_usage_report_shape(self, db_session, org_id):
         report = usage_report(db_session, org_id, FREE)
