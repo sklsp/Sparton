@@ -289,6 +289,17 @@ class TestSignupToDashboard:
         assert page.locator("input[type=email]").count() > 0, "no session, no login form"
         _assert_no_js_errors(page, "after logout")
 
+    def test_the_sign_out_button_signs_out(self, page):
+        """Through the real button, not by deleting the token. The button once threw
+        "t is not a function" from the toast it shows, which left the customer on
+        the dashboard; the test above could not see that."""
+        self._register(page, "browser-signout@example.com")
+        page.click("button.account-btn")
+        page.wait_for_selector("form.auth-form", timeout=5000)
+        assert page.locator(".toast").count() == 1, "no signed-out confirmation"
+        assert page.evaluate("() => localStorage.getItem('sparton.token')") is None
+        _assert_no_js_errors(page, "sign out")
+
 
 class TestTheProductLoopInABrowser:
     """Signup, add a shop, add a competitor, read the data back.
