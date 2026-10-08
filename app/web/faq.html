@@ -70,11 +70,6 @@
     </div>
   </footer>
 
-  <script type="module">
-    import { t, translateDom, langSwitch } from "/app/i18n.js";
-    translateDom();
-    document.title = t("fq.title");
-    document.getElementById("lp-tools")?.prepend(langSwitch());
-  </script>
+  <script type="module" src="/app/pages/faq.js"></script>
 </body>
 </html>
