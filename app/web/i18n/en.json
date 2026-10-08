@@ -182,6 +182,7 @@
   "auth.err.taken": "There's already an account with this email. Sign in instead, or reset the password.",
   "auth.err.rate": "Too many attempts. Wait a minute and try again.",
   "auth.err.resetInvalid": "This link is invalid or has expired. Request a new one.",
+  "auth.err.verifyInvalid": "This link no longer works. If the dashboard still asks you to confirm your email, send a new link from there.",
   "auth.err.form": "Check the fields: the email must be valid and the password at least 8 characters.",
   "auth.err.offline": "Can't reach Sparton. Check your connection and try again.",
   "auth.err.mismatch": "The two passwords are not the same.",

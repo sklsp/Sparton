@@ -24,6 +24,8 @@ function errorText(err, view) {
   if (err.status === 409) return t("auth.err.taken");
   if (err.status === 429) return t("auth.err.rate");
   if (err.status === 400 && view === "reset") return t("auth.err.resetInvalid");
+  // 422: a link cut short by a mail client fails validation before it is looked up.
+  if ((err.status === 400 || err.status === 422) && view === "verify") return t("auth.err.verifyInvalid");
   if (err.status === 422) return t("auth.err.form");
   if (err.status === 0) return t("auth.err.offline");
   return err.message;
@@ -201,15 +203,14 @@ function reset(params) {
 async function verify(params, onSignedIn) {
   layout("verify", h("h1", t("auth.verifyTitle")), h("p.auth-lede", { role: "status" }, t("auth.verifying")));
   const card = document.querySelector(".auth-card");
+  // Either way the next step is the dashboard, where a dead link can be sent again.
+  const next = () => token.get()
+    ? button(t("auth.toDashboard"), { variant: "primary", size: "lg", onClick: async () => { history.replaceState(null, "", "#/overview"); onSignedIn(await api.me()); } })
+    : h("a.btn", { href: "#/login", "data-variant": "primary", "data-size": "lg" }, t("auth.signin"));
   try {
     await api.verifyEmail(params.get("token") || "");
-    fill(card,
-      h("h1", t("auth.verified")),
-      h("p.auth-lede", t("auth.verifiedLede")),
-      token.get()
-        ? button(t("auth.toDashboard"), { variant: "primary", size: "lg", onClick: async () => { history.replaceState(null, "", "#/overview"); onSignedIn(await api.me()); } })
-        : h("a.btn", { href: "#/login", "data-variant": "primary", "data-size": "lg" }, t("auth.signin")));
+    fill(card, h("h1", t("auth.verified")), h("p.auth-lede", t("auth.verifiedLede")), next());
   } catch (err) {
-    fill(card, h("h1", t("auth.verifyTitle")), h("p.form-error", { role: "alert" }, errorText(err, "verify")));
+    fill(card, h("h1", t("auth.verifyTitle")), h("p.form-error", { role: "alert" }, errorText(err, "verify")), next());
   }
 }

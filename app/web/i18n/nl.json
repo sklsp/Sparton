@@ -182,6 +182,7 @@
   "auth.err.taken": "Er is al een account met dit e-mailadres. Log in, of stel het wachtwoord opnieuw in.",
   "auth.err.rate": "Te veel pogingen. Wacht een minuut en probeer het opnieuw.",
   "auth.err.resetInvalid": "Deze link is ongeldig of verlopen. Vraag een nieuwe aan.",
+  "auth.err.verifyInvalid": "Deze link werkt niet meer. Vraagt het dashboard nog steeds om je e-mailadres te bevestigen? Stuur daar dan een nieuwe link.",
   "auth.err.form": "Controleer de velden: het e-mailadres moet geldig zijn en het wachtwoord minstens 8 tekens.",
   "auth.err.offline": "Sparton is niet bereikbaar. Controleer je verbinding en probeer het opnieuw.",
   "auth.err.mismatch": "De twee wachtwoorden zijn niet hetzelfde.",
