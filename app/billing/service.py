@@ -149,6 +149,24 @@ def _resolve_organization(
     return None
 
 
+def _live_subscription(obj: dict[str, Any], client: StripeClient | None) -> dict[str, Any]:
+    """The subscription as it is now, not as this event saw it.
+
+    Stripe does not deliver events in order, and a retried event can arrive long
+    after newer ones, so applying the event's own copy can roll a subscription
+    back (Stripe's own advice: fetch the object). If the fetch fails, the event's
+    copy is used, and apply_subscription still refuses to revive a cancellation.
+    """
+    subscription_id = obj.get("id")
+    if not subscription_id:
+        return obj
+    try:
+        return (client or StripeClient()).get_subscription(str(subscription_id))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not fetch subscription %s, using the event's copy: %s", subscription_id, exc)
+        return obj
+
+
 def apply_subscription(
     db: Session,
     org: Organization,
@@ -157,6 +175,19 @@ def apply_subscription(
     deleted: bool = False,
 ) -> Subscription:
     """Create or update the subscription row from a Stripe subscription object."""
+    subscription_id = str(subscription.get("id") or "") or None
+    existing = get_subscription(db, org.id)
+    if (
+        not deleted
+        and existing is not None
+        and subscription_id
+        and existing.stripe_subscription_id == subscription_id
+        and existing.status == SubscriptionStatus.CANCELED
+    ):
+        # Stripe never reactivates a canceled subscription (resubscribing makes a new
+        # one with a new id), so this event is stale: it must not re-grant the plan.
+        logger.warning("Ignoring a stale event for canceled subscription %s", subscription_id)
+        return existing
     items = (subscription.get("items") or {}).get("data") or []
     price_id = items[0].get("price", {}).get("id") if items else None
     status = str(subscription.get("status") or "").lower()
@@ -273,7 +304,7 @@ def handle_event(db: Session, event: dict[str, Any], client: StripeClient | None
         ):
             org = _resolve_organization(db, obj)
             if org is not None:
-                apply_subscription(db, org, obj)
+                apply_subscription(db, org, _live_subscription(obj, client))
                 outcome = event_type.rsplit(".", 1)[-1]
             else:
                 outcome = "unmapped"
