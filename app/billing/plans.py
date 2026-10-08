@@ -215,14 +215,17 @@ def check_tokens(db: Session, organization_id: int | None, plan_id: str | None) 
         )
 
 
-def check_crawl_frequency(plan_id: str | None, hours: int) -> int:
+def check_crawl_frequency(plan_id: str | None, hours: int | None) -> int:
     """Clamp a requested cadence to what the plan allows.
 
-    Clamps rather than rejects: the customer asked for something valid, we
-    simply do it less often, and we tell them so.
+    The plan sets the fastest cadence. Clamps rather than rejects: a request
+    faster than the plan is valid, we simply do it less often. A slower request
+    is kept, and no request means the plan's own cadence.
     """
     plan = get_plan(plan_id)
-    return max(6, min(int(hours or 168), plan.crawl_frequency_hours, 24 * 30))
+    if not hours:
+        return plan.crawl_frequency_hours
+    return min(max(6, int(hours), plan.crawl_frequency_hours), 24 * 30)
 
 
 __all__ = [

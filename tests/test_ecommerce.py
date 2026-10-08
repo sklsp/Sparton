@@ -315,13 +315,14 @@ class TestOnboarding:
         assert detail["competitors"][0]["domain"] == "claybarn-co.myshopify.com"
 
     def test_update_cadence(self, client, auth_headers, shop):
+        """Slower than the plan is kept. Faster is clamped: tests/test_crawl_cadence.py."""
         response = client.patch(
             f"/shops/{shop['id']}",
             headers=auth_headers,
-            json={"crawl_frequency_hours": 24, "category": "homeware"},
+            json={"crawl_frequency_hours": 336, "category": "homeware"},
         )
         assert response.status_code == 200
-        assert response.json()["crawl_frequency_hours"] == 24
+        assert response.json()["crawl_frequency_hours"] == 336
 
     def test_crawl_frequency_floor_is_enforced(
         self, client, auth_headers, shop, db_session, org_id

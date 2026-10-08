@@ -25,7 +25,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.billing.plans import BUSINESS, DEFAULT_PLAN, FREE, PRO, get_plan
+from app.billing.plans import BUSINESS, DEFAULT_PLAN, FREE, PRO, check_crawl_frequency, get_plan
 from app.billing.stripe import StripeClient
 from app.core.config import settings
 from app.core.database.billing_models import (
@@ -185,8 +185,11 @@ def apply_subscription(
 
     # Keep the organization's denormalised copy in step, so a free-plan read
     # does not need to join the subscription table.
+    previous_plan = org.plan
     org.plan = plan if row.grants_plan else DEFAULT_PLAN
     org.subscription_ends_at = row.current_period_end
+    if org.plan != previous_plan:
+        _follow_plan_cadence(db, org)
     db.commit()
     db.refresh(row)
 
@@ -201,6 +204,25 @@ def apply_subscription(
     )
     logger.info("Subscription for org %s: plan=%s status=%s", org.id, plan, status)
     return row
+
+
+def _follow_plan_cadence(db: Session, org: Organization) -> None:
+    """A plan change applies to the shops that exist, not only to new ones.
+
+    Without this, a shop added on Free stayed weekly after an upgrade to Pro,
+    and a cancelled Pro kept its daily checks. A slower cadence set through
+    the API is replaced too; the dashboard offers no such setting.
+    """
+    from datetime import timedelta
+
+    from app.core.database.ecommerce_models import Shop
+
+    interval = check_crawl_frequency(org.plan, None)
+    for shop in db.execute(select(Shop).where(Shop.organization_id == org.id)).scalars():
+        shop.crawl_frequency_hours = interval
+        if shop.last_crawled_at is not None:
+            # An upgrade can make a shop due right away; a downgrade pushes it out.
+            shop.next_crawl_at = shop.last_crawled_at + timedelta(hours=interval)
 
 
 def _record_invoice(db: Session, org: Organization | None, invoice: dict[str, Any]) -> None:

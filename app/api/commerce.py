@@ -59,7 +59,8 @@ class ShopCreate(BaseModel):
     name: str = Field(default="", max_length=200)
     category: str = Field(default="", max_length=120)
     currency: str = Field(default="EUR", max_length=8)
-    crawl_frequency_hours: int = Field(default=168, ge=6, le=720)
+    # None: the plan's cadence (weekly, daily or every 12 hours).
+    crawl_frequency_hours: int | None = Field(default=None, ge=6, le=720)
 
 
 class ShopUpdate(BaseModel):
