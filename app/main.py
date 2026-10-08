@@ -96,6 +96,13 @@ async def lifespan(app: FastAPI):
     logger.info("SPARTON API stopped")
 
 
+CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self'; "
+    "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+)
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="SPARTON",
@@ -116,16 +123,16 @@ def create_app() -> FastAPI:
     # Correlation IDs + request metrics.
     app.add_middleware(RequestInstrumentation)
 
-    # Security headers on every response. The CSP holds only directives that cannot break a
-    # page (no framing, no <base> hijack, no plugins); a script/style policy needs its own
-    # review. HSTS only in production, where the site is served over HTTPS.
+    # Security headers on every response. Scripts may only come from this origin (no inline
+    # scripts: tests/test_security_headers.py guards the pages), which blunts any XSS; inline
+    # styles stay allowed. HSTS only in production, where the site is served over HTTPS.
     @app.middleware("http")
     async def security_headers(request, call_next):
         response = await call_next(request)
         headers = response.headers
         headers.setdefault("X-Content-Type-Options", "nosniff")
         headers.setdefault("X-Frame-Options", "DENY")
-        headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'")
+        headers.setdefault("Content-Security-Policy", CSP)
         headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         if (settings.sparton_env or "").lower() == "production":
