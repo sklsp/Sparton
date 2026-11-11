@@ -19,13 +19,12 @@ import threading
 import time
 import uuid
 
+import workers.handlers  # noqa: F401 — registers the domain job handlers
 from app.core.database.base import SessionLocal
 from app.core.database.domain_models import Job
 from app.core.jobs.queue import claim_next, record_failure
 from app.core.jobs.transport import get_handler
 from app.core.observability.metrics import inc, observe
-
-import workers.handlers  # noqa: F401 — registers the domain job handlers
 
 logger = logging.getLogger(__name__)
 

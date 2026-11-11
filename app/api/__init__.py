@@ -14,5 +14,11 @@ because `from app.api import health` executes this file first. They are
 imported inside the feature-flag branches in `app/main.py` instead.
 """
 
-from app.api import admin as admin_api  # noqa: F401
-from app.api import agent_api, auth, ecommerce, health, intelligence  # noqa: F401
+from app.api import (  # noqa: F401
+    admin as admin_api,  # noqa: F401
+    agent_api,
+    auth,
+    ecommerce,
+    health,
+    intelligence,
+)

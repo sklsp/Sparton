@@ -11,9 +11,9 @@ the report writer.
 from __future__ import annotations
 
 import json
-from decimal import Decimal
 from dataclasses import replace
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select

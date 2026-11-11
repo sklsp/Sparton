@@ -7,6 +7,17 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 
+from app.api.schemas import (
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    LanguageRequest,
+    LoginRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+    TokenResponse,
+    UserSettingsUpdate,
+    VerifyRequest,
+)
 from app.core import email
 from app.core.auth import tokens
 from app.core.auth.api import DbSession, current_user, unverified_user
@@ -23,17 +34,6 @@ from app.core.database.billing_models import AuthTokenPurpose
 from app.core.database.identity import Organization, Session, User
 from app.core.observability.metrics import inc
 from app.core.security.rate_limit import rate_limit
-from app.api.schemas import (
-    ChangePasswordRequest,
-    ForgotPasswordRequest,
-    LanguageRequest,
-    LoginRequest,
-    RegisterRequest,
-    ResetPasswordRequest,
-    TokenResponse,
-    UserSettingsUpdate,
-    VerifyRequest,
-)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

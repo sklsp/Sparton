@@ -528,8 +528,9 @@ class TestTheLaunchChecklistIsReal:
             assert path in paths, f"{path} does not exist"
 
     def test_the_legal_paths_it_names_are_real(self, launch):
-        from app.main import create_app
         from fastapi.testclient import TestClient
+
+        from app.main import create_app
 
         client = TestClient(create_app())
         for path in ("/legal/privacy", "/legal/terms", "/legal/dpa"):

@@ -1,6 +1,6 @@
 """Apollo — ComfyUI generation domain."""
 
-from app.generation.comfyui_client import ComfyUIError, ComfyUIClient
+from app.generation.comfyui_client import ComfyUIClient, ComfyUIError
 from app.generation.service import (
     ComfyUIService,
     WorkflowError,

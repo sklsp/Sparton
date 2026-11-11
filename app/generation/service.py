@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
-from app.generation.comfyui_client import ComfyUIError, ComfyUIClient
+from app.generation.comfyui_client import ComfyUIClient, ComfyUIError
 
 logger = logging.getLogger(__name__)
 

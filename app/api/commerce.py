@@ -46,10 +46,10 @@ from app.ecommerce.discovery import (
     shop_already_tracked,
     suggest_competitors,
 )
-from app.ecommerce.urls import InvalidShopUrl, normalize_url
 from app.ecommerce.feeds import source_label
 from app.ecommerce.matching import comparisons, match_for, own_history
 from app.ecommerce.reports import report_to_dict
+from app.ecommerce.urls import InvalidShopUrl, normalize_url
 
 router = APIRouter(tags=["intelligence"])
 

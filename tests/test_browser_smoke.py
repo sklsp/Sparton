@@ -68,8 +68,7 @@ def live_server():
     """
     import uvicorn
 
-    from app.core.database.base import Base
-    from app.core.database.base import engine
+    from app.core.database.base import Base, engine
     from app.main import create_app
 
     db_path = ROOT / "test_browser_smoke.db"

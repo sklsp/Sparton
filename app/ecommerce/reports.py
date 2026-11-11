@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 from collections import Counter, defaultdict
-from decimal import Decimal
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any, Sequence
 
 from sqlalchemy import select, update

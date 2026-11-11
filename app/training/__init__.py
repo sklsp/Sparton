@@ -4,8 +4,8 @@ from app.training.hardware import HardwareInfo, detect_hardware
 from app.training.preflight import PreflightReport, advise, diagnose_failure, estimate_vram_mb
 from app.training.service import (
     ARCH_DEFAULTS,
-    AIToolkitProcess,
     TRAINING_PRESETS,
+    AIToolkitProcess,
     TrainingError,
     build_training_config,
 )

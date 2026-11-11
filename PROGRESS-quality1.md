@@ -1,5 +1,5 @@
 - [x] S1. build: ruff and coverage tools with one configuration (516 passed, 58 skipped, 2 warnings in 299.66s (0:04:59))
-- [ ] S2. lint: imports sorted the same way everywhere
+- [x] S2. lint: imports sorted the same way everywhere (516 passed, 58 skipped, 2 warnings in 275.13s (0:04:35))
 - [ ] S3. lint: modern annotations, imports and UTC
 - [ ] S4. lint: stray f-prefix, missing final newline, blank lines with spaces
 - [ ] S5. lint: no unused imports in app/core

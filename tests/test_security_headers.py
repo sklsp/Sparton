@@ -1,9 +1,9 @@
 """Every response carries the security headers; HSTS only in production."""
 
-import pytest
-
-from pathlib import Path
 import re
+from pathlib import Path
+
+import pytest
 
 from app.core.config import settings
 from app.main import CSP

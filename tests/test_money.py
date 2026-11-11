@@ -21,7 +21,6 @@ from app.core.database.ecommerce_models import (
     CompetitorProduct,
 )
 
-
 MONEY_COLUMNS = (
     (CompetitorProduct, "price"),
     (CompetitorProduct, "compare_at_price"),
@@ -102,9 +101,9 @@ class TestTheCaptureBoundary:
 
 class TestTheDatabaseRoundTrip:
     def test_a_price_reads_back_as_a_decimal(self, db_session, auth_headers):
-        from app.core.database.identity import User
         from sqlalchemy import select
 
+        from app.core.database.identity import User
         from app.ecommerce.changes import normalize_name
 
         org_id = db_session.execute(
