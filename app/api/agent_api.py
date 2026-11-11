@@ -46,8 +46,8 @@ def _run_dict(run: AgentRun) -> dict:
 @router.post("/agent/run", status_code=202)
 def start_run(
     payload: AgentRunRequest,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     inc("agent_runs_total")
     run = runner.create_run(
@@ -63,9 +63,9 @@ def start_run(
 
 @router.get("/agent/runs")
 def list_runs(
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     limit: int = 20,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     query = select(AgentRun).order_by(AgentRun.started_at.desc()).limit(min(limit, 100))
     org = _org_id(user)
@@ -76,7 +76,7 @@ def list_runs(
 
 
 @router.get("/agent/runs/{run_id}")
-def get_run(run_id: int, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def get_run(run_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
     run = _get_scoped_run(db, run_id, _org_id(user))
     steps = db.execute(
         select(AgentStep).where(AgentStep.agent_run_id == run.id).order_by(AgentStep.step_number)
@@ -103,7 +103,7 @@ def _get_scoped_run(db, run_id: int, org: int | None) -> AgentRun:
 
 
 @router.get("/agent/runs/{run_id}/events")
-async def run_events(run_id: int, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None):
+async def run_events(run_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]):
     """SSE stream of an agent run's step feed until it reaches a terminal state."""
     org = _org_id(user)
     last_step = 0
@@ -144,10 +144,10 @@ async def run_events(run_id: int, db: DbSession = None, user: Annotated[object, 
 # --- approvals -----------------------------------------------------------------
 @router.get("/approvals")
 def list_approvals(
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     status_filter: str | None = None,
     limit: int = 50,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     query = (
         select(ApprovalRequest)
@@ -183,8 +183,8 @@ def list_approvals(
 def resolve_approval(
     approval_id: int,
     payload: ApprovalDecisionRequest,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     approval = db.get(ApprovalRequest, approval_id)
     org = _org_id(user)
