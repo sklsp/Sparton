@@ -10,8 +10,7 @@ from sqlalchemy import func, select
 
 from app.api.schemas import ResearchJobRequest
 from app.core.auth.api import DbSession, current_user
-from app.core.database.base import SessionLocal
-from app.core.database.domain_models import ExternalProduct, ExternalStore, Job, Opportunity
+from app.core.database.domain_models import ExternalProduct, ExternalStore, Job
 from app.core.jobs.queue import enqueue
 from app.core.observability.metrics import inc
 from app.research.intelligence import get_opportunity, list_opportunities

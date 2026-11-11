@@ -13,18 +13,15 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.billing.plans import (
-    BUSINESS,
     PLANS,
-    PRO,
     all_plans,
-    get_plan,
     usage_report,
 )
 from app.billing.service import effective_plan, get_subscription, handle_event

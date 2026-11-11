@@ -20,7 +20,7 @@ from app.api.schemas import (
 )
 from app.core import email
 from app.core.auth import tokens
-from app.core.auth.api import DbSession, current_user, unverified_user
+from app.core.auth.api import DbSession, unverified_user
 from app.core.auth.service import (
     audit,
     create_session,

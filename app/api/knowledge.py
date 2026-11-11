@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -10,7 +9,6 @@ from sqlalchemy import or_, select
 
 from app.api.schemas import ChatRequest, ChatResponse, PromptTemplateCreate
 from app.core.auth.api import DbSession, current_user
-from app.core.config import settings
 from app.core.database.creation_models import (
     Conversation,
     ConversationMessage,

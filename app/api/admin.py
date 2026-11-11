@@ -6,9 +6,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 
-from app.core.auth.api import DbSession, current_user, require_role
+from app.core.auth.api import DbSession, current_user
 from app.core.auth.service import ROLE_LEVEL, audit, role_at_least
 from app.core.database.identity import User
 

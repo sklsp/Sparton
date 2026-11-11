@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 
@@ -14,18 +14,13 @@ from app.api.schemas import (
     DatasetCreateRequest,
     GenerationRequest,
     TrainingProjectCreateRequest,
-    TrainingStartRequest,
     WorkflowImportRequest,
 )
 from app.core.auth.api import DbSession, current_user
-from app.core.config import settings
 from app.core.database.creation_models import (
-    DatasetImage,
-    DatasetProject,
     GeneratedImage,
     TrainingProject,
 )
-from app.core.database.domain_models import Job
 from app.core.jobs.queue import enqueue
 from app.datasets.service import DatasetError, DatasetService
 from app.generation.comfyui_client import ComfyUIError
