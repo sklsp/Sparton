@@ -1,0 +1,14 @@
+# Sparton quality run 2
+
+- [x] T1. build: mypy configuration (516 passed, 58 skipped, 2 warnings in 277.22s (0:04:37))
+- [ ] T2. tests: the suite leaves no files behind
+- [ ] T3. types: FastAPI dependency parameters without a None default (create, knowledge)
+- [ ] T4. types: FastAPI dependency parameters without a None default (the other routers)
+- [ ] T5. types: agent engine step types
+- [ ] T6. types: weekly report email copy
+- [ ] T7. types: auth routes
+- [ ] T8. types: commerce routes
+- [ ] T9. types: ecommerce
+- [ ] T10. types: everything left
+- [ ] T11. ci: a type check job keeps mypy clean
+- [ ] T12. docs: the README says mypy runs in CI
