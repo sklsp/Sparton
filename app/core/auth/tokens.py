@@ -116,7 +116,7 @@ def mark_verified(db: Session, user: User) -> None:
 
 def purge_expired(db: Session) -> int:
     """Delete tokens that are used or expired. Called by the scheduler."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     cutoff = datetime.now(UTC) - timedelta(days=7)
     result = db.execute(

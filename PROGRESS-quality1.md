@@ -2,7 +2,7 @@
 - [x] S2. lint: imports sorted the same way everywhere (516 passed, 58 skipped, 2 warnings in 275.13s (0:04:35))
 - [x] S3. lint: modern annotations, imports and UTC (516 passed, 58 skipped, 2 warnings in 275.82s (0:04:35))
 - [x] S4. lint: stray f-prefix, missing final newline, blank lines with spaces (516 passed, 58 skipped, 2 warnings in 275.60s (0:04:35))
-- [ ] S5. lint: no unused imports in app/core
+- [x] S5. lint: no unused imports in app/core (516 passed, 58 skipped, 2 warnings in 292.27s (0:04:52))
 - [ ] S6. lint: no unused imports in app/api
 - [ ] S7. lint: no unused imports in app/agent app/billing app/ecommerce
 - [ ] S8. lint: no unused imports in app/datasets app/training

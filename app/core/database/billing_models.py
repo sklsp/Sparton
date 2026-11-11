@@ -24,7 +24,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.database.base import Base, JSONType
+from app.core.database.base import Base
 from app.core.database.models import utcnow
 
 
@@ -188,8 +188,6 @@ class AuthToken(Base):
             return False
         expires = self.expires_at
         if expires.tzinfo is None:
-            from datetime import timezone
-
             expires = expires.replace(tzinfo=UTC)
         return expires > utcnow()
 

@@ -94,8 +94,6 @@ class Session(Base):
             return False
         expires = self.expires_at
         if expires.tzinfo is None:
-            from datetime import timezone
-
             expires = expires.replace(tzinfo=UTC)
         return expires > utcnow()
 

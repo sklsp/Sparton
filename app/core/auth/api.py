@@ -173,7 +173,7 @@ def require_role(required: str):
     """Dependency factory: gate an endpoint behind a minimum role level."""
 
     def dependency(user: Annotated[User | MachineUser, Depends(current_user)]):
-        from app.core.auth.service import ROLE_LEVEL, role_at_least
+        from app.core.auth.service import role_at_least
 
         if not role_at_least(getattr(user, "role", ""), required):
             raise HTTPException(
