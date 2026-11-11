@@ -54,7 +54,7 @@ async function request(path, { method = "GET", body, form, signal } = {}) {
       if (typeof detail === "string") message = detail;
       else if (Array.isArray(detail)) message = detail.map((d) => d.msg).join(", ");
       else if (detail?.message) message = detail.message; // plan limits: { message, limit, plan }
-    } catch { /* non-JSON error body — keep the generic message */ }
+    } catch { /* non-JSON error body, keep the generic message */ }
     throw new ApiError(message, response.status, detail);
   }
 

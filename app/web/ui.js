@@ -125,7 +125,7 @@ export function bytes(value) {
   return `${(n / 1024 ** i).toFixed(i ? 1 : 0)} ${units[i]}`;
 }
 
-/** "3m ago" — tolerant of the API's `str(datetime)` output and of nulls. */
+/** "3m ago": tolerant of the API's `str(datetime)` output and of nulls. */
 export function ago(value) {
   if (!value) return "—";
   const raw = String(value).replace(" ", "T");

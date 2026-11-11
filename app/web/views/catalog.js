@@ -1,4 +1,4 @@
-// Catalog — products, inventory and sales analytics.
+// Catalog: products, inventory and sales analytics.
 
 import { api } from "../api.js";
 import {
@@ -130,7 +130,7 @@ function renderProducts(data) {
       categoryBreakdown(products)));
 }
 
-/** Compact distribution bar — the only chart the catalog actually needs. */
+/** Compact distribution bar: the only chart the catalog actually needs. */
 function categoryBreakdown(products) {
   const counts = new Map();
   for (const product of products) {
