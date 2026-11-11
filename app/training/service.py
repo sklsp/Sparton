@@ -1,4 +1,4 @@
-"""Leonidas — LoRA training orchestration via the Ostris AI Toolkit.
+"""Leonidas: LoRA training orchestration via the Ostris AI Toolkit.
 
 Adapted from Apollo `lora_training_service.py`: config building, subprocess
 management, and progress parsing are kept; run history now lives in SQL

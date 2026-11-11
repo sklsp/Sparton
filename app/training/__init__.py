@@ -1,4 +1,4 @@
-"""Leonidas — LoRA training domain."""
+"""Leonidas: LoRA training domain."""
 
 from app.training.hardware import HardwareInfo, detect_hardware
 from app.training.preflight import PreflightReport, advise, diagnose_failure, estimate_vram_mb

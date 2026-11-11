@@ -1,4 +1,4 @@
-"""Apollo — ComfyUI generation domain."""
+"""Apollo: ComfyUI generation domain."""
 
 from app.generation.comfyui_client import ComfyUIClient, ComfyUIError
 from app.generation.service import (

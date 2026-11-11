@@ -1,6 +1,6 @@
 """Dataset quality control: validation, duplicate detection, quality score.
 
-Ported from Apollo `app/services/dataset_validation.py` — the accidental
+Ported from Apollo `app/services/dataset_validation.py`, the accidental
 duplicate function definitions at the bottom of the original were removed
 during the port; behavior is unchanged.
 """

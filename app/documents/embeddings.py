@@ -92,7 +92,7 @@ class EmbeddingClient:
         for backend, fn in attempts:
             try:
                 vectors = fn(texts)
-            except Exception as exc:  # noqa: BLE001 — any failure falls through
+            except Exception as exc:  # noqa: BLE001, any failure falls through
                 logger.warning("Embedding backend %s unavailable (%s).", backend, exc)
                 continue
             self._backend = backend
@@ -136,7 +136,7 @@ class EmbeddingClient:
 
         Each token is hashed to a coordinate and its count accumulated; the
         caller then L2-normalizes. Two identical texts always produce identical
-        vectors, which is all the test suite needs — similarity quality is
+        vectors, which is all the test suite needs: similarity quality is
         deliberately mediocre (see docs/DECISIONS.md D-025).
         """
         vectors = np.zeros((len(texts), HASH_EMBEDDING_DIM), dtype=np.float32)

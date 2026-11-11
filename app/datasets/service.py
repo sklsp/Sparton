@@ -1,4 +1,4 @@
-"""Argo — dataset domain service.
+"""Argo: dataset domain service.
 
 Adapted from Apollo `LoRAProjectService` (dataset half): project-scoped image
 datasets with image + same-stem ``.txt`` caption pairing on disk (AI Toolkit's
@@ -164,7 +164,7 @@ class DatasetService:
 
             with Image.open(BytesIO(content)) as img:
                 width, height = img.size
-        except Exception:  # noqa: BLE001 — dimensions are advisory
+        except Exception:  # noqa: BLE001, dimensions are advisory
             pass
 
         row = DatasetImage(
