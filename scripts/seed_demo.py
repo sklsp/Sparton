@@ -16,7 +16,6 @@ generated here and written straight into the capture time series.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import random
 import sys
 from datetime import timedelta
@@ -33,13 +32,10 @@ from app.core.database.base import Base, SessionLocal, engine  # noqa: E402
 from app.core.database.ecommerce_models import (  # noqa: E402
     ChangeEvent,
     ChangeKind,
-    ChangeSeverity,
     Competitor,
     CompetitorProduct,
     CrawlStatus,
     Platform,
-    Report,
-    ReportStatus,
     Shop,
 )
 from app.core.database.identity import Organization, User  # noqa: E402
