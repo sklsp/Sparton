@@ -25,14 +25,16 @@ COPY = {
         "title": "The week for {shop}",
         "period": "Week {week} · {start} → {end}",
         "changes": "changes", "cuts": "price cuts", "rises": "price rises", "watched": "competitors watched",
-        "changes_one": "change", "cuts_one": "price cut", "rises_one": "price rise", "watched_one": "competitor watched",
+        "changes_one": "change", "cuts_one": "price cut", "rises_one": "price rise",
+        "watched_one": "competitor watched",
         "moves": "What moved",
         "col_who": "Competitor", "col_what": "Product", "col_was": "Was", "col_now": "Now", "col_delta": "Change",
         "soldout": "sold out", "back": "back in stock", "new": "new", "removed": "removed",
         "evidence": "evidence",
         "quiet": "Nothing moved this week. Sparton keeps checking.",
         "open": "Open the full report",
-        "fine": "Every number comes from comparing two readings of the same product page; the AI only writes the sentences. Each line links to the page it was read from.",
+        "fine": "Every number comes from comparing two readings of the same product page; "
+                "the AI only writes the sentences. Each line links to the page it was read from.",
         "why": "You get this because weekly reports are switched on for your Sparton account.",
         "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
         "decimal": ".", "thousands": ",",
@@ -43,22 +45,33 @@ COPY = {
         "subject_none": "Week {week}: niets bewogen bij je concurrenten",
         "title": "De week van {shop}",
         "period": "Week {week} · {start} → {end}",
-        "changes": "veranderingen", "cuts": "prijsverlagingen", "rises": "prijsverhogingen", "watched": "concurrenten gevolgd",
-        "changes_one": "verandering", "cuts_one": "prijsverlaging", "rises_one": "prijsverhoging", "watched_one": "concurrent gevolgd",
+        "changes": "veranderingen", "cuts": "prijsverlagingen", "rises": "prijsverhogingen",
+        "watched": "concurrenten gevolgd",
+        "changes_one": "verandering", "cuts_one": "prijsverlaging", "rises_one": "prijsverhoging",
+        "watched_one": "concurrent gevolgd",
         "moves": "Wat er bewoog",
         "col_who": "Concurrent", "col_what": "Product", "col_was": "Was", "col_now": "Nu", "col_delta": "Verschil",
         "soldout": "uitverkocht", "back": "weer op voorraad", "new": "nieuw", "removed": "verwijderd",
         "evidence": "bewijs",
         "quiet": "Deze week bewoog er niets. Sparton blijft meten.",
         "open": "Open het volledige rapport",
-        "fine": "Elk getal komt uit het vergelijken van twee metingen van dezelfde productpagina; de AI schrijft alleen de zinnen. Elke regel linkt naar de pagina waar hij vandaan komt.",
+        "fine": "Elk getal komt uit het vergelijken van twee metingen van dezelfde productpagina; "
+                "de AI schrijft alleen de zinnen. Elke regel linkt naar de pagina waar hij vandaan komt.",
         "why": "Je krijgt dit omdat weekrapporten aan staan voor je Sparton-account.",
         "months": ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"],
         "decimal": ",", "thousands": ".",
     },
 }
 
-INK, BOARD, CHALK, CHALK_2, WALL, PLATE, SIGNAL = "#17191b", "#202326", "#f0ede4", "#b5b3ab", "#e3e4e0", "#f7f7f4", "#f5c518"
+INK, BOARD, CHALK, CHALK_2, WALL, PLATE, SIGNAL = (
+    "#17191b",
+    "#202326",
+    "#f0ede4",
+    "#b5b3ab",
+    "#e3e4e0",
+    "#f7f7f4",
+    "#f5c518",
+)
 DOWN, UP = "#a8301c", "#1c6e3f"
 FONT = "Archivo, 'Arial Narrow', Arial, Helvetica, sans-serif"
 
@@ -102,7 +115,9 @@ def _cells(change: dict, lang: str) -> tuple[str, str, str, str]:
     return ("", _money(change.get("new_price"), lang), word, INK)
 
 
-def render_report_email(report: dict, changes: list[dict], *, lang: str = "en", report_url: str = "") -> tuple[str, str, str]:
+def render_report_email(
+    report: dict, changes: list[dict], *, lang: str = "en", report_url: str = ""
+) -> tuple[str, str, str]:
     """Return ``(subject, text, html)`` for one report in ``lang`` ("en" or "nl")."""
     lang = lang if lang in COPY else "en"
     c = COPY[lang]
@@ -117,11 +132,15 @@ def render_report_email(report: dict, changes: list[dict], *, lang: str = "en", 
 
     fmt = lambda d: f"{d.day} {c['months'][d.month - 1]}"  # noqa: E731
     period = c["period"].format(week=week, start=fmt(start), end=f"{fmt(end)} {end.year}")
-    subject = (c["subject_none"] if not total else c["subject_one"] if total == 1 else c["subject"]).format(week=week, n=total)
+    subject = (
+        c["subject_none"] if not total else c["subject_one"] if total == 1 else c["subject"]
+    ).format(week=week, n=total)
     title = c["title"].format(shop=shop)
     label = lambda n, key: c[f"{key}_one"] if n == 1 else c[key]  # noqa: E731
     counts = [(total, label(total, "changes"))]
-    for n, key in ((by_kind.get("price_decrease"), "cuts"), (by_kind.get("price_increase"), "rises"), (watched, "watched")):
+    for n, key in (
+        (by_kind.get("price_decrease"), "cuts"), (by_kind.get("price_increase"), "rises"), (watched, "watched")
+    ):
         if n:
             counts.append((n, label(n, key)))
 
@@ -153,31 +172,39 @@ def render_report_email(report: dict, changes: list[dict], *, lang: str = "en", 
         rows.append(
             "<tr>"
             f'<td style="{td}{struck}font-weight:700;">{e(ch.get("competitor") or "")}</td>'
-            f'<td style="{td}{struck}">{e(ch.get("product") or "")}<br><span class="dim" style="color:{CHALK_2};font-size:12px;">{evidence}</span></td>'
+            f'<td style="{td}{struck}">{e(ch.get("product") or "")}<br>'
+            f'<span class="dim" style="color:{CHALK_2};font-size:12px;">{evidence}</span></td>'
             f'<td style="{td}text-align:right;white-space:nowrap;color:{CHALK_2};">{e(was)}</td>'
             f'<td style="{td}text-align:right;white-space:nowrap;font-weight:700;">{e(now)}</td>'
             f'<td style="{td}text-align:right;white-space:nowrap;font-weight:800;color:{on_board};">{e(delta)}</td>'
             "</tr>"
         )
-    th = f"font-family:{FONT};font-size:11px;letter-spacing:1px;text-transform:uppercase;color:{CHALK_2};padding:6px 8px;"
+    th = (f"font-family:{FONT};font-size:11px;letter-spacing:1px;text-transform:uppercase;"
+          f"color:{CHALK_2};padding:6px 8px;")
     board = (
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{BOARD};border-radius:6px;">'
-        f'<tr><td colspan="5" style="font-family:{FONT};font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:{CHALK};padding:14px 8px 8px;">{e(c["moves"])}</td></tr>'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0"'
+        f' style="background:{BOARD};border-radius:6px;">'
+        f'<tr><td colspan="5" style="font-family:{FONT};font-size:13px;font-weight:800;'
+        f'letter-spacing:1px;text-transform:uppercase;color:{CHALK};padding:14px 8px 8px;">{e(c["moves"])}</td></tr>'
         f'<tr><td style="{th}">{e(c["col_who"])}</td><td style="{th}">{e(c["col_what"])}</td>'
-        f'<td style="{th}text-align:right;">{e(c["col_was"])}</td><td style="{th}text-align:right;">{e(c["col_now"])}</td>'
+        f'<td style="{th}text-align:right;">{e(c["col_was"])}</td>'
+        f'<td style="{th}text-align:right;">{e(c["col_now"])}</td>'
         f'<td style="{th}text-align:right;">{e(c["col_delta"])}</td></tr>'
         + "".join(rows) + "</table>"
     ) if changes else (
-        f'<p style="font-family:{FONT};font-size:16px;color:{INK};margin:0;padding:16px;background:{PLATE};border-radius:6px;">{e(c["quiet"])}</p>'
+        f'<p style="font-family:{FONT};font-size:16px;color:{INK};margin:0;'
+        f'padding:16px;background:{PLATE};border-radius:6px;">{e(c["quiet"])}</p>'
     )
     count_html = " &nbsp;·&nbsp; ".join(
         f'<strong style="font-size:20px;">{n}</strong> {e(label)}' for n, label in counts)
     button = (
-        f'<a href="{e(report_url)}" style="display:inline-block;background:{SIGNAL};color:{INK};font-family:{FONT};font-size:16px;'
+        f'<a href="{e(report_url)}" style="display:inline-block;background:{SIGNAL};'
+        f'color:{INK};font-family:{FONT};font-size:16px;'
         f'font-weight:700;text-decoration:none;padding:14px 22px;border-radius:3px;">{e(c["open"])}</a>'
     ) if report_url else ""
 
-    html = f"""<!doctype html>
+    html = (
+        f"""<!doctype html>
 <html lang="{lang}">
 <head>
 <meta charset="utf-8">
@@ -203,14 +230,20 @@ def render_report_email(report: dict, changes: list[dict], *, lang: str = "en", 
     <span style="font-family:{FONT};font-size:18px;font-weight:800;letter-spacing:6px;color:{CHALK};">SPARTON</span>
   </td></tr>
   <tr><td class="pad" style="padding:24px 20px 8px;">
-    <h1 class="ink" style="margin:0;font-family:{FONT};font-size:28px;line-height:1.1;font-weight:800;color:{INK};">{e(title)}</h1>
+    """
+        f'<h1 class="ink" style="margin:0;font-family:{FONT};font-size:28px;line-height:1.1;'
+        f'font-weight:800;color:{INK};">{e(title)}</h1>'
+        f"""
     <p class="dim" style="margin:6px 0 0;font-family:{FONT};font-size:14px;color:#43474b;">{e(period)}</p>
     <p class="ink" style="margin:16px 0 0;font-family:{FONT};font-size:14px;color:{INK};">{count_html}</p>
   </td></tr>
   <tr><td class="pad" style="padding:16px 20px;">{board}</td></tr>
   <tr><td class="pad" style="padding:8px 20px 16px;">{button}</td></tr>
   <tr><td class="pad" style="padding:8px 20px 24px;">
-    <p class="dim" style="margin:0 0 8px;font-family:{FONT};font-size:12px;line-height:1.5;color:#43474b;">{e(c["fine"])}</p>
+    """
+        f'<p class="dim" style="margin:0 0 8px;font-family:{FONT};font-size:12px;'
+        f'line-height:1.5;color:#43474b;">{e(c["fine"])}</p>'
+        f"""
     <p class="dim" style="margin:0;font-family:{FONT};font-size:12px;line-height:1.5;color:#43474b;">{e(c["why"])}</p>
   </td></tr>
 </table>
@@ -219,4 +252,5 @@ def render_report_email(report: dict, changes: list[dict], *, lang: str = "en", 
 </body>
 </html>
 """
+    )
     return subject, text, html

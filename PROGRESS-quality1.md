@@ -8,7 +8,7 @@
 - [x] S8. lint: no unused imports in app/datasets app/training (516 passed, 58 skipped, 2 warnings in 287.11s (0:04:47))
 - [x] S9. lint: no unused imports in scripts (516 passed, 58 skipped, 2 warnings in 285.23s (0:04:45))
 - [x] S10. lint: no unused imports in tests (516 passed, 58 skipped, 2 warnings in 275.97s (0:04:35))
-- [ ] S11. lint: no line over 120 characters in app/core
+- [x] S11. lint: no line over 120 characters in app/core (516 passed, 58 skipped, 2 warnings in 281.49s (0:04:41))
 - [ ] S12. lint: no line over 120 characters in app/api
 - [ ] S13. lint: no line over 120 characters in tests
 - [ ] S14. lint: the last findings by hand
