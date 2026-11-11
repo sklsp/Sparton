@@ -323,7 +323,7 @@ def training_presets(user: Annotated[object, Depends(current_user)] = None) -> d
 
 @router.get("/training/hardware")
 def hardware_info(user: Annotated[object, Depends(current_user)] = None) -> dict:
-    # Reveals the host's GPU inventory — never expose it anonymously.
+    # Reveals the host's GPU inventory: never expose it anonymously.
     return detect_hardware().to_dict()
 
 

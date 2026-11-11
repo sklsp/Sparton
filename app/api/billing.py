@@ -7,7 +7,7 @@
     POST /billing/portal        open the Customer Portal (cancel / change card)
     POST /stripe/webhook        Stripe's only callback; signature-verified
 
-`/stripe/webhook` is exempt from session auth — Stripe has no session — but
+`/stripe/webhook` is exempt from session auth (Stripe has no session), but
 **not** from signature verification, body-size limits, or rate limiting.
 """
 
@@ -108,7 +108,7 @@ def invoices(
     A user with no organization yet is a real state, not an error: an admin
     whose org was removed, or a session minted before the org was attached.
     `where(organization_id == None)` compiles to `IS NULL`, which returns every
-    *unscoped* invoice in the table — a cross-tenant read for anyone who can
+    *unscoped* invoice in the table, a cross-tenant read for anyone who can
     reach this route. No organization means no invoices, full stop.
     """
     org_id = _org_id(user)
@@ -242,7 +242,7 @@ async def stripe_webhook(
 ) -> dict:
     """Stripe's only callback.
 
-    No session auth — Stripe has no session — but every other control applies:
+    No session auth (Stripe has no session), but every other control applies:
     a hard body-size cap, a constant-time HMAC over the **raw** body, and a
     rate limit. A missing webhook secret is a deployment error, and is refused
     loudly rather than defaulting to "accept everything".

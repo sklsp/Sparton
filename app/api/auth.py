@@ -137,7 +137,7 @@ def logout(request: Request, db: DbSession) -> dict:
 
     Reads the header directly rather than via FastAPI's `HTTPBearer`: its
     `__call__` is async, so calling it from a sync handler returns a coroutine
-    instead of the credentials, and `creds.credentials` raises `AttributeError` —
+    instead of the credentials, and `creds.credentials` raises `AttributeError`,
     a 500 on the one route a user hits when something has already gone wrong.
     """
     header = request.headers.get("Authorization", "")

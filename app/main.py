@@ -5,7 +5,7 @@ domain router, and the dashboard. Apollo's CORS wildcard is replaced with an
 explicit origin allowlist; Ares' middleware/metrics stack is applied globally.
 
 The dashboard is a static ES-module SPA under app/web, served by this same
-process — no second toolchain, no build step, no separate origin.
+process: no second toolchain, no build step, no separate origin.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ class DashboardFiles(StaticFiles):
 
     Without an explicit Cache-Control, browsers apply heuristic caching to the
     dashboard's ES modules and keep serving a stale build after a deploy.
-    `no-cache` still allows a cheap 304 via the ETag — it only forbids using a
+    `no-cache` still allows a cheap 304 via the ETag: it only forbids using a
     cached copy without asking.
     """
 
@@ -140,7 +140,7 @@ def create_app() -> FastAPI:
         return response
 
     # Routers are registered conditionally. A disabled domain has NO routes at
-    # all rather than routes that 403 — strictly less attack surface
+    # all rather than routes that 403, strictly less attack surface
     # (docs/DECISIONS.md D-020).
     app.include_router(health.router)
     app.include_router(auth.router)
