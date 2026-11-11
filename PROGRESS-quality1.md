@@ -5,7 +5,7 @@
 - [x] S5. lint: no unused imports in app/core (516 passed, 58 skipped, 2 warnings in 292.27s (0:04:52))
 - [x] S6. lint: no unused imports in app/api (516 passed, 58 skipped, 2 warnings in 282.13s (0:04:42))
 - [x] S7. lint: no unused imports in app/agent app/billing app/ecommerce (516 passed, 58 skipped, 2 warnings in 293.40s (0:04:53))
-- [ ] S8. lint: no unused imports in app/datasets app/training
+- [x] S8. lint: no unused imports in app/datasets app/training (516 passed, 58 skipped, 2 warnings in 287.11s (0:04:47))
 - [ ] S9. lint: no unused imports in scripts
 - [ ] S10. lint: no unused imports in tests
 - [ ] S11. lint: no line over 120 characters in app/core

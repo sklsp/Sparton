@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
-from app.training.hardware import detect_hardware
 from app.training.preflight import advise
 
 logger = logging.getLogger(__name__)
