@@ -6,8 +6,8 @@ Dockerfile that copies a directory that no longer exists, a compose file with a
 typo in an env var, or a healthcheck pointed at a route that was renamed are
 all silent until that moment.
 
-These parse the files rather than building the image — no Docker daemon is
-available here — and assert the things that actually break.
+These parse the files rather than building the image (no Docker daemon is
+available here) and assert the things that actually break.
 """
 
 from __future__ import annotations
@@ -74,8 +74,8 @@ class TestDockerfile:
     def test_migrations_run_before_the_server(self, dockerfile):
         """Serving requests against a schema that lags the code is the most
         common way an app fails to boot. Migrations run in the same command."""
-        # The CMD instruction only, so the explanatory comment above it — which
-        # mentions `|| true` to say why it is absent — is not read as the thing.
+        # The CMD instruction only, so the explanatory comment above it (which
+        # mentions `|| true` to say why it is absent) is not read as the thing.
         cmd = dockerfile.split("\nCMD", 1)[-1]
         assert "alembic upgrade head" in cmd
         assert cmd.index("alembic upgrade head") < cmd.index("uvicorn")

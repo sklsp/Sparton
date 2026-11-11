@@ -1,4 +1,4 @@
-"""OpenRouter provider tests. Every HTTP call is mocked — no network, no key.
+"""OpenRouter provider tests. Every HTTP call is mocked, no network, no key.
 
 Covers the production requirements from docs/DECISIONS.md D-006 and D-007:
 attribution headers, retry/backoff policy, timeouts, token accounting, model
@@ -379,7 +379,7 @@ class TestDiscovery:
         )
 
     def test_is_available_is_a_real_check(self, provider, monkeypatch):
-        """Not `bool(api_key)` — it must actually reach the endpoint."""
+        """Not `bool(api_key)`: it must actually reach the endpoint."""
         calls = patch_request(monkeypatch, FakeResponse(200, MODELS_PAYLOAD))
         assert provider.is_available() is True
         assert len(calls) == 1, "is_available must contact /models"

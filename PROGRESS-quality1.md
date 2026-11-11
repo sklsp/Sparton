@@ -18,7 +18,7 @@
 - [x] S18. text: no em dashes in the comments of app/ecommerce, app/research, app/agent and app/billing (516 passed, 58 skipped, 2 warnings in 277.70s (0:04:37))
 - [x] S19. text: no em dashes in the comments of the experimental domains (516 passed, 58 skipped, 2 warnings in 278.52s (0:04:38))
 - [x] S20. text: no em dashes in the comments of workers, scripts and migrations (516 passed, 58 skipped, 2 warnings in 284.93s (0:04:44))
-- [ ] S21. text: no em dashes in the comments of tests
+- [x] S21. text: no em dashes in the comments of tests (516 passed, 58 skipped, 2 warnings in 284.26s (0:04:44))
 - [ ] S22. text: no em dashes in the comments of the web front end
 - [ ] S23. text: no em dashes in the comments of the config files
 - [ ] S24. tests: coverage is measured and CI fails when it drops

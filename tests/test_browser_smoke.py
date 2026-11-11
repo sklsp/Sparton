@@ -3,7 +3,7 @@
 Everything else in this suite talks to the app over HTTP with a synthetic
 client. That proves the API works; it does not prove the *product* works. The
 customer-facing half of SPARTON is static HTML, CSS and ES modules that fetch
-from the API — code no API test ever executes. A renamed function, a bad import
+from the API, code no API test ever executes. A renamed function, a bad import
 path, or a selector that no longer matches a button all leave the suite green
 and the product broken.
 
@@ -11,7 +11,7 @@ So this drives Chrome: landing page, signup, the dashboard, adding a shop,
 adding a competitor, and reading back that the data arrived. It runs the real
 JavaScript against the real app, in a real rendering engine.
 
-Skipped, loudly, when Playwright or a browser is not installed — the suite must
+Skipped, loudly, when Playwright or a browser is not installed: the suite must
 still pass on a machine with neither. It is a gate on the build, not a
 dependency of the test suite.
 """

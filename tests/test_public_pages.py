@@ -1,7 +1,7 @@
 """The public, unauthenticated surface: landing page, its assets, legal pages.
 
 These routes are what a prospective customer sees before they trust us with a
-credit card, and they are the easiest thing in the codebase to break silently —
+credit card, and they are the easiest thing in the codebase to break silently:
 an HTML file renders fine on disk while its stylesheet 404s. Hence tests.
 
 Also guards the dashboard's own `/app/...` mount, which must keep working

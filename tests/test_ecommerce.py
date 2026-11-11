@@ -108,7 +108,7 @@ def make_crawler(handler, delay: float = 0.0):
     """An httpx.Client whose transport is a plain function.
 
     `delay` defaults to 0 because the production policy sleeps a full second
-    between requests to the same host as a politeness floor — correct for real
+    between requests to the same host as a politeness floor, correct for real
     crawls, and a minute of dead wall-clock across this file.
     """
     import httpx
@@ -787,7 +787,7 @@ class TestAlerts:
 
 
 # ---------------------------------------------------------------------------
-# Tenant isolation — the product must not leak a single row
+# Tenant isolation: the product must not leak a single row
 # ---------------------------------------------------------------------------
 class TestTenantIsolation:
     @pytest.fixture()
