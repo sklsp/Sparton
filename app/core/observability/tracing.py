@@ -6,7 +6,7 @@ environment-driven and entirely optional:
 - OTEL_ENABLED=true + OTEL_EXPORTER_OTLP_ENDPOINT -> OTLP export
 - otherwise -> no-op tracer provider; the app behaves identically
 
-Span attributes carry only identifiers (job id, org id, route) — never
+Span attributes carry only identifiers (job id, org id, route), never
 credentials, tokens, or scraped content.
 """
 

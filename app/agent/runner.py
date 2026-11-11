@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy.orm import Session
 
 from app.agent.engine import AgentEngine
-from app.agent.registry import ToolContext, ToolRegistry
+from app.agent.registry import ToolRegistry
 from app.core.config import settings
 from app.core.database.base import SessionLocal
 from app.core.database.domain_models import AgentRun, RunStatus

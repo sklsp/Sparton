@@ -55,7 +55,7 @@ def sanitize_filename(filename: str, *, default: str = "file") -> str:
 def safe_join(root: str | Path, *parts: str) -> Path:
     """Join ``parts`` under ``root``, refusing anything that escapes it.
 
-    Rejects absolute paths, drive letters, UNC prefixes and ``..`` traversal —
+    Rejects absolute paths, drive letters, UNC prefixes and ``..`` traversal,
     checked after resolution, so symlinks and ``a/../../b`` are caught too.
     """
     base = Path(root).resolve()

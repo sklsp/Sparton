@@ -1,4 +1,4 @@
-// System — platform health, agent tools, Prometheus metrics, user admin.
+// System: platform health, agent tools, Prometheus metrics, user admin.
 
 import { api } from "../api.js";
 import {
@@ -48,7 +48,7 @@ export default function system(view, { state }) {
     reloadMetrics();
   };
 
-  // --- users (admins only — the endpoint 403s for everyone else)
+  // --- users (admins only, the endpoint 403s for everyone else)
   if (state.user?.role === "admin") {
     const usersHost = h("section.card");
     const usersBody = h("div.card-body.flush");

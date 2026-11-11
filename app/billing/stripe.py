@@ -15,7 +15,7 @@ The consequences of that choice, stated plainly:
 
 * The pinned `Stripe-Version` header means Stripe cannot change response shapes
   out from under us, which is the main argument for the official library.
-* Form encoding is mandatory — Stripe's API is not JSON. Getting it wrong
+* Form encoding is mandatory. Stripe's API is not JSON. Getting it wrong
   fails loudly and immediately, not subtly.
 * Everything goes through one `StripeClient`, so swapping to the official
   library later is a single-file change.
@@ -67,7 +67,7 @@ def _flatten(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
     A key that *already* contains a bracket (`line_items[0][price]`) is a
     pre-built leaf and must pass through untouched. Without that check it
     would be expanded into `line_items[0][price][]`, and `urlencode` would then
-    stringify the whole list — sending Stripe a parameter it silently ignores.
+    stringify the whole list, sending Stripe a parameter it silently ignores.
     """
     flat: dict[str, Any] = {}
     for key, value in data.items():

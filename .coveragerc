@@ -1,0 +1,13 @@
+# What `pytest --cov` measures. CI fails when the total drops below fail_under.
+[run]
+source = app, workers
+omit =
+    app/documents/*
+    app/generation/*
+    app/datasets/*
+    app/training/*
+
+[report]
+fail_under = 72
+show_missing = true
+skip_covered = true

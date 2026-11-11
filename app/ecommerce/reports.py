@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 from collections import Counter, defaultdict
-from decimal import Decimal
+from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any, Sequence
+from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -22,7 +23,7 @@ from app.core.database.ecommerce_models import (
     Shop,
 )
 from app.core.database.identity import Organization, User
-from app.core.database.models import as_utc, utcnow
+from app.core.database.models import utcnow
 from app.core.observability.metrics import inc
 from app.core.report_email import render_report_email
 from app.ecommerce.changes import money
@@ -433,7 +434,7 @@ def generate_report(
         return report
 
     try:
-        from app.llm import LLMError, get_llm_provider, set_usage_context
+        from app.llm import get_llm_provider, set_usage_context
 
         provider = get_llm_provider()
         # Attribute the tokens to the customer, not to NULL: this is a billable
@@ -460,7 +461,7 @@ def generate_report(
         report.completed_at = utcnow()
         report.error = None
         inc("reports_total", outcome="completed")
-    except Exception as exc:  # noqa: BLE001 — the deterministic report stands on its own
+    except Exception as exc:  # noqa: BLE001, the deterministic report stands on its own
         logger.warning("Report generation fell back to deterministic text: %s", exc)
         report.status = ReportStatus.COMPLETED
         report.error = f"AI narrative unavailable: {exc}"[:500]

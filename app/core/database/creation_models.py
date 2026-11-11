@@ -27,7 +27,7 @@ from app.core.database.models import utcnow
 
 
 # --------------------------------------------------------------------------
-# documents (Hector) — Knowledge domain
+# documents (Hector), Knowledge domain
 # --------------------------------------------------------------------------
 class Document(Base):
     __tablename__ = "documents"
@@ -39,7 +39,7 @@ class Document(Base):
     )
     title: Mapped[str] = mapped_column(String(255))
     filename: Mapped[str] = mapped_column(String(255), default="")
-    # sha256 of content — drives incremental RAG indexing / dedup
+    # sha256 of content: drives incremental RAG indexing / dedup
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
     mime_type: Mapped[str] = mapped_column(String(80), default="text/plain")
@@ -50,7 +50,7 @@ class Document(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
-    chunks: Mapped[list["DocumentChunk"]] = relationship(
+    chunks: Mapped[list[DocumentChunk]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
     )
 
@@ -93,7 +93,7 @@ class Conversation(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
-    messages: Mapped[list["ConversationMessage"]] = relationship(
+    messages: Mapped[list[ConversationMessage]] = relationship(
         back_populates="conversation",
         cascade="all, delete-orphan",
         order_by="ConversationMessage.id",
@@ -136,7 +136,7 @@ class PromptTemplate(Base):
 
 
 # --------------------------------------------------------------------------
-# generation (ComfyUI) — Create domain
+# generation (ComfyUI), Create domain
 # --------------------------------------------------------------------------
 class Workflow(Base):
     """A ComfyUI workflow library entry (graph + logical input mapping)."""
@@ -180,7 +180,7 @@ class GeneratedImage(Base):
 
 
 # --------------------------------------------------------------------------
-# datasets (Argo) — image datasets for LoRA training
+# datasets (Argo), image datasets for LoRA training
 # --------------------------------------------------------------------------
 class DatasetProject(Base):
     """Apollo LoRA 'project' split along the domain line: the image dataset
@@ -199,7 +199,7 @@ class DatasetProject(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
-    images: Mapped[list["DatasetImage"]] = relationship(
+    images: Mapped[list[DatasetImage]] = relationship(
         back_populates="dataset", cascade="all, delete-orphan"
     )
 
@@ -224,7 +224,7 @@ class DatasetImage(Base):
 
 
 # --------------------------------------------------------------------------
-# training (Leonidas) — LoRA training orchestration
+# training (Leonidas), LoRA training orchestration
 # --------------------------------------------------------------------------
 class TrainingProject(Base):
     __tablename__ = "training_projects"
@@ -243,7 +243,7 @@ class TrainingProject(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
-    runs: Mapped[list["TrainingRun"]] = relationship(
+    runs: Mapped[list[TrainingRun]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
 

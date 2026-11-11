@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 
@@ -14,18 +14,13 @@ from app.api.schemas import (
     DatasetCreateRequest,
     GenerationRequest,
     TrainingProjectCreateRequest,
-    TrainingStartRequest,
     WorkflowImportRequest,
 )
 from app.core.auth.api import DbSession, current_user
-from app.core.config import settings
 from app.core.database.creation_models import (
-    DatasetImage,
-    DatasetProject,
     GeneratedImage,
     TrainingProject,
 )
-from app.core.database.domain_models import Job
 from app.core.jobs.queue import enqueue
 from app.datasets.service import DatasetError, DatasetService
 from app.generation.comfyui_client import ComfyUIError
@@ -144,7 +139,11 @@ def generate(
 
 
 @router.get("/generated")
-def list_generated(limit: int = 50, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def list_generated(
+    limit: int = 50,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     entries = _get_comfyui().list_generated(limit=min(limit, 200))
     org = _org_id(user)
     rows = db.execute(
@@ -181,7 +180,11 @@ def read_generated(
 # Datasets (Argo)
 # --------------------------------------------------------------------------
 @router.post("/datasets", status_code=201)
-def create_dataset(payload: DatasetCreateRequest, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def create_dataset(
+    payload: DatasetCreateRequest,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     row = get_dataset_service().create_dataset(
         db,
         name=payload.name,
@@ -225,7 +228,11 @@ async def upload_dataset_image(
 
 
 @router.get("/datasets/{dataset_id}/images")
-def list_dataset_images(dataset_id: int, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def list_dataset_images(
+    dataset_id: int,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     try:
         rows = get_dataset_service().list_images(db, dataset_id, _org_id(user))
     except DatasetError as exc:
@@ -241,7 +248,13 @@ def list_dataset_images(dataset_id: int, db: DbSession = None, user: Annotated[o
 
 
 @router.put("/datasets/{dataset_id}/images/{image_id}/caption")
-def set_caption(dataset_id: int, image_id: int, body: dict, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def set_caption(
+    dataset_id: int,
+    image_id: int,
+    body: dict,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     caption = str(body.get("caption", ""))
     try:
         row = get_dataset_service().set_caption(db, dataset_id, image_id, caption, _org_id(user))
@@ -251,7 +264,12 @@ def set_caption(dataset_id: int, image_id: int, body: dict, db: DbSession = None
 
 
 @router.delete("/datasets/{dataset_id}/images/{image_id}")
-def delete_dataset_image(dataset_id: int, image_id: int, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def delete_dataset_image(
+    dataset_id: int,
+    image_id: int,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     try:
         deleted = get_dataset_service().delete_image(db, dataset_id, image_id, _org_id(user))
     except DatasetError as exc:
@@ -260,7 +278,11 @@ def delete_dataset_image(dataset_id: int, image_id: int, db: DbSession = None, u
 
 
 @router.get("/datasets/{dataset_id}/validate")
-def validate_dataset(dataset_id: int, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def validate_dataset(
+    dataset_id: int,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     try:
         return get_dataset_service().validate(db, dataset_id, _org_id(user))
     except DatasetError as exc:
@@ -268,7 +290,12 @@ def validate_dataset(dataset_id: int, db: DbSession = None, user: Annotated[obje
 
 
 @router.post("/datasets/{dataset_id}/captions")
-def generate_captions(dataset_id: int, payload: CaptionRequest, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def generate_captions(
+    dataset_id: int,
+    payload: CaptionRequest,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     try:
         results = get_dataset_service().generate_captions(
             db, dataset_id, _org_id(user),
@@ -296,7 +323,7 @@ def training_presets(user: Annotated[object, Depends(current_user)] = None) -> d
 
 @router.get("/training/hardware")
 def hardware_info(user: Annotated[object, Depends(current_user)] = None) -> dict:
-    # Reveals the host's GPU inventory — never expose it anonymously.
+    # Reveals the host's GPU inventory: never expose it anonymously.
     return detect_hardware().to_dict()
 
 
@@ -306,7 +333,11 @@ def preflight(options: dict, db: DbSession = None, user: Annotated[object, Depen
 
 
 @router.post("/training/projects", status_code=201)
-def create_training_project(payload: TrainingProjectCreateRequest, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def create_training_project(
+    payload: TrainingProjectCreateRequest,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     row = TrainingProject(
         organization_id=_org_id(user),
         dataset_id=payload.dataset_id,

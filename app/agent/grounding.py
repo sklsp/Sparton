@@ -1,7 +1,7 @@
 """Tool execution grounding.
 
 Ported from Ares `app/agent/grounding.py` (unchanged behavior). Guarantees
-the agent cannot present fabricated facts after a tool failure — enforced in
+the agent cannot present fabricated facts after a tool failure, enforced in
 code, not prompt.
 """
 

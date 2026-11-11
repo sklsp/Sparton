@@ -1,4 +1,4 @@
-"""Athena tools — namespaced capabilities across all SPARTON domains.
+"""Athena tools: namespaced capabilities across all SPARTON domains.
 
 READ/WRITE classification is the approval boundary. Domain services are
 attached to the ToolContext at engine build time.
@@ -6,22 +6,17 @@ attached to the ToolContext at engine build time.
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.agent.registry import ToolAccess, ToolContext, ToolRegistry
 from app.core.database.creation_models import (
-    DatasetImage,
     DatasetProject,
     Document,
     GeneratedImage,
     TrainingProject,
 )
 from app.core.database.domain_models import (
-    ExternalProduct,
-    ExternalStore,
     Inventory,
     Opportunity,
     Product,
@@ -191,7 +186,7 @@ def get_sales_summary(ctx: ToolContext, params: GetSalesSummaryInput) -> dict:
 
 
 def update_product(ctx: ToolContext, params: UpdateProductInput) -> dict:
-    """WRITE tool — pauses the run for human approval before executing."""
+    """WRITE tool, pauses the run for human approval before executing."""
     row = ctx.db.get(Product, params.product_id)
     if row is None or (ctx.organization_id is not None and row.organization_id != ctx.organization_id):
         raise ValueError(f"Product {params.product_id} not found")
@@ -258,7 +253,7 @@ def list_generated_images(ctx: ToolContext, params: ListGeneratedImagesInput) ->
 
 
 def generate_image(ctx: ToolContext, params: GenerateImageInput) -> dict:
-    """WRITE tool — queues a paid GPU generation; requires approval."""
+    """WRITE tool, queues a paid GPU generation; requires approval."""
     service = ctx.services.get("comfyui")
     if service is None:
         from app.generation.service import ComfyUIService
@@ -276,7 +271,7 @@ def generate_image(ctx: ToolContext, params: GenerateImageInput) -> dict:
 
 
 def start_training(ctx: ToolContext, params: StartTrainingInput) -> dict:
-    """WRITE tool — starts a long-running training run; requires approval."""
+    """WRITE tool, starts a long-running training run; requires approval."""
     project = ctx.db.get(TrainingProject, params.project_id)
     if project is None or (ctx.organization_id is not None and project.organization_id != ctx.organization_id):
         raise ValueError(f"Training project {params.project_id} not found")

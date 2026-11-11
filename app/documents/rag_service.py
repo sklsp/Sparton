@@ -1,6 +1,6 @@
 """RAG orchestration: incremental indexing, retrieval, context formatting.
 
-Adapted from Apollo `RAGService` — proven incremental-indexing logic keyed by
+Adapted from Apollo `RAGService`, proven incremental-indexing logic keyed by
 content hash + embedding model identity, restart-safe persistence, and
 citation-friendly retrieval.
 """
@@ -209,7 +209,7 @@ class RAGService:
         store = self._store
         if store is None:
             return
-        for chunk in store._chunks:  # noqa: SLF001 — same-package access
+        for chunk in store._chunks:  # noqa: SLF001, same-package access
             entry = self._versions.setdefault(
                 chunk.doc_id,
                 {"hash": "", "chunks": 0, "filename": chunk.filename},

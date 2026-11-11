@@ -444,7 +444,7 @@ class TestConfiguredModelsStillExist:
 
     def test_no_shipped_assignment_still_names_a_retired_model(self):
         """Only real assignments count, not the comment explaining the change.
-        
+
         A prose mention is the record of why the id changed; an assignment is
         what the app would actually call.'
         """
@@ -528,8 +528,9 @@ class TestTheLaunchChecklistIsReal:
             assert path in paths, f"{path} does not exist"
 
     def test_the_legal_paths_it_names_are_real(self, launch):
-        from app.main import create_app
         from fastapi.testclient import TestClient
+
+        from app.main import create_app
 
         client = TestClient(create_app())
         for path in ("/legal/privacy", "/legal/terms", "/legal/dpa"):

@@ -7,9 +7,20 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 
+from app.api.schemas import (
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    LanguageRequest,
+    LoginRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+    TokenResponse,
+    UserSettingsUpdate,
+    VerifyRequest,
+)
 from app.core import email
 from app.core.auth import tokens
-from app.core.auth.api import DbSession, current_user, unverified_user
+from app.core.auth.api import DbSession, unverified_user
 from app.core.auth.service import (
     audit,
     create_session,
@@ -23,17 +34,6 @@ from app.core.database.billing_models import AuthTokenPurpose
 from app.core.database.identity import Organization, Session, User
 from app.core.observability.metrics import inc
 from app.core.security.rate_limit import rate_limit
-from app.api.schemas import (
-    ChangePasswordRequest,
-    ForgotPasswordRequest,
-    LanguageRequest,
-    LoginRequest,
-    RegisterRequest,
-    ResetPasswordRequest,
-    TokenResponse,
-    UserSettingsUpdate,
-    VerifyRequest,
-)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -137,7 +137,7 @@ def logout(request: Request, db: DbSession) -> dict:
 
     Reads the header directly rather than via FastAPI's `HTTPBearer`: its
     `__call__` is async, so calling it from a sync handler returns a coroutine
-    instead of the credentials, and `creds.credentials` raises `AttributeError` —
+    instead of the credentials, and `creds.credentials` raises `AttributeError`,
     a 500 on the one route a user hits when something has already gone wrong.
     """
     header = request.headers.get("Authorization", "")

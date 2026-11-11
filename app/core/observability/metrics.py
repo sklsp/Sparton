@@ -44,7 +44,7 @@ class Timer:
     def __init__(self, name: str, **labels: str) -> None:
         self.name, self.labels = name, labels
 
-    def __enter__(self) -> "Timer":
+    def __enter__(self) -> Timer:
         self._start = time.perf_counter()
         return self
 

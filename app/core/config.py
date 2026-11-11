@@ -2,7 +2,7 @@
 
 One pydantic-settings object for the whole platform (Ares foundation,
 extended with Apollo's local-creation settings). All settings are
-environment driven (12-factor). Nothing secret is ever hardcoded here —
+environment driven (12-factor). Nothing secret is ever hardcoded here:
 defaults are only provided for values that are safe to publish.
 """
 
@@ -137,14 +137,14 @@ class Settings(BaseSettings):
     # Bounded retries for invalid tool arguments / failed tool calls.
     max_tool_retries: int = 2
     # Strict grounding: the agent may not state operational facts unless a
-    # tool call actually succeeded. Default ON — fabricated data is worse
+    # tool call actually succeeded. Default ON: fabricated data is worse
     # than an honest failure.
     strict_tool_grounding: bool = True
 
     # --- HTTP -----------------------------------------------------------
     # Only first-party origins by default. The dashboard and landing page are
-    # served from this same process, so the browser never needs CORS at all —
-    # this list exists purely for third-party API clients.
+    # served from this same process, so the browser never needs CORS at all.
+    # This list exists purely for third-party API clients.
     cors_origins: str = "http://localhost:8000,http://127.0.0.1:8000"
     log_level: str = "INFO"
     # Machine principal for server-to-server calls and Prometheus scrapes.
@@ -156,8 +156,8 @@ class Settings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     embedding_fallback_model: str = "all-MiniLM-L6-v2"
     # Which embedding backend to use: "auto" walks ollama -> sentence-transformers
-    # -> hash. Force "hash" for an offline, deterministic, no-download setup —
-    # this is what keeps `pytest` from hanging on a model fetch.
+    # -> hash. Force "hash" for an offline, deterministic, no-download setup.
+    # This is what keeps `pytest` from hanging on a model fetch.
     embedding_backend: str = "auto"
     rag_chunk_size: int = 800
     rag_chunk_overlap: int = 150

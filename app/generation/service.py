@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
-from app.generation.comfyui_client import ComfyUIError, ComfyUIClient
+from app.generation.comfyui_client import ComfyUIClient, ComfyUIError
 
 logger = logging.getLogger(__name__)
 
@@ -386,7 +386,7 @@ class ComfyUIService:
     def _save_outputs(self, job_key: str, outputs: dict) -> list[str]:
         saved: list[str] = []
         for node_output in outputs.values():
-            for index, image in enumerate(node_output.get("images", [])):
+            for image in node_output.get("images", []):
                 filename = image.get("filename")
                 if not filename:
                     continue

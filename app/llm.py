@@ -419,7 +419,7 @@ class OpenAICompatibleProvider(LLMProvider):
         return headers
 
     def _connect_timeout(self) -> tuple[float, float]:
-        """(connect, read) — a black-holed host must not eat the whole budget."""
+        """(connect, read), a black-holed host must not eat the whole budget."""
         return min(10.0, self.timeout), self.timeout
 
     def _backoff_delay(self, attempt: int) -> float:
@@ -517,7 +517,7 @@ class OpenAICompatibleProvider(LLMProvider):
         completion_tokens = int(usage.get("completion_tokens") or 0)
         total = int(usage.get("total_tokens") or (prompt_tokens + completion_tokens))
         # OpenRouter's `pricing` block is USD *per token*, so the raw value is
-        # multiplied by the token count. (Not divided by 1e6 — that would be the
+        # multiplied by the token count. (Not divided by 1e6, that would be the
         # per-million convention and is off by a factor of a million.)
         price = self._pricing.get(model)
         cost = (
@@ -548,7 +548,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 db.commit()
             finally:
                 db.close()
-        except Exception as exc:  # noqa: BLE001 — never fail a request over accounting
+        except Exception as exc:  # noqa: BLE001, never fail a request over accounting
             logger.warning("Could not record LLM usage: %s", exc)
 
     # ------------------------------------------------------------------
@@ -638,7 +638,7 @@ class OpenAICompatibleProvider(LLMProvider):
     def list_models(self) -> list[str]:
         """Model ids this account can route to, via ``GET /models``.
 
-        Raises LLMError when the endpoint cannot be reached — an empty list
+        Raises LLMError when the endpoint cannot be reached: an empty list
         would be indistinguishable from "the account has no models", which is a
         very different operational signal.
         """
@@ -709,7 +709,7 @@ class OpenAICompatibleProvider(LLMProvider):
 
 
 class DeterministicProvider(LLMProvider):
-    """Fixture provider for tests/CI — no network, fully predictable.
+    """Fixture provider for tests/CI: no network, fully predictable.
 
     Emits a JSON tool-call decision when the last message asks for JSON,
     otherwise echoes a grounded summary of the conversation.

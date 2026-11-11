@@ -51,7 +51,7 @@ def _fail(db, job: Job, exc: Exception) -> None:
             current.error = str(exc)[:2000]
             current.completed_at = utcnow()
             db.commit()
-    except Exception:  # noqa: BLE001 — the original failure is what matters
+    except Exception:  # noqa: BLE001, the original failure is what matters
         db.rollback()
 
 
@@ -280,8 +280,6 @@ def schedule_due_crawls(payload: dict) -> None:
     enqueues; the per-shop ``crawl:{id}:{date}`` idempotency key means running it
     twice in the same day is harmless.
     """
-    from datetime import datetime, timezone
-
     db = SessionLocal()
     try:
         now = utcnow()

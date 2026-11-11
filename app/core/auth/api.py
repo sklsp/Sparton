@@ -2,8 +2,8 @@
 
 Resolves the caller's identity for every request:
 
-1. ``Authorization: Bearer <session token>`` — an interactive user session.
-2. ``X-API-Key: <shared key>`` — a machine principal (server-to-server),
+1. ``Authorization: Bearer <session token>``: an interactive user session.
+2. ``X-API-Key: <shared key>``: a machine principal (server-to-server),
    valid only when ``API_KEY`` is configured; maps to a synthetic admin
    user with no organization (sees all tenants).
 
@@ -85,7 +85,7 @@ def current_user(
     here rather than in request middleware.
 
     Requires a verified email. Recovery routes must use
-    :func:`unverified_user` instead — see the note there.
+    :func:`unverified_user` instead, see the note there.
     """
     principal = _resolve_principal(request, db)
     _require_verified(principal)
@@ -104,7 +104,7 @@ def unverified_user(
     password they were emailed about. They would be stuck outside their own
     account with no way back in.
 
-    Use this only on routes whose entire job is recovery — reading who you are,
+    Use this only on routes whose entire job is recovery: reading who you are,
     resending verification, changing a password. Everything that touches a
     tenant's data stays behind :func:`current_user`.
     """
@@ -159,7 +159,7 @@ def _authenticate(request: Request, db: Session) -> User | MachineUser:
     #
     # There is deliberately NO "no API_KEY configured, so let everyone in"
     # fallback. MachineUser.organization_id is None, which every query path
-    # reads as "sees all tenants" — so an unset API_KEY used to turn a
+    # reads as "sees all tenants", so an unset API_KEY used to turn a
     # forgotten env var into a public cross-tenant read/write window.
     # Local development registers a user like any other client.
     raise HTTPException(
@@ -173,7 +173,7 @@ def require_role(required: str):
     """Dependency factory: gate an endpoint behind a minimum role level."""
 
     def dependency(user: Annotated[User | MachineUser, Depends(current_user)]):
-        from app.core.auth.service import ROLE_LEVEL, role_at_least
+        from app.core.auth.service import role_at_least
 
         if not role_at_least(getattr(user, "role", ""), required):
             raise HTTPException(

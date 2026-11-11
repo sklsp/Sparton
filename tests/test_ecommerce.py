@@ -11,9 +11,9 @@ the report writer.
 from __future__ import annotations
 
 import json
-from decimal import Decimal
 from dataclasses import replace
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
@@ -26,7 +26,6 @@ from app.core.database.ecommerce_models import (
     Competitor,
     CompetitorProduct,
     CrawlStatus,
-    Report,
     ReportStatus,
     Shop,
 )
@@ -58,10 +57,10 @@ def product_html(name: str, price: str, *, available: str = "InStock") -> str:
         },
     }
     return (
-        "<html><head><title>{name}</title>"
-        '<script type="application/ld+json">{json}</script>'
-        "</head><body><h1>{name}</h1></body></html>"
-    ).format(name=name, json=json.dumps(payload))
+        f"<html><head><title>{name}</title>"
+        f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+        f"</head><body><h1>{name}</h1></body></html>"
+    )
 
 
 def listing_html(products: list[tuple[str, str]], base: str) -> str:
@@ -109,7 +108,7 @@ def make_crawler(handler, delay: float = 0.0):
     """An httpx.Client whose transport is a plain function.
 
     `delay` defaults to 0 because the production policy sleeps a full second
-    between requests to the same host as a politeness floor — correct for real
+    between requests to the same host as a politeness floor, correct for real
     crawls, and a minute of dead wall-clock across this file.
     """
     import httpx
@@ -788,7 +787,7 @@ class TestAlerts:
 
 
 # ---------------------------------------------------------------------------
-# Tenant isolation — the product must not leak a single row
+# Tenant isolation: the product must not leak a single row
 # ---------------------------------------------------------------------------
 class TestTenantIsolation:
     @pytest.fixture()

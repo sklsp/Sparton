@@ -16,7 +16,7 @@ from app.core.database.identity import User
 #: Every one of these answered 200 with no credentials before the fix. The
 #: list is the audit's "endpoints with no auth dependency" finding, verbatim.
 #: Several now live behind feature flags and answer 404, which is an equally
-#: correct outcome — 404 is "this does not exist", 401 is "you must sign in",
+#: correct outcome. 404 is "this does not exist", 401 is "you must sign in",
 #: and neither is "here is the data".
 UNGUARDED_AT_AUDIT_TIME = [
     "/rag/status",
@@ -59,7 +59,7 @@ def test_no_anonymous_cross_tenant_fallback(client, db_session):
     """Audit P0-A: an unset API_KEY used to grant a cross-tenant admin.
 
     `MachineUser.organization_id is None`, and every query path reads that as
-    "sees all tenants" — so the old `if not settings.api_key: return anon`
+    "sees all tenants", so the old `if not settings.api_key: return anon`
     branch turned a forgotten env var into a public read/write window.
     """
     from app.core.config import settings
@@ -78,7 +78,7 @@ def test_no_anonymous_cross_tenant_fallback(client, db_session):
 
 
 def test_api_key_principal_still_works_when_configured(client, db_session, monkeypatch):
-    """The machine principal is still available — it is just explicit now."""
+    """The machine principal is still available: it is just explicit now."""
     from app.core.config import settings
     from app.core.security import rate_limit
 

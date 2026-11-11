@@ -2,7 +2,7 @@
 
 Every capability the agent has is a `Tool`: a name, a description, a
 validated input schema, a read/write classification and an implementation.
-The classification is the safety boundary — the engine executes READ tools
+The classification is the safety boundary: the engine executes READ tools
 immediately and routes WRITE tools through human approval.
 
 Extended from Ares' registry with SPARTON domain namespaces:

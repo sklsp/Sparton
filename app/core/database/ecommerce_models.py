@@ -1,4 +1,4 @@
-"""Sparton Intelligence — the product schema.
+"""Sparton Intelligence: the product schema.
 
 This is the loop a customer pays for:
 
@@ -104,7 +104,7 @@ class ReportStatus:
 
 
 # --------------------------------------------------------------------------
-# Shops — the customer's own storefront
+# Shops: the customer's own storefront
 # --------------------------------------------------------------------------
 class Shop(Base):
     """One customer storefront that competitors are benchmarked against."""
@@ -147,7 +147,7 @@ class Shop(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
-    competitors: Mapped[list["Competitor"]] = relationship(
+    competitors: Mapped[list[Competitor]] = relationship(
         back_populates="shop", cascade="all, delete-orphan"
     )
 
@@ -196,14 +196,14 @@ class Competitor(Base):
         DateTime(timezone=True), default=utcnow, index=True
     )
 
-    shop: Mapped["Shop | None"] = relationship(back_populates="competitors")
-    products: Mapped[list["CompetitorProduct"]] = relationship(
+    shop: Mapped[Shop | None] = relationship(back_populates="competitors")
+    products: Mapped[list[CompetitorProduct]] = relationship(
         back_populates="competitor", cascade="all, delete-orphan"
     )
 
 
 # --------------------------------------------------------------------------
-# Competitor products — a time series, one row per capture
+# Competitor products: a time series, one row per capture
 # --------------------------------------------------------------------------
 class CompetitorProduct(Base):
     """One capture of one product at one competitor.
@@ -264,7 +264,7 @@ class CompetitorProduct(Base):
     #: Barcode (GTIN/EAN) when the shop publishes one. The strongest key for
     #: pairing this product with one in the customer's own catalogue.
     gtin: Mapped[str] = mapped_column(String(32), default="", index=True)
-    #: json-ld / opengraph / html — how confidently we read the price.
+    #: json-ld / opengraph / html: how confidently we read the price.
     extraction_method: Mapped[str] = mapped_column(String(24), default="unknown")
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
 
@@ -272,7 +272,7 @@ class CompetitorProduct(Base):
         DateTime(timezone=True), default=utcnow, index=True
     )
 
-    competitor: Mapped["Competitor"] = relationship(back_populates="products")
+    competitor: Mapped[Competitor] = relationship(back_populates="products")
 
 
 # --------------------------------------------------------------------------
@@ -368,7 +368,7 @@ class ProductMatch(Base):
 
 
 # --------------------------------------------------------------------------
-# Change events — the in-app alert inbox
+# Change events: the in-app alert inbox
 # --------------------------------------------------------------------------
 class ChangeEvent(Base):
     """One detected change, with a link to the evidence that proves it."""

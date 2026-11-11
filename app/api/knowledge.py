@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -10,7 +9,6 @@ from sqlalchemy import or_, select
 
 from app.api.schemas import ChatRequest, ChatResponse, PromptTemplateCreate
 from app.core.auth.api import DbSession, current_user
-from app.core.config import settings
 from app.core.database.creation_models import (
     Conversation,
     ConversationMessage,
@@ -120,7 +118,11 @@ DEFAULT_TEMPLATE = (
 
 
 @router.post("/chat", response_model=ChatResponse)
-def chat(payload: ChatRequest, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> ChatResponse:
+def chat(
+    payload: ChatRequest,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> ChatResponse:
     """RAG-augmented chat with persisted conversation history."""
     org = _org_id(user)
 
@@ -246,7 +248,11 @@ def list_prompts(db: DbSession = None, user: Annotated[object, Depends(current_u
 
 
 @router.post("/prompts", status_code=201)
-def create_prompt(payload: PromptTemplateCreate, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def create_prompt(
+    payload: PromptTemplateCreate,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     row = PromptTemplate(
         organization_id=_org_id(user),
         key=payload.key,

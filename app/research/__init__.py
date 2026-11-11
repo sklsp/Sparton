@@ -1,4 +1,4 @@
-"""Odysseus — research & market intelligence domain."""
+"""Odysseus: research & market intelligence domain."""
 
 from app.research.crawler import CrawlPolicy, ResponsibleCrawler, SSRFBlockedError
 from app.research.discovery import DuckDuckGoProvider, SearchProvider

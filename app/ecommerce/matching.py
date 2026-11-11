@@ -18,9 +18,10 @@ prices. Only a barcode match is ever called certain (`MatchConfidence`).
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Callable
+from typing import Any
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session

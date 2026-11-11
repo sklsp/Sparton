@@ -1,4 +1,4 @@
-"""Feature flags — which domains exist at all.
+"""Feature flags: which domains exist at all.
 
 A flag checked at **router registration**, not at request time. A disabled
 domain has no routes whatsoever, rather than routes that return 403. That is

@@ -1,4 +1,4 @@
-"""Sparton Intelligence — the customer-facing API.
+"""Sparton Intelligence: the customer-facing API.
 
     POST   /shops                     add your shop URL
     GET    /shops                     list your shops
@@ -22,7 +22,7 @@
 
 Every handler resolves its tenant from the authenticated principal and filters
 on it explicitly. Plan limits (Phase 4) are enforced server-side at each
-mutating route — the browser never decides what a customer may do.
+mutating route. The browser never decides what a customer may do.
 """
 
 from __future__ import annotations
@@ -46,10 +46,10 @@ from app.ecommerce.discovery import (
     shop_already_tracked,
     suggest_competitors,
 )
-from app.ecommerce.urls import InvalidShopUrl, normalize_url
 from app.ecommerce.feeds import source_label
 from app.ecommerce.matching import comparisons, match_for, own_history
 from app.ecommerce.reports import report_to_dict
+from app.ecommerce.urls import InvalidShopUrl, normalize_url
 
 router = APIRouter(tags=["intelligence"])
 
@@ -694,7 +694,7 @@ def get_report(
 
 
 # ---------------------------------------------------------------------------
-# Overview — the dashboard's single call
+# Overview: the dashboard's single call
 # ---------------------------------------------------------------------------
 @router.get("/overview")
 def overview(

@@ -39,8 +39,8 @@ def main(base: str, paths: list[str], full: bool = True) -> int:
                                           reduced_motion="reduce")
                 page = ctx.new_page()
                 errors: list[str] = []
-                page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-                page.on("pageerror", lambda e: errors.append(str(e)))
+                page.on("console", lambda m, errors=errors: errors.append(m.text) if m.type == "error" else None)
+                page.on("pageerror", lambda e, errors=errors: errors.append(str(e)))
                 page.goto(f"{base}/", wait_until="domcontentloaded")
                 page.evaluate("l => localStorage.setItem('sparton.lang', l)", lang)
                 for path in paths:

@@ -1,4 +1,4 @@
-"""Change detection — the part customers actually pay for.
+"""Change detection: the part customers actually pay for.
 
 **This module contains no LLM calls at all** (docs/DECISIONS.md D-029). It is
 arithmetic over two captures. That is a deliberate product decision:
@@ -22,8 +22,8 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select

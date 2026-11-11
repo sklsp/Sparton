@@ -19,20 +19,19 @@ import sys
 import time
 import uuid
 
+import workers.handlers  # noqa: F401, register domain job handlers
 from app.core.config import settings
 from app.core.jobs.heartbeat import write_heartbeat
 from app.core.jobs.transport import get_backend, get_handler
 from app.core.observability.logging_config import configure_logging, get_logger
 from app.core.observability.metrics import inc, observe
 
-import workers.handlers  # noqa: F401 — register domain job handlers
-
 logger = get_logger(__name__)
 
 POLL_TIMEOUT_SECONDS = 1.0
 RECLAIM_INTERVAL_SECONDS = 30.0
 STALE_PROCESSING_SECONDS = 300.0
-# Exponential backoff for retries (seconds): 5, 15, 45 — capped.
+# Exponential backoff for retries (seconds): 5, 15, 45, capped.
 BACKOFF_BASE_SECONDS = 5.0
 BACKOFF_CAP_SECONDS = 600.0
 MAX_ATTEMPTS = 3

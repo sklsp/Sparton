@@ -6,7 +6,7 @@ projects are the central cross-domain workspace entity.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -40,7 +40,7 @@ class Organization(Base):
     language: Mapped[str] = mapped_column(String(8), default="en", server_default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    users: Mapped[list["User"]] = relationship(back_populates="organization")
+    users: Mapped[list[User]] = relationship(back_populates="organization")
 
 
 class User(Base):
@@ -69,7 +69,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     organization: Mapped[Organization] = relationship(back_populates="users")
-    sessions: Mapped[list["Session"]] = relationship(
+    sessions: Mapped[list[Session]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -94,9 +94,7 @@ class Session(Base):
             return False
         expires = self.expires_at
         if expires.tzinfo is None:
-            from datetime import timezone
-
-            expires = expires.replace(tzinfo=timezone.utc)
+            expires = expires.replace(tzinfo=UTC)
         return expires > utcnow()
 
 

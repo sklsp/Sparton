@@ -1,4 +1,4 @@
-"""Subscription state — the only writer of paid plans.
+"""Subscription state: the only writer of paid plans.
 
 The rule this module exists to enforce (D-014): **a Stripe webhook is the only
 thing that grants a paid plan.** The post-checkout redirect is a UX affordance
@@ -25,7 +25,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.billing.plans import BUSINESS, DEFAULT_PLAN, FREE, PRO, check_crawl_frequency, get_plan
+from app.billing.plans import BUSINESS, DEFAULT_PLAN, FREE, PRO, check_crawl_frequency
 from app.billing.stripe import StripeClient
 from app.core.config import settings
 from app.core.database.billing_models import (
@@ -35,7 +35,6 @@ from app.core.database.billing_models import (
     SubscriptionStatus,
 )
 from app.core.database.identity import Organization
-from app.core.database.models import utcnow
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,5 @@
 # ============================================================
-# SPARTON — Git ignore
+# SPARTON: Git ignore
 # --- Read-only source/reference repositories (NEVER commit) ---
 /Apollo/
 /Ares/

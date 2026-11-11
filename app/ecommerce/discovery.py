@@ -20,11 +20,11 @@ import logging
 from typing import Any
 from urllib.parse import urlparse
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database.ecommerce_models import Competitor, Platform, Shop
+from app.core.database.ecommerce_models import Competitor, Shop
 from app.core.database.models import utcnow
 from app.ecommerce.urls import InvalidShopUrl, normalize_url
 from app.research.crawler import _is_public_http_url
@@ -53,7 +53,7 @@ _PLATFORM_SUFFIXES = frozenset({
 })
 
 #: Public suffixes that are two labels rather than one. A short, hardcoded list
-#: covering what European e-commerce actually uses — a full Public Suffix List
+#: covering what European e-commerce actually uses: a full Public Suffix List
 #: is a multi-megabyte dependency for no benefit here.
 _TWO_PART_SUFFIXES = frozenset({
     "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk", "net.uk",
@@ -84,7 +84,7 @@ def shop_already_tracked(db: Session, organization_id: int | None, domain: str) 
     """Has this tenant already added this domain?
 
     Checked by the API *before* the plan limit, so a customer re-adding a shop
-    is told "you already have it" rather than "upgrade your plan" — the second
+    is told "you already have it" rather than "upgrade your plan": the second
     message is both wrong and a way to make a limit feel arbitrary (D-009).
     """
     return db.execute(
@@ -267,7 +267,7 @@ def suggest_competitors(
     owns = search is None
     try:
         urls = provider.search(search_query, limit=cap * 3)
-    except Exception as exc:  # noqa: BLE001 — a search outage is not an error
+    except Exception as exc:  # noqa: BLE001, a search outage is not an error
         logger.warning("Competitor search failed for %s: %s", shop.domain, exc)
         return []
     finally:

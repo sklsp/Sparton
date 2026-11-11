@@ -1,4 +1,4 @@
-"""Leonidas — LoRA training orchestration via the Ostris AI Toolkit.
+"""Leonidas: LoRA training orchestration via the Ostris AI Toolkit.
 
 Adapted from Apollo `lora_training_service.py`: config building, subprocess
 management, and progress parsing are kept; run history now lives in SQL
@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
-from app.training.hardware import detect_hardware
 from app.training.preflight import advise
 
 logger = logging.getLogger(__name__)

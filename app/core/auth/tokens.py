@@ -8,7 +8,7 @@ Both flows share this module (D-011). The invariants:
 * A token is single-use: consuming it stamps ``used_at``.
 * Issuing a new token **invalidates the previous one for the same purpose**,
   so a forwarded old email cannot be used after a re-request.
-* Nothing here ever raises for a "no such token" — callers get ``None`` and
+* Nothing here ever raises for a "no such token", callers get ``None`` and
   answer with a message that does not confirm whether the account exists.
 """
 
@@ -17,7 +17,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -98,7 +98,7 @@ def consume(db: Session, token: str, purpose: str) -> User | None:
 def is_verified(user) -> bool:
     """Is this principal allowed to use the product?
 
-    When verification is not required — local development, and the test suite —
+    When verification is not required (local development, and the test suite),
     everyone is allowed. In production an unverified account is refused at the
     product boundary, not at signup, so a customer can still sign in and resend
     the link (D-010).
@@ -116,9 +116,9 @@ def mark_verified(db: Session, user: User) -> None:
 
 def purge_expired(db: Session) -> int:
     """Delete tokens that are used or expired. Called by the scheduler."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    cutoff = datetime.now(UTC) - timedelta(days=7)
     result = db.execute(
         AuthToken.__table__.delete().where(
             (AuthToken.used_at.isnot(None)) | (AuthToken.expires_at < cutoff)

@@ -1,4 +1,4 @@
-// Knowledge — document library, RAG index health, grounded chat.
+// Knowledge: document library, RAG index health, grounded chat.
 
 import { api } from "../api.js";
 import {

@@ -39,8 +39,8 @@ from app.core.database.billing_models import (
 )
 from app.core.database.ecommerce_models import Shop
 from app.core.database.identity import Organization, User
-from app.core.database.usage_models import LLMUsage
 from app.core.database.models import utcnow
+from app.core.database.usage_models import LLMUsage
 
 WEBHOOK_SECRET = "whsec_test_secret"
 
@@ -638,8 +638,8 @@ class TestStripeClient:
 class TestAuthTokens:
     def test_a_token_is_stored_hashed_not_in_plaintext(self, db_session, org_id):
         """A database dump must not hand over working reset links."""
-        from app.core.auth.service import hash_password
         from app.core.auth import tokens
+        from app.core.auth.service import hash_password
         from app.core.database.billing_models import AuthToken
 
         user = User(
@@ -656,8 +656,8 @@ class TestAuthTokens:
         assert plain not in row.token_hash
 
     def test_a_token_is_single_use(self, db_session, org_id):
-        from app.core.auth.service import hash_password
         from app.core.auth import tokens
+        from app.core.auth.service import hash_password
 
         user = User(organization_id=org_id, email="once@example.com",
                     password_hash=hash_password("long-password-1"))
@@ -670,8 +670,8 @@ class TestAuthTokens:
         assert tokens.consume(db_session, token, "reset_password") is None
 
     def test_issuing_a_new_token_invalidates_the_old_one(self, db_session, org_id):
-        from app.core.auth.service import hash_password
         from app.core.auth import tokens
+        from app.core.auth.service import hash_password
 
         user = User(organization_id=org_id, email="re@example.com",
                     password_hash=hash_password("long-password-1"))
@@ -686,8 +686,8 @@ class TestAuthTokens:
 
     def test_a_token_cannot_be_redeemed_for_another_purpose(self, db_session, org_id):
         """A verification link must not work as a password reset."""
-        from app.core.auth.service import hash_password
         from app.core.auth import tokens
+        from app.core.auth.service import hash_password
 
         user = User(organization_id=org_id, email="mix@example.com",
                     password_hash=hash_password("long-password-1"))
@@ -726,7 +726,6 @@ class TestAuthFlows:
         """If the reset was prompted by a compromise, the attacker's sessions
         must not survive it."""
         from app.core.database.identity import Session as SessionRow
-        from sqlalchemy import func, select
 
         client.post("/auth/forgot-password", json={"email": "admin@example.com"})
         db_session.query(SessionRow).delete()
@@ -754,7 +753,6 @@ class TestAuthFlows:
     def test_unverified_users_are_refused_in_production(self, client, auth_headers,
                                                         monkeypatch):
         from app.core.config import settings
-        from app.core.database.identity import User
 
         monkeypatch.setattr(settings, "sparton_env", "production", raising=False)
         response = client.get("/shops", headers=auth_headers)

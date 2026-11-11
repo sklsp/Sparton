@@ -3,7 +3,7 @@
 Everything else in this suite talks to the app over HTTP with a synthetic
 client. That proves the API works; it does not prove the *product* works. The
 customer-facing half of SPARTON is static HTML, CSS and ES modules that fetch
-from the API — code no API test ever executes. A renamed function, a bad import
+from the API, code no API test ever executes. A renamed function, a bad import
 path, or a selector that no longer matches a button all leave the suite green
 and the product broken.
 
@@ -11,7 +11,7 @@ So this drives Chrome: landing page, signup, the dashboard, adding a shop,
 adding a competitor, and reading back that the data arrived. It runs the real
 JavaScript against the real app, in a real rendering engine.
 
-Skipped, loudly, when Playwright or a browser is not installed — the suite must
+Skipped, loudly, when Playwright or a browser is not installed: the suite must
 still pass on a machine with neither. It is a gate on the build, not a
 dependency of the test suite.
 """
@@ -68,8 +68,7 @@ def live_server():
     """
     import uvicorn
 
-    from app.core.database.base import Base
-    from app.core.database.base import engine
+    from app.core.database.base import Base, engine
     from app.main import create_app
 
     db_path = ROOT / "test_browser_smoke.db"
@@ -462,7 +461,7 @@ class TestTheCompetitorViewShowsItsPriceSource:
         # An uncrawled competitor has nothing to claim, so it must not claim
         # anything: showing "exact prices" before a single page was read would
         # be a lie the customer acts on.
-        listed = self._api(page, "GET", f"/competitors")
+        listed = self._api(page, "GET", "/competitors")
         assert listed["status"] == 200, listed
         row = next(
             c for c in listed["payload"].get("competitors", listed["payload"])
@@ -545,7 +544,7 @@ class TestTenantIsolationInTheBrowser:
 
     def test_one_tenant_cannot_see_or_reach_another(self, browser, live_server):
         """Two accounts, two browser contexts, one machine.
-        
+
         Sequential rather than threaded: Playwright's sync API is bound to the
         thread that created it, so a second tenant gets its own context in this
         one. The two sessions are still genuinely separate -- separate cookies,

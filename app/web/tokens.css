@@ -1,4 +1,4 @@
-/* Sparton — The Price Board. Tokens and base atoms shared by every page.
+/* Sparton: The Price Board. Tokens and base atoms shared by every page.
    A light concourse wall; graphite boards carry the data; station yellow is the one action colour.
    Certainty is a mark, never a hue: exact = solid tile, extracted = hatched tile, sold out = struck. */
 
@@ -47,8 +47,8 @@
   --signal: #f5c518;        /* station yellow: the action colour */
   --signal-ink: #17191b;
   --signal-deep: #8a6a00;   /* yellow-family text on light ground */
-  --down: #e2553f;          /* competitor got cheaper — on the board */
-  --up: #4cb874;            /* competitor got dearer — on the board */
+  --down: #e2553f;          /* competitor got cheaper, on the board */
+  --up: #4cb874;            /* competitor got dearer, on the board */
   --down-ink: #a8301c;      /* same meanings on the wall */
   --up-ink: #1c6e3f;
   --danger: #a8301c;

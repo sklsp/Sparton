@@ -10,8 +10,7 @@ from sqlalchemy import func, select
 
 from app.api.schemas import ResearchJobRequest
 from app.core.auth.api import DbSession, current_user
-from app.core.database.base import SessionLocal
-from app.core.database.domain_models import ExternalProduct, ExternalStore, Job, Opportunity
+from app.core.database.domain_models import ExternalProduct, ExternalStore, Job
 from app.core.jobs.queue import enqueue
 from app.core.observability.metrics import inc
 from app.research.intelligence import get_opportunity, list_opportunities
@@ -104,7 +103,11 @@ def opportunities(
 
 
 @router.get("/opportunities/{opportunity_id}")
-def opportunity_detail(opportunity_id: int, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def opportunity_detail(
+    opportunity_id: int,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     row = get_opportunity(db, opportunity_id)
     org = _org_id(user)
     if row is None or (org is not None and row.organization_id != org):

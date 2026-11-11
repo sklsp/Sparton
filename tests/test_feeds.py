@@ -22,13 +22,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 
-from app.core.database.ecommerce_models import (
+from app.core.database.ecommerce_models import (  # noqa: E402 - must come after ROOT
     ChangeEvent,
     ChangeKind,
     Competitor,
     CompetitorProduct,
 )
-from app.ecommerce.feeds import (
+from app.ecommerce.feeds import (  # noqa: E402 - must come after ROOT
     SOURCE_FEED,
     SOURCE_HTML,
     SOURCE_JSONLD,

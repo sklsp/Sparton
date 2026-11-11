@@ -1,4 +1,4 @@
-// Agent — start runs, watch the live step feed, resolve approvals.
+// Agent: start runs, watch the live step feed, resolve approvals.
 
 import { api } from "../api.js";
 import {
@@ -148,7 +148,7 @@ export default function agentView(view, { refreshApprovalBadge }) {
   }
 
   /** The /events SSE endpoint is header-authenticated and EventSource cannot
-   *  send an Authorization header — a token in the URL would end up in access
+   *  send an Authorization header: a token in the URL would end up in access
    *  logs. Polling the run gives the same feed at a 2s cadence. */
   function subscribe(runId, addStep, statusHost, summaryHost, onDone) {
     const finish = async () => {

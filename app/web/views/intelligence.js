@@ -1,4 +1,4 @@
-// Intelligence — market research jobs, crawled stores, scored opportunities.
+// Intelligence: market research jobs, crawled stores, scored opportunities.
 
 import { api, settleAll, settledValue } from "../api.js";
 import {

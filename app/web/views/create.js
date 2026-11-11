@@ -1,4 +1,4 @@
-// Create — ComfyUI generation, dataset curation, LoRA training.
+// Create: ComfyUI generation, dataset curation, LoRA training.
 
 import { api, settleAll, settledValue } from "../api.js";
 import {
@@ -86,7 +86,7 @@ async function loadStatus() {
 function renderStatus({ comfy, hardware, training }) {
   const wrap = h("div");
   if (!comfy.connected) {
-    // Transport errors arrive as multi-line stack text — keep the headline.
+    // Transport errors arrive as multi-line stack text, keep the headline.
     const reason = String(comfy.error || "").split(/[(\n]/)[0].trim().slice(0, 120);
     wrap.append(banner(
       `ComfyUI is not reachable at ${comfy.base_url || "the configured address"}${reason ? ` (${reason})` : ""}. Start it locally to generate images; datasets and training remain available.`,
@@ -324,7 +324,7 @@ async function loadTraining() {
 function renderTraining({ projects, presets, status }) {
   const wrap = h("div");
 
-  // Only report configuration the backend actually filled in — a wall of
+  // Only report configuration the backend actually filled in: a wall of
   // `null` reads as broken rather than "not set up yet".
   const known = Object.entries(status || {}).filter(([, value]) =>
     value !== null && value !== undefined && value !== "");

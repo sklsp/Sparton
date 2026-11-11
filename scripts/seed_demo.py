@@ -3,7 +3,7 @@
     python scripts/seed_demo.py [--email demo@sparton.io] [--password ...] [--days 21]
 
 Idempotent: re-running tops the workspace back up rather than duplicating it.
-Development only — never point this at a production database.
+Development only. Never point this at a production database.
 
 This seeds the *whole product loop* so the dashboard has something real to
 show: a shop, three competitors, several weeks of competitor product captures,
@@ -16,7 +16,6 @@ generated here and written straight into the capture time series.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import random
 import sys
 from datetime import timedelta
@@ -33,13 +32,10 @@ from app.core.database.base import Base, SessionLocal, engine  # noqa: E402
 from app.core.database.ecommerce_models import (  # noqa: E402
     ChangeEvent,
     ChangeKind,
-    ChangeSeverity,
     Competitor,
     CompetitorProduct,
     CrawlStatus,
     Platform,
-    Report,
-    ReportStatus,
     Shop,
 )
 from app.core.database.identity import Organization, User  # noqa: E402
@@ -135,7 +131,7 @@ def seed(email: str, password: str, org_name: str, weeks: int = 3) -> None:
             print(f"  shop       {shop.name} ({shop.domain})")
 
         # --- competitors -------------------------------------------------
-        for name, domain, niche in DEMO_COMPETITORS:
+        for name, domain, _ in DEMO_COMPETITORS:
             existing = db.execute(
                 select(Competitor).where(
                     Competitor.organization_id == org.id, Competitor.domain == domain

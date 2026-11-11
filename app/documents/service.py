@@ -151,8 +151,8 @@ def _guess_mime(extension: str) -> str:
 
 
 def _chunk_list(text: str) -> list[str]:
-    from app.documents.chunking import chunk_text
     from app.core.config import settings as s
+    from app.documents.chunking import chunk_text
 
     return chunk_text(text, chunk_size=s.rag_chunk_size, overlap=s.rag_chunk_overlap)
 
