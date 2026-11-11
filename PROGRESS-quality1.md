@@ -11,7 +11,7 @@
 - [x] S11. lint: no line over 120 characters in app/core (516 passed, 58 skipped, 2 warnings in 281.49s (0:04:41))
 - [x] S12. lint: no line over 120 characters in app/api (516 passed, 58 skipped, 2 warnings in 282.57s (0:04:42))
 - [x] S13. lint: no line over 120 characters in tests (516 passed, 58 skipped, 2 warnings in 280.45s (0:04:40))
-- [ ] S14. lint: the last findings by hand
+- [x] S14. lint: the last findings by hand (516 passed, 58 skipped, 2 warnings in 282.67s (0:04:42))
 - [ ] S15. ci: a lint job keeps ruff clean
 - [ ] S16. text: no em dashes in the comments of app/core
 - [ ] S17. text: no em dashes in the comments of app/api and app/main.py, app/llm.py, app/domains.py

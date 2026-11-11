@@ -131,7 +131,7 @@ def seed(email: str, password: str, org_name: str, weeks: int = 3) -> None:
             print(f"  shop       {shop.name} ({shop.domain})")
 
         # --- competitors -------------------------------------------------
-        for name, domain, niche in DEMO_COMPETITORS:
+        for name, domain, _ in DEMO_COMPETITORS:
             existing = db.execute(
                 select(Competitor).where(
                     Competitor.organization_id == org.id, Competitor.domain == domain

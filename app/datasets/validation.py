@@ -112,7 +112,7 @@ def _mean_color(image: Any) -> tuple[float, float, float]:
 
 
 def _color_distance(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
-    return max(abs(x - y) for x, y in zip(a, b))
+    return max(abs(x - y) for x, y in zip(a, b, strict=True))
 
 
 def _is_low_entropy(hash_hex: str) -> bool:
@@ -269,8 +269,8 @@ def validate_dataset(
                 later_id, _filename_of(images, later_id), kind,
                 f"{verdict.replace('_', ' ')} vs {pair[0]}"))
 
-    if widths and len(set(zip(widths, heights))) > 1:
-        distinct = len(set(zip(widths, heights)))
+    if widths and len(set(zip(widths, heights, strict=True))) > 1:
+        distinct = len(set(zip(widths, heights, strict=True)))
         report.findings.append(ImageFinding(
             "*", "(dataset)", "dimension_inconsistency",
             f"{distinct} distinct dimensions; AI Toolkit will bucket them"))
