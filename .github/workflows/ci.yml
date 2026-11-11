@@ -55,11 +55,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install "pytest-cov==7.1.0"
 
       - name: Suite
         # The suite uses a per-process SQLite database and deterministic
         # providers, so it needs no services and makes no network calls.
-        run: pytest --junitxml=report.xml   # pytest.ini already passes -q; a second -q hides the "N passed" line
+        run: pytest --cov --cov-report=term --junitxml=report.xml   # pytest.ini already passes -q; a second -q hides the "N passed" line
 
       - name: Publish results
         if: always()

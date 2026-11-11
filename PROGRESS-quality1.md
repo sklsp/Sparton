@@ -21,5 +21,5 @@
 - [x] S21. text: no em dashes in the comments of tests (516 passed, 58 skipped, 2 warnings in 284.26s (0:04:44))
 - [x] S22. text: no em dashes in the comments of the web front end (516 passed, 58 skipped, 2 warnings in 294.49s (0:04:54))
 - [x] S23. text: no em dashes in the comments of the config files (516 passed, 58 skipped, 2 warnings in 289.38s (0:04:49))
-- [ ] S24. tests: coverage is measured and CI fails when it drops
+- [x] S24. tests: coverage is measured and CI fails when it drops (516 passed, 58 skipped, 2 warnings in 294.26s (0:04:54))
 - [ ] S25. docs: the README says how the code is checked
