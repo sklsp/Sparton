@@ -26,7 +26,7 @@ from app.core.database.ecommerce_models import (
 )
 from app.core.database.models import utcnow
 from app.ecommerce.feeds import shopfeed_available
-from app.ecommerce.matching import comparisons, price_gap, read_own_catalog, rematch
+from app.ecommerce.matching import price_gap, read_own_catalog, rematch
 
 needs_shopfeed = pytest.mark.skipif(not shopfeed_available(), reason="shopfeed is not installed")
 

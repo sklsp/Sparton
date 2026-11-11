@@ -725,8 +725,6 @@ class TestAuthFlows:
                                                   db_session):
         """If the reset was prompted by a compromise, the attacker's sessions
         must not survive it."""
-        from sqlalchemy import func, select
-
         from app.core.database.identity import Session as SessionRow
 
         client.post("/auth/forgot-password", json={"email": "admin@example.com"})
@@ -755,7 +753,6 @@ class TestAuthFlows:
     def test_unverified_users_are_refused_in_production(self, client, auth_headers,
                                                         monkeypatch):
         from app.core.config import settings
-        from app.core.database.identity import User
 
         monkeypatch.setattr(settings, "sparton_env", "production", raising=False)
         response = client.get("/shops", headers=auth_headers)

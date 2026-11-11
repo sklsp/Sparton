@@ -26,7 +26,6 @@ from app.core.database.ecommerce_models import (
     Competitor,
     CompetitorProduct,
     CrawlStatus,
-    Report,
     ReportStatus,
     Shop,
 )

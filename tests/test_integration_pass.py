@@ -9,8 +9,6 @@ factory returns a different surface depending on configuration.
 
 from __future__ import annotations
 
-import pytest
-
 
 class TestFeatureFlags:
     def test_default_deployment_has_no_non_product_routes(self, client):
