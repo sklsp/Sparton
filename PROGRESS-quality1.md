@@ -17,7 +17,7 @@
 - [x] S17. text: no em dashes in the comments of app/api and app/main.py, app/llm.py, app/domains.py (516 passed, 58 skipped, 2 warnings in 280.52s (0:04:40))
 - [x] S18. text: no em dashes in the comments of app/ecommerce, app/research, app/agent and app/billing (516 passed, 58 skipped, 2 warnings in 277.70s (0:04:37))
 - [x] S19. text: no em dashes in the comments of the experimental domains (516 passed, 58 skipped, 2 warnings in 278.52s (0:04:38))
-- [ ] S20. text: no em dashes in the comments of workers, scripts and migrations
+- [x] S20. text: no em dashes in the comments of workers, scripts and migrations (516 passed, 58 skipped, 2 warnings in 284.93s (0:04:44))
 - [ ] S21. text: no em dashes in the comments of tests
 - [ ] S22. text: no em dashes in the comments of the web front end
 - [ ] S23. text: no em dashes in the comments of the config files

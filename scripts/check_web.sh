@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Parse-check the dashboard's ES modules. Node is only needed for this check —
+# Parse-check the dashboard's ES modules. Node is only needed for this check:
 # the dashboard itself ships no build step and no node_modules.
 #
 #   sh scripts/check_web.sh

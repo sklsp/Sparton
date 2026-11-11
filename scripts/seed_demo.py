@@ -3,7 +3,7 @@
     python scripts/seed_demo.py [--email demo@sparton.io] [--password ...] [--days 21]
 
 Idempotent: re-running tops the workspace back up rather than duplicating it.
-Development only — never point this at a production database.
+Development only. Never point this at a production database.
 
 This seeds the *whole product loop* so the dashboard has something real to
 show: a shop, three competitors, several weeks of competitor product captures,

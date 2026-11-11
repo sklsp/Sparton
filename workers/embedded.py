@@ -7,7 +7,7 @@ on a background thread.
 It polls the durable ``Job`` table rather than the transport: ``claim_next``
 already claims atomically via ``UPDATE ... WHERE status = QUEUED``, so this
 is the same contract the standalone worker uses, minus the transport. The
-inline transport backend is deliberately not used here — it executes
+inline transport backend is deliberately not used here: it executes
 handlers synchronously, which would block the POST that queued the job for
 as long as the crawl takes.
 """
@@ -19,7 +19,7 @@ import threading
 import time
 import uuid
 
-import workers.handlers  # noqa: F401 — registers the domain job handlers
+import workers.handlers  # noqa: F401, registers the domain job handlers
 from app.core.database.base import SessionLocal
 from app.core.database.domain_models import Job
 from app.core.jobs.queue import claim_next, record_failure
@@ -61,7 +61,7 @@ class EmbeddedWorker:
         while not self._stop.is_set():
             try:
                 worked = self._work_once()
-            except Exception:  # noqa: BLE001 — the poll loop must outlive any job
+            except Exception:  # noqa: BLE001, the poll loop must outlive any job
                 logger.exception("Embedded worker poll failed")
                 worked = False
             if not worked:
@@ -91,7 +91,7 @@ class EmbeddedWorker:
                 observe("worker_job_duration_seconds", time.monotonic() - started)
                 logger.info("Job %s (%s) finished in %.1fs", job_id, job_type,
                             time.monotonic() - started)
-            except Exception as exc:  # noqa: BLE001 — one bad job must not stop the worker
+            except Exception as exc:  # noqa: BLE001, one bad job must not stop the worker
                 inc("worker_jobs_total", outcome="failed")
                 logger.exception("Job %s (%s) failed", job_id, job_type)
                 db.expire_all()

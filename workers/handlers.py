@@ -99,7 +99,7 @@ def register_all() -> None:
     register_handler("research", _handle_research)
     register_handler("comfy_generation", _handle_comfy_generation)
 
-    # Sparton Intelligence — the product. Imported lazily so a deployment with
+    # Sparton Intelligence: the product. Imported lazily so a deployment with
     # the domain disabled never pays for the import.
     from app.ecommerce.jobs import (
         crawl_one_competitor,
