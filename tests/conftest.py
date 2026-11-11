@@ -51,6 +51,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import select, text  # noqa: E402
 
 from app.core.database.base import Base, SessionLocal, engine  # noqa: E402
+
+# atexit runs the last-registered function first, so the engine closes before _remove_db deletes the file.
+atexit.register(engine.dispose)
 from app.llm import DeterministicProvider, set_llm_override  # noqa: E402
 from app.main import create_app  # noqa: E402
 
@@ -114,6 +117,12 @@ def _clean_rate_limits():
     reset_limits()
     yield
     reset_limits()
+
+
+@pytest.fixture(autouse=True)
+def _outbox_in_tmp(tmp_path, monkeypatch):
+    """Emails written by tests land in the test's own tmp folder, not in the repo's data/outbox."""
+    monkeypatch.setattr("app.core.email.OUTBOX_DIR", tmp_path / "outbox")
 
 
 @pytest.fixture()
