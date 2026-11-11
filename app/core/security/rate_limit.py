@@ -2,7 +2,7 @@
 
 Uses a fixed-window counter in Redis so limits are shared across API
 replicas. Falls back to the process-local limiter when REDIS_URL is not
-configured or Redis is unreachable — local development then works with no
+configured or Redis is unreachable, local development then works with no
 infrastructure, and a Redis outage degrades to per-replica limiting rather
 than blocking all traffic.
 """

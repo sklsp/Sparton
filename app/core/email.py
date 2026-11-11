@@ -1,6 +1,6 @@
 """Transactional email: verification, password reset, alerts.
 
-Sends over SMTP using the stdlib (``smtplib`` + ``email.mime``) — no
+Sends over SMTP using the stdlib (``smtplib`` + ``email.mime``). No
 dependency for the handful of messages this product sends (D-002).
 
 **When SMTP is not configured, messages are written to ``data/outbox/`` as
@@ -11,7 +11,7 @@ network, and a developer can open the file to see exactly what a customer
 would have received.
 
 Sending is best-effort by design. A mail server outage must never turn a
-successful signup into a 500 — the customer can always request a resend.
+successful signup into a 500. The customer can always request a resend.
 """
 
 from __future__ import annotations

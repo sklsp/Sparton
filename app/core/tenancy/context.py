@@ -1,6 +1,6 @@
 """Tenant context resolution (Ares foundation).
 
-The organization is ALWAYS derived from authenticated identity — never from
+The organization is ALWAYS derived from authenticated identity, never from
 client-supplied IDs. Cross-tenant access returns 404 (not 403) so responses
 do not leak whether a resource exists in another tenant.
 """

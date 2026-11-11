@@ -8,7 +8,7 @@ Both flows share this module (D-011). The invariants:
 * A token is single-use: consuming it stamps ``used_at``.
 * Issuing a new token **invalidates the previous one for the same purpose**,
   so a forwarded old email cannot be used after a re-request.
-* Nothing here ever raises for a "no such token" — callers get ``None`` and
+* Nothing here ever raises for a "no such token", callers get ``None`` and
   answer with a message that does not confirm whether the account exists.
 """
 
@@ -98,7 +98,7 @@ def consume(db: Session, token: str, purpose: str) -> User | None:
 def is_verified(user) -> bool:
     """Is this principal allowed to use the product?
 
-    When verification is not required — local development, and the test suite —
+    When verification is not required (local development, and the test suite),
     everyone is allowed. In production an unverified account is refused at the
     product boundary, not at signup, so a customer can still sign in and resend
     the link (D-010).

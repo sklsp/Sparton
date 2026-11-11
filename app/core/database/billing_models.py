@@ -3,8 +3,8 @@
 The important row here is ``Subscription`` because it is the **only** thing
 that grants a paid plan. It is written *exclusively* by the Stripe webhook
 handler (D-014): the post-checkout redirect is a UX affordance, not a payment
-signal, and a customer who closes the tab must not be left paying for nothing
-— nor must a customer who closes the tab be able to keep Pro for free.
+signal, and a customer who closes the tab must not be left paying for nothing.
+Nor must a customer who closes the tab be able to keep Pro for free.
 """
 
 from __future__ import annotations
