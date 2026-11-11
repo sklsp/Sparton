@@ -1,0 +1,25 @@
+- [x] S1. build: ruff and coverage tools with one configuration (516 passed, 58 skipped, 2 warnings in 299.66s (0:04:59))
+- [ ] S2. lint: imports sorted the same way everywhere
+- [ ] S3. lint: modern annotations, imports and UTC
+- [ ] S4. lint: stray f-prefix, missing final newline, blank lines with spaces
+- [ ] S5. lint: no unused imports in app/core
+- [ ] S6. lint: no unused imports in app/api
+- [ ] S7. lint: no unused imports in app/agent app/billing app/ecommerce
+- [ ] S8. lint: no unused imports in app/datasets app/training
+- [ ] S9. lint: no unused imports in scripts
+- [ ] S10. lint: no unused imports in tests
+- [ ] S11. lint: no line over 120 characters in app/core
+- [ ] S12. lint: no line over 120 characters in app/api
+- [ ] S13. lint: no line over 120 characters in tests
+- [ ] S14. lint: the last findings by hand
+- [ ] S15. ci: a lint job keeps ruff clean
+- [ ] S16. text: no em dashes in the comments of app/core
+- [ ] S17. text: no em dashes in the comments of app/api and app/main.py, app/llm.py, app/domains.py
+- [ ] S18. text: no em dashes in the comments of app/ecommerce, app/research, app/agent and app/billing
+- [ ] S19. text: no em dashes in the comments of the experimental domains
+- [ ] S20. text: no em dashes in the comments of workers, scripts and migrations
+- [ ] S21. text: no em dashes in the comments of tests
+- [ ] S22. text: no em dashes in the comments of the web front end
+- [ ] S23. text: no em dashes in the comments of the config files
+- [ ] S24. tests: coverage is measured and CI fails when it drops
+- [ ] S25. docs: the README says how the code is checked

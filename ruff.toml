@@ -1,0 +1,10 @@
+# One style for the whole repo. `ruff check .` must stay clean; CI runs it.
+line-length = 120
+target-version = "py312"
+# Apollo and Ares are read-only reference copies; migrations are history and are never edited.
+extend-exclude = ["Apollo", "Ares", "migrations/versions"]
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+# B008: FastAPI declares dependencies as call defaults (Depends(...), File(...)); that is the framework's idiom.
+ignore = ["B008"]
