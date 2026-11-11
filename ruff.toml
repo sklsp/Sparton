@@ -8,3 +8,7 @@ extend-exclude = ["Apollo", "Ares", "migrations/versions"]
 select = ["E", "F", "W", "I", "UP", "B"]
 # B008: FastAPI declares dependencies as call defaults (Depends(...), File(...)); that is the framework's idiom.
 ignore = ["B008"]
+
+[lint.isort]
+# Keep `from x import (a as b, c)` in one statement instead of splitting aliased names out.
+combine-as-imports = true
