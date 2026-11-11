@@ -1,6 +1,6 @@
 # Keep the build context small and the image free of anything that must not
 # ship. A .env in a layer is a leaked secret for the life of the image, even if
-# a later layer deletes it — the bytes are still in the earlier one.
+# a later layer deletes it, the bytes are still in the earlier one.
 
 # Secrets and local config
 .env
@@ -27,7 +27,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# Local data — databases and the email outbox, which contains live reset links
+# Local data: databases and the email outbox, which contains live reset links
 *.db
 *.sqlite
 *.sqlite3

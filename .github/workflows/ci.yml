@@ -118,7 +118,7 @@ jobs:
           node-version: "22"
 
       # The dashboard is plain ES modules with no build step and no npm
-      # dependencies, so there is nothing to install — only something to check.
+      # dependencies, so there is nothing to install, only something to check.
       - name: Parse every module
         run: |
           fail=0
