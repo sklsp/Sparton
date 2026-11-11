@@ -10,7 +10,7 @@
 - [x] S10. lint: no unused imports in tests (516 passed, 58 skipped, 2 warnings in 275.97s (0:04:35))
 - [x] S11. lint: no line over 120 characters in app/core (516 passed, 58 skipped, 2 warnings in 281.49s (0:04:41))
 - [x] S12. lint: no line over 120 characters in app/api (516 passed, 58 skipped, 2 warnings in 282.57s (0:04:42))
-- [ ] S13. lint: no line over 120 characters in tests
+- [x] S13. lint: no line over 120 characters in tests (516 passed, 58 skipped, 2 warnings in 280.45s (0:04:40))
 - [ ] S14. lint: the last findings by hand
 - [ ] S15. ci: a lint job keeps ruff clean
 - [ ] S16. text: no em dashes in the comments of app/core

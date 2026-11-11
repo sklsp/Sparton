@@ -181,7 +181,8 @@ def seeded(db_session, shop_and_rival):
     def change(url, name):
         row = ChangeEvent(
             organization_id=shop.organization_id, shop_id=shop.id, competitor_id=rival.id,
-            competitor_product_id=capture.id if url == capture.source_url else None, kind="price_decrease", product_name=name,
+            competitor_product_id=capture.id if url == capture.source_url else None,
+            kind="price_decrease", product_name=name,
             source_url=url, evidence_url=url, competitor_name="Rival", previous_price=Decimal("24.95"),
             new_price=Decimal("22.45"), currency="EUR", title=name, detected_at=t1,
         )

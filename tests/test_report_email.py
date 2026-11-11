@@ -81,7 +81,10 @@ def test_the_email_fits_600px_in_light_and_dark(lang, scheme):
             # Images off, like many mail clients by default.
             context = browser.new_context(viewport={"width": 600, "height": 900}, color_scheme=scheme)
             page = context.new_page()
-            page.route("**/*", lambda route: route.abort() if route.request.resource_type == "image" else route.continue_())
+            page.route(
+                "**/*",
+                lambda route: route.abort() if route.request.resource_type == "image" else route.continue_(),
+            )
             page.set_content(html)
             overflow = page.evaluate("() => document.documentElement.scrollWidth - innerWidth")
             assert overflow <= 0, f"the email scrolls sideways at 600px ({overflow}px)"
