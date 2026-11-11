@@ -461,7 +461,7 @@ def generate_report(
         report.completed_at = utcnow()
         report.error = None
         inc("reports_total", outcome="completed")
-    except Exception as exc:  # noqa: BLE001 — the deterministic report stands on its own
+    except Exception as exc:  # noqa: BLE001, the deterministic report stands on its own
         logger.warning("Report generation fell back to deterministic text: %s", exc)
         report.status = ReportStatus.COMPLETED
         report.error = f"AI narrative unavailable: {exc}"[:500]

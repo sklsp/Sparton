@@ -1,7 +1,7 @@
 """Structured-first extraction for public e-commerce pages.
 
 Ported from Ares `app/intelligence/extraction.py` (unchanged behavior).
-Page text is treated as untrusted data — returned as data only, never fed
+Page text is treated as untrusted data, returned as data only, never fed
 into system instructions.
 """
 
@@ -148,7 +148,7 @@ def extract_page(html: str, url: str) -> tuple[list[ExtractedProduct], list[str]
         # The signal must be a PRICE, not the word "product": every listing
         # page contains the substring "product" in its product URLs, so
         # matching on that turned each competitor's category page into a
-        # phantom product named after the site — which then alerted as "new
+        # phantom product named after the site, which then alerted as "new
         # product" on every single crawl.
         title = parser.meta.get("og:title") or parser.title.strip()
         price = _number(parser.meta.get("product:price:amount"))

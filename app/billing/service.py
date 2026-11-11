@@ -1,4 +1,4 @@
-"""Subscription state — the only writer of paid plans.
+"""Subscription state: the only writer of paid plans.
 
 The rule this module exists to enforce (D-014): **a Stripe webhook is the only
 thing that grants a paid plan.** The post-checkout redirect is a UX affordance

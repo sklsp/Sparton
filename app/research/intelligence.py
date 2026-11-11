@@ -1,4 +1,4 @@
-"""Odysseus — research & market intelligence pipeline.
+"""Odysseus: research & market intelligence pipeline.
 
 Adapted from Ares `services/intelligence.py`: discovery → crawl → extract →
 persist → explainable opportunity scoring. Rewired to SPARTON models and the

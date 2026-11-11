@@ -1,6 +1,6 @@
 """Crawl orchestration: fetch a competitor, store captures, detect changes.
 
-The crawl itself is the existing `ResponsibleCrawler` — robots.txt, SSRF guard,
+The crawl itself is the existing `ResponsibleCrawler`, robots.txt, SSRF guard,
 per-host delay, depth and page caps all unchanged (docs/DECISIONS.md D-016).
 This module is the product logic *around* it:
 
@@ -353,7 +353,7 @@ def crawl_competitor(
 ) -> CrawlOutcome:
     """Crawl one competitor, write captures, and record any changes.
 
-    Never raises for an ordinary failure — a site that is down, a robots denial,
+    Never raises for an ordinary failure: a site that is down, a robots denial,
     a timeout. Those land on the competitor's ``last_status`` so the customer
     can see *why* nothing updated, and the caller moves on to the next
     competitor. One dead competitor must not fail a customer's week.
@@ -433,7 +433,7 @@ def crawl_competitor(
             dedupe_products([p for r in results for p in r.products]),
         )
 
-    except Exception as exc:  # noqa: BLE001 — one competitor must not fail the week
+    except Exception as exc:  # noqa: BLE001, one competitor must not fail the week
         logger.exception("Crawl failed for %s", competitor.domain)
         outcome.status = CrawlStatus.FAILED
         outcome.error = str(exc)[:500]

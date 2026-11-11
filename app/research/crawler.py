@@ -151,7 +151,7 @@ class ResponsibleCrawler:
             # Redirects are followed by hand, one hop at a time, so that the
             # public-address check runs on every destination. Letting httpx
             # follow them would validate the first URL and then hand the
-            # response to whatever the redirect pointed at — the cheapest SSRF
+            # response to whatever the redirect pointed at, the cheapest SSRF
             # bypass there is, and `http://evil.test` -> `169.254.169.254` is
             # one header away.
             follow_redirects=False,

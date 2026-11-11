@@ -6,7 +6,7 @@ never the thing that decides whether an action is allowed (D-012).
 
 Enforcement is deliberately **server-side and explicit** rather than relying on
 the existing `TenantContext.scoped`, because that helper returns *unscoped*
-queries for machine principals — correct for the ops API, wrong for a billing
+queries for machine principals, correct for the ops API, wrong for a billing
 check. Billing code therefore always filters on an explicit
 ``organization_id`` and refuses to proceed without one.
 """
@@ -168,7 +168,7 @@ def usage_report(db: Session, organization_id: int | None, plan_id: str | None) 
 def _reject(message: str) -> HTTPException:
     """402 Payment Required: the request is valid, the *plan* is not enough.
 
-    402 rather than 403 — the customer is authenticated and authorised, they
+    402 rather than 403: the customer is authenticated and authorised, they
     just need to pay. The machine-readable `error` field lets the UI show the
     right upgrade prompt without parsing prose.
     """

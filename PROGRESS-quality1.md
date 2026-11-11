@@ -15,7 +15,7 @@
 - [x] S15. ci: a lint job keeps ruff clean (516 passed, 58 skipped, 2 warnings in 277.90s (0:04:37))
 - [x] S16. text: no em dashes in the comments of app/core (516 passed, 58 skipped, 2 warnings in 276.91s (0:04:36))
 - [x] S17. text: no em dashes in the comments of app/api and app/main.py, app/llm.py, app/domains.py (516 passed, 58 skipped, 2 warnings in 280.52s (0:04:40))
-- [ ] S18. text: no em dashes in the comments of app/ecommerce, app/research, app/agent and app/billing
+- [x] S18. text: no em dashes in the comments of app/ecommerce, app/research, app/agent and app/billing (516 passed, 58 skipped, 2 warnings in 277.70s (0:04:37))
 - [ ] S19. text: no em dashes in the comments of the experimental domains
 - [ ] S20. text: no em dashes in the comments of workers, scripts and migrations
 - [ ] S21. text: no em dashes in the comments of tests

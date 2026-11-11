@@ -1,4 +1,4 @@
-"""Athena system prompt — one agent across all SPARTON domains."""
+"""Athena system prompt: one agent across all SPARTON domains."""
 
 from __future__ import annotations
 

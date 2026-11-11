@@ -450,7 +450,7 @@ def _truncate(output: Any) -> Any:
 
 
 def _summarize(tool_name: str, result: Any, duration_ms: int) -> str:
-    """One operational line for the activity feed — no chain of thought."""
+    """One operational line for the activity feed, no chain of thought."""
     if not isinstance(result, dict):
         return f"{tool_name} returned a result ({duration_ms} ms)"
 

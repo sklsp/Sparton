@@ -51,7 +51,7 @@ def _fail(db, job: Job, exc: Exception) -> None:
             current.error = str(exc)[:2000]
             current.completed_at = utcnow()
             db.commit()
-    except Exception:  # noqa: BLE001 — the original failure is what matters
+    except Exception:  # noqa: BLE001, the original failure is what matters
         db.rollback()
 
 

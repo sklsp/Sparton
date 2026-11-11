@@ -1,4 +1,4 @@
-"""Change detection — the part customers actually pay for.
+"""Change detection: the part customers actually pay for.
 
 **This module contains no LLM calls at all** (docs/DECISIONS.md D-029). It is
 arithmetic over two captures. That is a deliberate product decision:
