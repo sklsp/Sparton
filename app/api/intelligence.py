@@ -103,7 +103,11 @@ def opportunities(
 
 
 @router.get("/opportunities/{opportunity_id}")
-def opportunity_detail(opportunity_id: int, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def opportunity_detail(
+    opportunity_id: int,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     row = get_opportunity(db, opportunity_id)
     org = _org_id(user)
     if row is None or (org is not None and row.organization_id != org):

@@ -118,7 +118,11 @@ DEFAULT_TEMPLATE = (
 
 
 @router.post("/chat", response_model=ChatResponse)
-def chat(payload: ChatRequest, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> ChatResponse:
+def chat(
+    payload: ChatRequest,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> ChatResponse:
     """RAG-augmented chat with persisted conversation history."""
     org = _org_id(user)
 
@@ -244,7 +248,11 @@ def list_prompts(db: DbSession = None, user: Annotated[object, Depends(current_u
 
 
 @router.post("/prompts", status_code=201)
-def create_prompt(payload: PromptTemplateCreate, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def create_prompt(
+    payload: PromptTemplateCreate,
+    db: DbSession = None,
+    user: Annotated[object, Depends(current_user)] = None,
+) -> dict:
     row = PromptTemplate(
         organization_id=_org_id(user),
         key=payload.key,
