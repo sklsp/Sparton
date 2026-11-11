@@ -280,8 +280,6 @@ def schedule_due_crawls(payload: dict) -> None:
     enqueues; the per-shop ``crawl:{id}:{date}`` idempotency key means running it
     twice in the same day is harmless.
     """
-    from datetime import datetime, timezone
-
     db = SessionLocal()
     try:
         now = utcnow()

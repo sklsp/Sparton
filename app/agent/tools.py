@@ -6,22 +6,17 @@ attached to the ToolContext at engine build time.
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.agent.registry import ToolAccess, ToolContext, ToolRegistry
 from app.core.database.creation_models import (
-    DatasetImage,
     DatasetProject,
     Document,
     GeneratedImage,
     TrainingProject,
 )
 from app.core.database.domain_models import (
-    ExternalProduct,
-    ExternalStore,
     Inventory,
     Opportunity,
     Product,

@@ -20,11 +20,11 @@ import logging
 from typing import Any
 from urllib.parse import urlparse
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database.ecommerce_models import Competitor, Platform, Shop
+from app.core.database.ecommerce_models import Competitor, Shop
 from app.core.database.models import utcnow
 from app.ecommerce.urls import InvalidShopUrl, normalize_url
 from app.research.crawler import _is_public_http_url
