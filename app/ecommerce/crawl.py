@@ -24,11 +24,11 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
-from collections.abc import Callable
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session

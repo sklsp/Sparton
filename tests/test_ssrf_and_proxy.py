@@ -444,7 +444,7 @@ class TestConfiguredModelsStillExist:
 
     def test_no_shipped_assignment_still_names_a_retired_model(self):
         """Only real assignments count, not the comment explaining the change.
-        
+
         A prose mention is the record of why the id changed; an assignment is
         what the app would actually call.'
         """

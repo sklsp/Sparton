@@ -461,7 +461,7 @@ class TestTheCompetitorViewShowsItsPriceSource:
         # An uncrawled competitor has nothing to claim, so it must not claim
         # anything: showing "exact prices" before a single page was read would
         # be a lie the customer acts on.
-        listed = self._api(page, "GET", f"/competitors")
+        listed = self._api(page, "GET", "/competitors")
         assert listed["status"] == 200, listed
         row = next(
             c for c in listed["payload"].get("competitors", listed["payload"])
@@ -544,7 +544,7 @@ class TestTenantIsolationInTheBrowser:
 
     def test_one_tenant_cannot_see_or_reach_another(self, browser, live_server):
         """Two accounts, two browser contexts, one machine.
-        
+
         Sequential rather than threaded: Playwright's sync API is bound to the
         thread that created it, so a second tenant gets its own context in this
         one. The two sessions are still genuinely separate -- separate cookies,

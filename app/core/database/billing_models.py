@@ -9,7 +9,7 @@ signal, and a customer who closes the tab must not be left paying for nothing
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import (

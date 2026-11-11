@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 from collections import Counter, defaultdict
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
-from collections.abc import Sequence
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session

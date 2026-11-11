@@ -17,7 +17,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-from datetime import timedelta, UTC
+from datetime import UTC, timedelta
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
