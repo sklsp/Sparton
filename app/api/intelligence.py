@@ -25,8 +25,8 @@ def _org_id(user) -> int | None:
 @router.post("/jobs", status_code=202)
 def start_research(
     payload: ResearchJobRequest,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     inc("research_jobs_total")
     job, created = enqueue(
@@ -41,7 +41,7 @@ def start_research(
 
 
 @router.get("/jobs")
-def list_jobs(limit: int = 20, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def list_jobs(db: DbSession, user: Annotated[object, Depends(current_user)], limit: int = 20) -> dict:
     query = select(Job).where(Job.type == "research").order_by(Job.created_at.desc()).limit(min(limit, 100))
     org = _org_id(user)
     if org is not None:
@@ -58,7 +58,7 @@ def list_jobs(limit: int = 20, db: DbSession = None, user: Annotated[object, Dep
 
 
 @router.get("/stores")
-def list_stores(limit: int = 50, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def list_stores(db: DbSession, user: Annotated[object, Depends(current_user)], limit: int = 50) -> dict:
     query = select(ExternalStore).order_by(ExternalStore.last_crawled_at.desc().nullslast()).limit(min(limit, 200))
     org = _org_id(user)
     if org is not None:
@@ -84,10 +84,10 @@ def list_stores(limit: int = 50, db: DbSession = None, user: Annotated[object, D
 
 @router.get("/opportunities")
 def opportunities(
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     kind: str | None = None,
     limit: int = 50,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     rows = list_opportunities(db, limit=min(limit, 200), kind=kind, organization_id=_org_id(user))
     return {
@@ -105,8 +105,8 @@ def opportunities(
 @router.get("/opportunities/{opportunity_id}")
 def opportunity_detail(
     opportunity_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     row = get_opportunity(db, opportunity_id)
     org = _org_id(user)
