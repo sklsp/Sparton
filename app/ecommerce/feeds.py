@@ -37,7 +37,8 @@ import logging
 import time
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 from app.core.config import settings
 from app.core.observability.metrics import inc

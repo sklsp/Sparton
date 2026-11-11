@@ -9,7 +9,7 @@ signal, and a customer who closes the tab must not be left paying for nothing
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any
 
 from sqlalchemy import (
@@ -190,7 +190,7 @@ class AuthToken(Base):
         if expires.tzinfo is None:
             from datetime import timezone
 
-            expires = expires.replace(tzinfo=timezone.utc)
+            expires = expires.replace(tzinfo=UTC)
         return expires > utcnow()
 
 

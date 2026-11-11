@@ -50,7 +50,7 @@ class Document(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
-    chunks: Mapped[list["DocumentChunk"]] = relationship(
+    chunks: Mapped[list[DocumentChunk]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
     )
 
@@ -93,7 +93,7 @@ class Conversation(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
-    messages: Mapped[list["ConversationMessage"]] = relationship(
+    messages: Mapped[list[ConversationMessage]] = relationship(
         back_populates="conversation",
         cascade="all, delete-orphan",
         order_by="ConversationMessage.id",
@@ -199,7 +199,7 @@ class DatasetProject(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
-    images: Mapped[list["DatasetImage"]] = relationship(
+    images: Mapped[list[DatasetImage]] = relationship(
         back_populates="dataset", cascade="all, delete-orphan"
     )
 
@@ -243,7 +243,7 @@ class TrainingProject(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
-    runs: Mapped[list["TrainingRun"]] = relationship(
+    runs: Mapped[list[TrainingRun]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
 

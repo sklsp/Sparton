@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any
 from urllib.parse import urlparse
 
@@ -33,7 +33,7 @@ from app.research.discovery import DuckDuckGoProvider, SearchProvider
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def normalize_name(value: str) -> str:

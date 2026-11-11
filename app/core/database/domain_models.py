@@ -91,12 +91,12 @@ class AgentRun(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    steps: Mapped[list["AgentStep"]] = relationship(
+    steps: Mapped[list[AgentStep]] = relationship(
         back_populates="run",
         cascade="all, delete-orphan",
         order_by="AgentStep.step_number",
     )
-    approvals: Mapped[list["ApprovalRequest"]] = relationship(
+    approvals: Mapped[list[ApprovalRequest]] = relationship(
         back_populates="run",
         cascade="all, delete-orphan",
         order_by="ApprovalRequest.id",
@@ -223,10 +223,10 @@ class Product(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
-    inventory: Mapped["Inventory | None"] = relationship(
+    inventory: Mapped[Inventory | None] = relationship(
         back_populates="product", uselist=False, cascade="all, delete-orphan"
     )
-    orders: Mapped[list["Order"]] = relationship(
+    orders: Mapped[list[Order]] = relationship(
         back_populates="product", cascade="all, delete-orphan"
     )
 
@@ -293,7 +293,7 @@ class ExternalStore(Base):
     last_crawled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     crawl_status: Mapped[str] = mapped_column(String(24), default="discovered")
 
-    products: Mapped[list["ExternalProduct"]] = relationship(
+    products: Mapped[list[ExternalProduct]] = relationship(
         back_populates="store", cascade="all, delete-orphan"
     )
 
@@ -321,7 +321,7 @@ class ExternalProduct(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
     store: Mapped[ExternalStore] = relationship(back_populates="products")
-    snapshots: Mapped[list["ProductSnapshot"]] = relationship(
+    snapshots: Mapped[list[ProductSnapshot]] = relationship(
         back_populates="product", cascade="all, delete-orphan"
     )
 

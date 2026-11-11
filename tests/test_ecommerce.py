@@ -58,10 +58,10 @@ def product_html(name: str, price: str, *, available: str = "InStock") -> str:
         },
     }
     return (
-        "<html><head><title>{name}</title>"
-        '<script type="application/ld+json">{json}</script>'
-        "</head><body><h1>{name}</h1></body></html>"
-    ).format(name=name, json=json.dumps(payload))
+        f"<html><head><title>{name}</title>"
+        f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+        f"</head><body><h1>{name}</h1></body></html>"
+    )
 
 
 def listing_html(products: list[tuple[str, str]], base: str) -> str:

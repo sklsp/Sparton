@@ -17,7 +17,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-from datetime import timedelta
+from datetime import timedelta, UTC
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -118,7 +118,7 @@ def purge_expired(db: Session) -> int:
     """Delete tokens that are used or expired. Called by the scheduler."""
     from datetime import datetime, timezone
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    cutoff = datetime.now(UTC) - timedelta(days=7)
     result = db.execute(
         AuthToken.__table__.delete().where(
             (AuthToken.used_at.isnot(None)) | (AuthToken.expires_at < cutoff)

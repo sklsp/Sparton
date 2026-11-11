@@ -224,7 +224,7 @@ class ResponsibleCrawler:
 
     def _stream_with_redirects(
         self, url: str, limit: int
-    ) -> "list[tuple[str, httpx.Response]]":
+    ) -> list[tuple[str, httpx.Response]]:
         """Follow redirects by hand, re-checking the address on every hop.
 
         httpx's own redirect following is what made the original check

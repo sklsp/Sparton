@@ -20,7 +20,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session

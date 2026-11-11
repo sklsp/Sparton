@@ -147,7 +147,7 @@ class Shop(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
-    competitors: Mapped[list["Competitor"]] = relationship(
+    competitors: Mapped[list[Competitor]] = relationship(
         back_populates="shop", cascade="all, delete-orphan"
     )
 
@@ -196,8 +196,8 @@ class Competitor(Base):
         DateTime(timezone=True), default=utcnow, index=True
     )
 
-    shop: Mapped["Shop | None"] = relationship(back_populates="competitors")
-    products: Mapped[list["CompetitorProduct"]] = relationship(
+    shop: Mapped[Shop | None] = relationship(back_populates="competitors")
+    products: Mapped[list[CompetitorProduct]] = relationship(
         back_populates="competitor", cascade="all, delete-orphan"
     )
 
@@ -272,7 +272,7 @@ class CompetitorProduct(Base):
         DateTime(timezone=True), default=utcnow, index=True
     )
 
-    competitor: Mapped["Competitor"] = relationship(back_populates="products")
+    competitor: Mapped[Competitor] = relationship(back_populates="products")
 
 
 # --------------------------------------------------------------------------
