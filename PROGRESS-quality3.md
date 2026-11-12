@@ -1,7 +1,7 @@
 - [x] C1. tests: app.core.jobs.queue (99%, 559 passed, 59 skipped, 2 warnings in 308.26s (0:05:08))
 - [x] C2. tests: app.core.jobs.transport (100%, 588 passed, 59 skipped, 4 xfailed, 2 warnings in 367.30s (0:06:07))
 - [x] C3. tests: workers.handlers (100%, 601 passed, 59 skipped, 4 xfailed, 2 warnings in 314.30s (0:05:14))
-- [ ] C4. tests: workers.worker
+- [x] C4. tests: workers.worker (98%, 611 passed, 59 skipped, 4 xfailed, 2 warnings in 315.13s (0:05:15))
 - [ ] C5. tests: workers.embedded
 - [ ] C6. tests: app.research.discovery
 - [ ] C7. tests: app.research.intelligence
