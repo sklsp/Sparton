@@ -2,7 +2,7 @@
 
 - [x] T1. build: mypy configuration (516 passed, 58 skipped, 2 warnings in 277.22s (0:04:37))
 - [x] T2. tests: the suite leaves no files behind (516 passed, 58 skipped, 2 warnings in 279.38s (0:04:39))
-- [ ] T3. types: FastAPI dependency parameters without a None default (create, knowledge)
+- [x] T3. types: FastAPI dependency parameters without a None default (create, knowledge) (516 passed, 58 skipped, 2 warnings in 280.48s (0:04:40))
 - [ ] T4. types: FastAPI dependency parameters without a None default (the other routers)
 - [ ] T5. types: agent engine step types
 - [ ] T6. types: weekly report email copy
