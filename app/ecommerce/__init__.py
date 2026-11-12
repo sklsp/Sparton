@@ -10,6 +10,5 @@ This is the code a customer actually pays for. The loop is:
 
 Everything here is tenant-scoped: every function that touches the database
 takes ``organization_id`` explicitly, and every query filters on it. That is not
-decorative. `TenantContext.scoped` deliberately returns *unscoped* queries for
-machine principals, so product code must never rely on it.
+decorative: there is no shared scoping helper to fall back on.
 """

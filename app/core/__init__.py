@@ -5,7 +5,7 @@ stronger of Apollo/Ares (primarily Ares for enterprise infrastructure):
 
 - config:        single pydantic-settings configuration system
 - auth:          opaque session tokens (SHA-256 stored), scrypt passwords
-- tenancy:       TenantContext + per-query organization scoping
+- tenancy:       every query filters on an explicit organization_id (no shared helper)
 - rbac:          admin > manager > analyst > viewer capability levels
 - database:      SQLAlchemy 2.0 engine/session, JSONB-variant columns
 - jobs:          durable DB-backed job state machine (idempotency, retries)

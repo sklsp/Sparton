@@ -40,7 +40,7 @@ weaker one's useful behavior merged into it.
 |---|---|---|
 | Configuration | Ares | Single pydantic-settings `Settings`, all env-driven |
 | Authentication | Ares | Opaque session tokens (SHA-256 at rest), scrypt password hashing, revocable sessions |
-| Tenancy | Ares | `TenantContext` from authenticated user; per-query org scoping; `scoped_or_404` (404, not 403, no existence leaks) |
+| Tenancy | Ares | org from the authenticated user; every query filters on an explicit `organization_id`; cross-tenant reads are 404, not 403 (the unused `TenantContext` helper was removed) |
 | RBAC | Ares | `admin > manager > analyst > viewer`; `require_role` dependency |
 | Database | Ares | SQLAlchemy 2.0 typed ORM + Alembic; PostgreSQL in prod, SQLite for dev/tests; JSON columns with JSONB variant |
 | Jobs | Ares | Durable DB-backed state machine: idempotency keys, retries w/ backoff, stale reclaim, dead-letter, cancellation |

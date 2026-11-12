@@ -4,11 +4,10 @@ The single source of truth for what a customer may do. Every mutating product
 route calls a `check_*` function before it does anything, so the browser is
 never the thing that decides whether an action is allowed (D-012).
 
-Enforcement is deliberately **server-side and explicit** rather than relying on
-the existing `TenantContext.scoped`, because that helper returns *unscoped*
-queries for machine principals, correct for the ops API, wrong for a billing
-check. Billing code therefore always filters on an explicit
-``organization_id`` and refuses to proceed without one.
+Enforcement is deliberately **server-side and explicit**: billing code always
+filters on an explicit ``organization_id`` and refuses to proceed without one.
+(The inherited `TenantContext.scoped` helper returned *unscoped* queries for
+machine principals; nothing used it and it was removed.)
 """
 
 from __future__ import annotations
