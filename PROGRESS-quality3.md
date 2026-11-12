@@ -15,5 +15,5 @@
 - [x] C15. tests: app.api.admin (100%, 845 passed, 16 skipped, 5 xfailed, 2 warnings in 589.66s (0:09:49))
 - [x] C16. tests: app.core.observability.tracing (100%, 857 passed, 16 skipped, 5 xfailed, 2 warnings in 601.94s (0:10:01))
 - [x] C17. tests: app.core.security.rate_limit (100%, 882 passed, 16 skipped, 5 xfailed, 2 warnings in 587.84s (0:09:47))
-- [ ] C18. tests: app.core.email
+- [x] C18. tests: app.core.email (100%, 903 passed, 16 skipped, 5 xfailed, 2 warnings in 591.82s (0:09:51))
 - [ ] C19. tests: app.llm
