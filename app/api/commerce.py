@@ -27,6 +27,7 @@ mutating route. The browser never decides what a customer may do.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -575,7 +576,7 @@ def change_history(
             )
         ).scalars().first()
 
-    points: list[CompetitorProduct] = []
+    points: Sequence[CompetitorProduct] = []
     if anchor is not None:
         same = select(CompetitorProduct).where(
             CompetitorProduct.organization_id == org,
