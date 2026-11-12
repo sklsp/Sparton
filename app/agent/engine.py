@@ -255,7 +255,7 @@ class AgentEngine:
 
         return False
 
-    def _execute(self, run: AgentRun, call) -> tuple[Any, StepStatus, str]:
+    def _execute(self, run: AgentRun, call) -> tuple[Any, str, str]:
         self._record(
             run, StepType.TOOL_CALL, f"Calling {call.name}",
             tool_name=call.name, input=call.arguments,
@@ -290,7 +290,7 @@ class AgentEngine:
             duration = int((time.monotonic() - started) * 1000)
             return result, StepStatus.OK, _summarize(call.name, result, duration)
 
-    def _finish_call(self, run: AgentRun, call, result: Any, *, status: StepStatus, message: str) -> None:
+    def _finish_call(self, run: AgentRun, call, result: Any, *, status: str, message: str) -> None:
         self._record(
             run, StepType.TOOL_RESULT, message,
             tool_name=call.name, output=result, status=status,
@@ -373,7 +373,7 @@ class AgentEngine:
             text = f"The agent stopped after the {reason} and could not summarise ({exc})."
         return self._complete(run, text, note=f"Stopped early: {reason}")
 
-    def _complete(self, run: AgentRun, text: str, note: str | None = None) -> AgentRun:
+    def _complete(self, run: AgentRun, text: str | None, note: str | None = None) -> AgentRun:
         final = (text or "").strip() or "The agent finished without producing an answer."
         if note:
             final = f"{final}\n\n({note})"
@@ -415,13 +415,13 @@ class AgentEngine:
     def _record(
         self,
         run: AgentRun,
-        step_type: StepType,
+        step_type: str,
         message: str,
         *,
         tool_name: str | None = None,
         input: dict[str, Any] | None = None,
         output: Any | None = None,
-        status: StepStatus = StepStatus.OK,
+        status: str = StepStatus.OK,
         duration_ms: int | None = None,
     ) -> AgentStep:
         step = AgentStep(

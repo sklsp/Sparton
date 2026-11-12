@@ -12,6 +12,7 @@ Extended from Ares' registry with SPARTON domain namespaces:
 
 from __future__ import annotations
 
+import builtins
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -146,7 +147,7 @@ class ToolRegistry:
             tools = [t for t in tools if t.access is access]
         return tools
 
-    def llm_specs(self) -> list[dict[str, Any]]:
+    def llm_specs(self) -> builtins.list[dict[str, Any]]:
         return [t.to_llm_spec() for t in self.list()]
 
     def __len__(self) -> int:
