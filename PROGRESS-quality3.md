@@ -1,5 +1,5 @@
 - [x] C1. tests: app.core.jobs.queue (99%, 559 passed, 59 skipped, 2 warnings in 308.26s (0:05:08))
-- [ ] C2. tests: app.core.jobs.transport
+- [x] C2. tests: app.core.jobs.transport (100%, 588 passed, 59 skipped, 4 xfailed, 2 warnings in 367.30s (0:06:07))
 - [ ] C3. tests: workers.handlers
 - [ ] C4. tests: workers.worker
 - [ ] C5. tests: workers.embedded
