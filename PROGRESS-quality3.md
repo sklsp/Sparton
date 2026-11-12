@@ -1,0 +1,19 @@
+- [x] C1. tests: app.core.jobs.queue (99%, 559 passed, 59 skipped, 2 warnings in 308.26s (0:05:08))
+- [ ] C2. tests: app.core.jobs.transport
+- [ ] C3. tests: workers.handlers
+- [ ] C4. tests: workers.worker
+- [ ] C5. tests: workers.embedded
+- [ ] C6. tests: app.research.discovery
+- [ ] C7. tests: app.research.intelligence
+- [ ] C8. tests: app.api.intelligence
+- [ ] C9. tests: app.ecommerce.feeds
+- [ ] C10. tests: app.ecommerce.jobs
+- [ ] C11. tests: app.ecommerce.matching
+- [ ] C12. tests: app.agent.tools
+- [ ] C13. tests: app.agent.engine
+- [ ] C14. tests: app.api.agent_api
+- [ ] C15. tests: app.api.admin
+- [ ] C16. tests: app.core.observability.tracing
+- [ ] C17. tests: app.core.security.rate_limit
+- [ ] C18. tests: app.core.email
+- [ ] C19. tests: app.llm
