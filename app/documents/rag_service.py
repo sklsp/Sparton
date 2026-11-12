@@ -39,7 +39,7 @@ class RAGService:
         persist_dir: str | Path | None = None,
     ) -> None:
         self.embedding_client = embedding_client or EmbeddingClient()
-        self.persist_dir = Path(persist_dir) if persist_dir else settings.rag_dir
+        self.persist_dir = Path(persist_dir or settings.rag_dir)
         self._store: VectorStore | None = None
         self._versions: dict[str, dict[str, Any]] = {}
         # Reentrant: add_document() holds the lock and calls remove_document(),
@@ -192,11 +192,11 @@ class RAGService:
         import shutil
         import time
 
-        quarantine = self.persist_dir / "quarantined"  # type: ignore[operator]  # real bug, see sparton-quality-2/BUGS.md #4
+        quarantine = self.persist_dir / "quarantined"
         quarantine.mkdir(parents=True, exist_ok=True)
         stamp = int(time.time())
         for name in ("index.faiss", "chunks.json", "meta.json"):
-            path = self.persist_dir / name  # type: ignore[operator]  # real bug, see sparton-quality-2/BUGS.md #4
+            path = self.persist_dir / name
             if path.is_file():
                 try:
                     shutil.move(str(path), str(quarantine / f"{name}.{stamp}"))

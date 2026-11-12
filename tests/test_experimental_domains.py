@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from app.core.config import settings
 
 
@@ -15,3 +19,17 @@ def test_training_preflight_without_ai_toolkit_reports_blocked(monkeypatch):
     report = service.LoRATrainingService().preflight({})
     assert report["verdict"] == "blocked"
     assert report["checks"][0]["name"] == "AI Toolkit"
+
+
+def test_rag_quarantine_works_with_the_default_directory(monkeypatch, tmp_path):
+    """settings.rag_dir is a str, so the default persist_dir broke `persist_dir / name` with a TypeError."""
+    pytest.importorskip("numpy")  # the RAG stack is in requirements-experimental.txt
+    from app.documents.rag_service import RAGService
+
+    monkeypatch.setattr(settings, "rag_dir", str(tmp_path))
+    (tmp_path / "meta.json").write_text("{}", encoding="utf-8")
+    rag = RAGService(embedding_client=object())
+    assert isinstance(rag.persist_dir, Path)
+    rag._quarantine_files()
+    assert not (tmp_path / "meta.json").exists()
+    assert len(list((tmp_path / "quarantined").iterdir())) == 1
