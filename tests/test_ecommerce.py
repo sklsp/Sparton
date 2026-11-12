@@ -362,6 +362,22 @@ class TestOnboarding:
         assert rival["platform"] == "shopify"
         assert rival["discovery_method"] == "manual"
 
+    def test_suggestions_skip_tracked_competitors(self, shop, rival, db_session, org_id, monkeypatch):
+        """Discovery used to crash (AttributeError) once a shop had one tracked competitor."""
+        from app.core.database.ecommerce_models import Shop
+        from app.ecommerce import discovery
+        from app.research.discovery import SearchProvider
+
+        class FakeSearch(SearchProvider):
+            def search(self, query, *, limit=10):
+                return ["https://claybarn-co.myshopify.com/", "https://newcomer.example.com/"]
+
+        # The SSRF guard resolves DNS; the test has no network and these are fixed public names.
+        monkeypatch.setattr(discovery, "_is_public_http_url", lambda url: True)
+        shop_row = db_session.get(Shop, shop["id"])
+        found = discovery.suggest_competitors(db_session, org_id, shop_row, search=FakeSearch())
+        assert [s["domain"] for s in found] == ["newcomer.example.com"]
+
     def test_own_shop_is_not_a_competitor(self, client, auth_headers, shop):
         response = client.post(
             "/competitors",

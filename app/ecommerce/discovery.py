@@ -275,14 +275,9 @@ def suggest_competitors(
             provider.close()
 
     own = _registrable(shop.domain)
-    tracked = {
-        row.domain  # type: ignore[attr-defined]  # real bug, see sparton-quality-2/BUGS.md #3
-        for row in db.execute(
-            select(Competitor.domain).where(
-                Competitor.organization_id == organization_id
-            )
-        ).scalars()
-    }
+    tracked = set(
+        db.scalars(select(Competitor.domain).where(Competitor.organization_id == organization_id))
+    )
 
     suggestions: list[dict[str, Any]] = []
     seen: set[str] = set()
