@@ -4,7 +4,7 @@
 - [x] C4. tests: workers.worker (98%, 611 passed, 59 skipped, 4 xfailed, 2 warnings in 315.13s (0:05:15))
 - [x] C5. tests: workers.embedded (100%, 618 passed, 59 skipped, 4 xfailed, 2 warnings in 324.93s (0:05:24))
 - [x] C6. tests: app.research.discovery (98%, 630 passed, 59 skipped, 4 xfailed, 2 warnings in 325.72s (0:05:25))
-- [ ] C7. tests: app.research.intelligence
+- [x] C7. tests: app.research.intelligence (100%, 640 passed, 59 skipped, 4 xfailed, 2 warnings in 338.74s (0:05:38))
 - [ ] C8. tests: app.api.intelligence
 - [ ] C9. tests: app.ecommerce.feeds
 - [ ] C10. tests: app.ecommerce.jobs
