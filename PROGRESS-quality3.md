@@ -13,7 +13,7 @@
 - [x] C13. tests: app.agent.engine (98%, 811 passed, 16 skipped, 5 xfailed, 2 warnings in 572.20s (0:09:32))
 - [x] C14. tests: app.api.agent_api (100%, 828 passed, 16 skipped, 5 xfailed, 2 warnings in 576.32s (0:09:36))
 - [x] C15. tests: app.api.admin (100%, 845 passed, 16 skipped, 5 xfailed, 2 warnings in 589.66s (0:09:49))
-- [ ] C16. tests: app.core.observability.tracing
+- [x] C16. tests: app.core.observability.tracing (100%, 857 passed, 16 skipped, 5 xfailed, 2 warnings in 601.94s (0:10:01))
 - [ ] C17. tests: app.core.security.rate_limit
 - [ ] C18. tests: app.core.email
 - [ ] C19. tests: app.llm
