@@ -11,7 +11,7 @@
 - [x] C11. tests: app.ecommerce.matching (99%, 767 passed, 16 skipped, 4 xfailed, 2 warnings in 549.65s (0:09:09))
 - [x] C12. tests: app.agent.tools (97%, 788 passed, 16 skipped, 5 xfailed, 2 warnings in 547.04s (0:09:07))
 - [x] C13. tests: app.agent.engine (98%, 811 passed, 16 skipped, 5 xfailed, 2 warnings in 572.20s (0:09:32))
-- [ ] C14. tests: app.api.agent_api
+- [x] C14. tests: app.api.agent_api (100%, 828 passed, 16 skipped, 5 xfailed, 2 warnings in 576.32s (0:09:36))
 - [ ] C15. tests: app.api.admin
 - [ ] C16. tests: app.core.observability.tracing
 - [ ] C17. tests: app.core.security.rate_limit
