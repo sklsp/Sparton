@@ -222,11 +222,11 @@ def resend_verification(
     `unverified_user` is the whole point of this route: requiring a verified
     email to ask for a verification email is a deadlock.
     """
-    if getattr(user, "email_verified", False):
+    if isinstance(user, MachineUser):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="API keys have no email address to verify")
+    if user.email_verified:
         return {"sent": False, "message": "Your email is already verified"}
-    token = tokens.issue(
-        db, user, AuthTokenPurpose.VERIFY_EMAIL  # type: ignore[arg-type]  # real bug, see sparton-quality-2/BUGS.md #1
-    )
+    token = tokens.issue(db, user, AuthTokenPurpose.VERIFY_EMAIL)
     email.send_verification(user.email, token)
     audit(
         db, action="auth.verification_resent", actor_user_id=user.id,
@@ -313,10 +313,9 @@ def change_password(
     person who cannot receive mail yet. It still requires the *current*
     password, so this is not a takeover vector.
     """
-    if not verify_password(
-        payload.current_password,
-        user.password_hash  # type: ignore[union-attr]  # real bug, see sparton-quality-2/BUGS.md #2
-    ):
+    if isinstance(user, MachineUser):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="API keys have no password to change")
+    if not verify_password(payload.current_password, user.password_hash):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, detail="Your current password is incorrect"
         )
@@ -324,9 +323,7 @@ def change_password(
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, detail="Choose a different password"
         )
-    user.password_hash = (  # type: ignore[union-attr]  # real bug, see sparton-quality-2/BUGS.md #2
-        hash_password(payload.new_password)
-    )
+    user.password_hash = hash_password(payload.new_password)
     db.commit()
     audit(
         db, action="auth.password_changed", actor_user_id=user.id,
