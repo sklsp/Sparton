@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import Table, select
 
 from app.api.schemas import (
     ChangePasswordRequest,
@@ -20,7 +20,7 @@ from app.api.schemas import (
 )
 from app.core import email
 from app.core.auth import tokens
-from app.core.auth.api import DbSession, unverified_user
+from app.core.auth.api import DbSession, MachineUser, unverified_user
 from app.core.auth.service import (
     audit,
     create_session,
@@ -88,7 +88,7 @@ def register(
     db.commit()
     db.refresh(user)
 
-    token, _ = create_session(db, user)
+    token, _session = create_session(db, user)
     audit(db, action="auth.register", actor_user_id=user.id, organization_id=user.organization_id)
 
     # Send the verification link. A failure here must not fail the signup: the
@@ -126,7 +126,7 @@ def login(
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Account disabled")
 
-    token, _ = create_session(db, user)
+    token, _session = create_session(db, user)
     audit(db, action="auth.login", actor_user_id=user.id, organization_id=user.organization_id)
     return TokenResponse(token=token, user=_user_dict(user))
 
@@ -167,7 +167,7 @@ def me(user: Annotated[object, Depends(unverified_user)]) -> dict:
 def set_language(
     payload: LanguageRequest,
     db: DbSession,
-    user: Annotated[object, Depends(unverified_user)],
+    user: Annotated[User | MachineUser, Depends(unverified_user)],
 ) -> dict:
     """The account's report language, set by the dashboard's NL/EN switch.
 
@@ -186,7 +186,7 @@ def set_language(
 # Email verification
 # ---------------------------------------------------------------------------
 @router.post("/verify-email", status_code=200)
-def verify_email(payload: VerifyRequest, db: DbSession = None) -> dict:
+def verify_email(payload: VerifyRequest, db: DbSession) -> dict:
     """Redeem a verification link.
 
     The token is single-use, and redeeming it marks the user verified. An unknown,
@@ -214,15 +214,17 @@ def verify_email(payload: VerifyRequest, db: DbSession = None) -> dict:
 @router.post("/resend-verification")
 def resend_verification(
     request: Request,
-    db: DbSession = None,
-    user: Annotated[object, Depends(unverified_user)] = None,
+    db: DbSession,
+    user: Annotated[User | MachineUser, Depends(unverified_user)],
 ) -> dict:
     """Send the verification link again.
 
     `unverified_user` is the whole point of this route: requiring a verified
     email to ask for a verification email is a deadlock.
     """
-    if getattr(user, "email_verified", False):
+    if isinstance(user, MachineUser):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="API keys have no email address to verify")
+    if user.email_verified:
         return {"sent": False, "message": "Your email is already verified"}
     token = tokens.issue(db, user, AuthTokenPurpose.VERIFY_EMAIL)
     email.send_verification(user.email, token)
@@ -240,7 +242,7 @@ def resend_verification(
 def forgot_password(
     payload: ForgotPasswordRequest,
     request: Request,
-    db: DbSession = None,
+    db: DbSession,
     _: None = Depends(rate_limit(limit=settings.rate_limit_forgot_password_per_minute)),
 ) -> dict:
     """Start a password reset.
@@ -268,7 +270,7 @@ def forgot_password(
 def reset_password(
     payload: ResetPasswordRequest,
     request: Request,
-    db: DbSession = None,
+    db: DbSession,
     _: None = Depends(rate_limit(limit=settings.rate_limit_forgot_password_per_minute)),
 ) -> dict:
     """Complete a password reset.
@@ -286,7 +288,9 @@ def reset_password(
     user.password_hash = hash_password(payload.password)
     db.commit()
     db.execute(
-        Session.__table__.delete().where(Session.__table__.c.user_id == user.id)
+        cast(Table, Session.__table__)
+        .delete()
+        .where(Session.__table__.c.user_id == user.id)
     )
     db.commit()
     audit(
@@ -299,8 +303,8 @@ def reset_password(
 @router.post("/change-password")
 def change_password(
     payload: ChangePasswordRequest,
-    db: DbSession = None,
-    user: Annotated[object, Depends(unverified_user)] = None,
+    db: DbSession,
+    user: Annotated[User | MachineUser, Depends(unverified_user)],
 ) -> dict:
     """Change your own password. Requires the current one.
 
@@ -309,6 +313,8 @@ def change_password(
     person who cannot receive mail yet. It still requires the *current*
     password, so this is not a takeover vector.
     """
+    if isinstance(user, MachineUser):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="API keys have no password to change")
     if not verify_password(payload.current_password, user.password_hash):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, detail="Your current password is incorrect"
@@ -329,8 +335,8 @@ def change_password(
 @router.patch("/settings")
 def update_settings(
     payload: UserSettingsUpdate,
-    db: DbSession = None,
-    user: Annotated[object, Depends(unverified_user)] = None,
+    db: DbSession,
+    user: Annotated[User | MachineUser, Depends(unverified_user)],
 ) -> dict:
     """Update your own account preferences: UI language and the weekly email digest.
 
@@ -341,6 +347,7 @@ def update_settings(
     """
     if getattr(user, "is_machine", False):
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="API keys have no account preferences")
+    user = cast(User, user)  # the guard above excludes MachineUser; mypy cannot narrow through getattr
     if payload.weekly_digest_enabled is not None:
         user.weekly_digest_enabled = payload.weekly_digest_enabled
     db.commit()

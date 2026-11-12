@@ -5,9 +5,10 @@ from collections import Counter, defaultdict
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from app.billing.plans import get_plan
@@ -167,7 +168,9 @@ def build_facts(
     # Biggest absolute move first: that is the one worth the seller's attention.
     # Sorted on the Decimal, not on the rendered string, and the key is dropped
     # before the blob is serialised.
-    price_moves.sort(key=lambda m: abs(m.get("delta") or Decimal(0)), reverse=True)
+    price_moves.sort(
+        key=lambda m: abs(cast("Decimal | None", m.get("delta")) or Decimal(0)), reverse=True
+    )
 
     assortment = [
         {
@@ -483,7 +486,7 @@ def _digest_changes(db: Session, report: Report) -> list[dict]:
     ).scalars().all()
     changes = []
     for event in events:
-        change = {
+        change: dict[str, str | float] = {
             "kind": event.kind,
             "competitor": event.competitor_name or event.competitor_domain,
             "product": event.product_name,
@@ -539,10 +542,15 @@ def send_weekly_digest(db: Session, report: Report) -> bool:
             logger.info("Weekly digest skipped for %s: preference off", recipient.email)
             return False
 
-        claimed = db.execute(
-            update(Report)
-            .where(Report.id == report.id, Report.email_digest_sent.is_(False))
-            .values(email_digest_sent=True)
+        # Session.execute() is typed to return the base Result; a DML statement
+        # actually returns a CursorResult, which carries rowcount.
+        claimed = cast(
+            "CursorResult",
+            db.execute(
+                update(Report)
+                .where(Report.id == report.id, Report.email_digest_sent.is_(False))
+                .values(email_digest_sent=True),
+            ),
         ).rowcount
         if not claimed:
             logger.info("Weekly digest skipped for shop %s: already sent", report.shop_id)

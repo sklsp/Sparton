@@ -28,7 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -268,8 +268,10 @@ def _finish_crawl(
     sources.discard(None)
     if sources:
         order = [SOURCE_JSONLD, SOURCE_FEED, SOURCE_HTML]
-        outcome.data_source = min(
-            sources, key=lambda s: order.index(s) if s in order else len(order)
+        # sources is non-empty here (see the guard above), so min() cannot return None;
+        # its elements are source strings written by capture_fields/_to_extracted.
+        outcome.data_source = cast(
+            str, min(sources, key=lambda s: order.index(s) if s in order else len(order))
         )
     current_urls: set[str] = set()
 

@@ -30,10 +30,10 @@ def _product_dict(p: Product) -> dict:
 
 @router.get("/products")
 def list_products(
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     search: str | None = None,
     limit: int = 50,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     query = select(Product).order_by(Product.id).limit(min(limit, 200))
     org = _org_id(user)
@@ -46,7 +46,7 @@ def list_products(
 
 
 @router.get("/products/{product_id}")
-def get_product(product_id: int, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def get_product(product_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
     row = db.get(Product, product_id)
     org = _org_id(user)
     if row is None or (org is not None and row.organization_id != org):
@@ -55,7 +55,7 @@ def get_product(product_id: int, db: DbSession = None, user: Annotated[object, D
 
 
 @router.get("/analytics/summary")
-def analytics_summary(db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def analytics_summary(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
     org = _org_id(user)
 
     product_query = select(func.count(Product.id))

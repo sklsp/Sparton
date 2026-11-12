@@ -39,7 +39,7 @@ class RAGService:
         persist_dir: str | Path | None = None,
     ) -> None:
         self.embedding_client = embedding_client or EmbeddingClient()
-        self.persist_dir = Path(persist_dir) if persist_dir else settings.rag_dir
+        self.persist_dir = Path(persist_dir or settings.rag_dir)
         self._store: VectorStore | None = None
         self._versions: dict[str, dict[str, Any]] = {}
         # Reentrant: add_document() holds the lock and calls remove_document(),

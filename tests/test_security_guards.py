@@ -94,6 +94,27 @@ def test_api_key_principal_still_works_when_configured(client, db_session, monke
         monkeypatch.undo()
 
 
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/auth/resend-verification", None),
+        ("/auth/change-password", {"current_password": "x" * 12, "new_password": "y" * 12}),
+    ],
+)
+def test_api_key_principal_gets_403_on_personal_account_routes(client, db_session, monkeypatch, path, body):
+    """An API key has no email or password. These routes answered 500 for it before."""
+    from app.core.config import settings
+    from app.core.security import rate_limit
+
+    monkeypatch.setattr(settings, "api_key", "unit-test-machine-key", raising=False)
+    rate_limit.reset_limits()
+    try:
+        response = client.post(path, headers={"X-API-Key": "unit-test-machine-key"}, json=body)
+        assert response.status_code == 403
+    finally:
+        rate_limit.reset_limits()
+
+
 def test_two_tenants_cannot_see_each_others_products(client, db_session):
     """Cross-tenant read isolation on the one endpoint that had a real check."""
     a = client.post(

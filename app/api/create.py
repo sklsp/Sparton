@@ -54,7 +54,7 @@ def _org_id(user) -> int | None:
 # ComfyUI status + workflows
 # --------------------------------------------------------------------------
 @router.get("/comfyui/status")
-def comfyui_status(user: Annotated[object, Depends(current_user)] = None) -> dict:
+def comfyui_status(user: Annotated[object, Depends(current_user)]) -> dict:
     try:
         return _get_comfyui().status()
     except ComfyUIError as exc:
@@ -62,7 +62,7 @@ def comfyui_status(user: Annotated[object, Depends(current_user)] = None) -> dic
 
 
 @router.get("/comfyui/workflows")
-def list_workflows(user: Annotated[object, Depends(current_user)] = None) -> dict:
+def list_workflows(user: Annotated[object, Depends(current_user)]) -> dict:
     workflows = _get_comfyui().list_workflows()
     return {"count": len(workflows), "workflows": [w.to_dict() for w in workflows]}
 
@@ -70,7 +70,7 @@ def list_workflows(user: Annotated[object, Depends(current_user)] = None) -> dic
 @router.post("/comfyui/workflows", status_code=201)
 def import_workflow(
     payload: WorkflowImportRequest,
-    user: Annotated[object, Depends(current_user)] = None,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     # This route writes JSON files into the server's workflow directory, so it
     # must never be reachable without an authenticated principal.
@@ -87,7 +87,7 @@ def import_workflow(
 @router.delete("/comfyui/workflows/{workflow_id}")
 def delete_workflow(
     workflow_id: str,
-    user: Annotated[object, Depends(current_user)] = None,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     deleted = _get_comfyui().delete_workflow(workflow_id)
     if not deleted:
@@ -101,7 +101,7 @@ def delete_workflow(
 @router.post("/comfyui/validate-generation")
 def validate_generation(
     payload: GenerationRequest,
-    user: Annotated[object, Depends(current_user)] = None,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     params = {k: v for k, v in payload.model_dump().items() if v is not None}
     return _get_comfyui().validate_workflow_request(payload.workflow_id, params)
@@ -110,8 +110,8 @@ def validate_generation(
 @router.post("/comfyui/generate", status_code=202)
 def generate(
     payload: GenerationRequest,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     """Queue a synchronous-tracked generation job on the shared job system."""
     service = _get_comfyui()
@@ -140,9 +140,9 @@ def generate(
 
 @router.get("/generated")
 def list_generated(
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     limit: int = 50,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     entries = _get_comfyui().list_generated(limit=min(limit, 200))
     org = _org_id(user)
@@ -159,7 +159,7 @@ def list_generated(
 @router.get("/generated/{filename}")
 def read_generated(
     filename: str,
-    user: Annotated[object, Depends(current_user)] = None,
+    user: Annotated[object, Depends(current_user)],
 ) -> FileResponse:
     # Serves arbitrary files from the generation output directory, so it is
     # authenticated like every other file read.
@@ -182,8 +182,8 @@ def read_generated(
 @router.post("/datasets", status_code=201)
 def create_dataset(
     payload: DatasetCreateRequest,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     row = get_dataset_service().create_dataset(
         db,
@@ -197,7 +197,7 @@ def create_dataset(
 
 
 @router.get("/datasets")
-def list_datasets(db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def list_datasets(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
     rows = get_dataset_service().list_datasets(db, _org_id(user))
     return {
         "count": len(rows),
@@ -212,9 +212,9 @@ def list_datasets(db: DbSession = None, user: Annotated[object, Depends(current_
 @router.post("/datasets/{dataset_id}/images", status_code=201)
 async def upload_dataset_image(
     dataset_id: int,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     file: UploadFile = File(...),
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     content = await file.read()
     try:
@@ -230,8 +230,8 @@ async def upload_dataset_image(
 @router.get("/datasets/{dataset_id}/images")
 def list_dataset_images(
     dataset_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     try:
         rows = get_dataset_service().list_images(db, dataset_id, _org_id(user))
@@ -252,8 +252,8 @@ def set_caption(
     dataset_id: int,
     image_id: int,
     body: dict,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     caption = str(body.get("caption", ""))
     try:
@@ -267,8 +267,8 @@ def set_caption(
 def delete_dataset_image(
     dataset_id: int,
     image_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     try:
         deleted = get_dataset_service().delete_image(db, dataset_id, image_id, _org_id(user))
@@ -280,8 +280,8 @@ def delete_dataset_image(
 @router.get("/datasets/{dataset_id}/validate")
 def validate_dataset(
     dataset_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     try:
         return get_dataset_service().validate(db, dataset_id, _org_id(user))
@@ -293,8 +293,8 @@ def validate_dataset(
 def generate_captions(
     dataset_id: int,
     payload: CaptionRequest,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     try:
         results = get_dataset_service().generate_captions(
@@ -312,31 +312,31 @@ def generate_captions(
 # Training (Leonidas)
 # --------------------------------------------------------------------------
 @router.get("/training/status")
-def training_status(user: Annotated[object, Depends(current_user)] = None) -> dict:
+def training_status(user: Annotated[object, Depends(current_user)]) -> dict:
     return LoRATrainingService().status()
 
 
 @router.get("/training/presets")
-def training_presets(user: Annotated[object, Depends(current_user)] = None) -> dict:
+def training_presets(user: Annotated[object, Depends(current_user)]) -> dict:
     return {"presets": LoRATrainingService().presets()}
 
 
 @router.get("/training/hardware")
-def hardware_info(user: Annotated[object, Depends(current_user)] = None) -> dict:
+def hardware_info(user: Annotated[object, Depends(current_user)]) -> dict:
     # Reveals the host's GPU inventory: never expose it anonymously.
     return detect_hardware().to_dict()
 
 
 @router.post("/training/preflight")
-def preflight(options: dict, db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def preflight(options: dict, db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
     return advise(options).to_dict()
 
 
 @router.post("/training/projects", status_code=201)
 def create_training_project(
     payload: TrainingProjectCreateRequest,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     row = TrainingProject(
         organization_id=_org_id(user),
@@ -353,7 +353,7 @@ def create_training_project(
 
 
 @router.get("/training/projects")
-def list_training_projects(db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def list_training_projects(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
     query = select(TrainingProject).order_by(TrainingProject.created_at.desc())
     org = _org_id(user)
     if org is not None:

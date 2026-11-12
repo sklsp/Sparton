@@ -38,6 +38,24 @@ jobs:
           pip install "ruff==0.17.4"
           ruff check .
 
+  types:
+    name: Types
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: mypy
+        run: |
+          pip install -r requirements.txt "mypy==2.4.1"
+          mypy
+
   test:
     name: Test
     runs-on: ubuntu-latest

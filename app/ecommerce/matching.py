@@ -258,19 +258,33 @@ def comparisons(
 
     out: dict[int, dict[str, Any]] = {}
     for change in priced:
+        # The filter above keeps only changes with a competitor_id and source_url.
+        assert change.competitor_id is not None and change.source_url is not None
         m = by_key.get((change.competitor_id, change.source_url))
         if m is None:
             continue
         own = _own_at(history.get((m.shop_id, m.own_url), []), change.detected_at)
         same_currency = own is not None and own.currency == change.currency
-        out[change.id] = {
-            "own_product": m.own_name,
-            "own_url": m.own_url,
-            "own_price": own.price if same_currency else None,
-            "gap_pct": price_gap(own.price, change.new_price) if same_currency else None,
-            "confidence": m.confidence,
-            "method": m.method,
-        }
+        if same_currency:
+            # same_currency is True only when own is not None (see above).
+            assert own is not None
+            out[change.id] = {
+                "own_product": m.own_name,
+                "own_url": m.own_url,
+                "own_price": own.price,
+                "gap_pct": price_gap(own.price, change.new_price),
+                "confidence": m.confidence,
+                "method": m.method,
+            }
+        else:
+            out[change.id] = {
+                "own_product": m.own_name,
+                "own_url": m.own_url,
+                "own_price": None,
+                "gap_pct": None,
+                "confidence": m.confidence,
+                "method": m.method,
+            }
     return out
 
 

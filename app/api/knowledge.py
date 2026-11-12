@@ -37,9 +37,9 @@ def _org_id(user) -> int | None:
 
 @router.post("/documents/upload", status_code=201)
 async def upload_documents(
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     files: list[UploadFile] = File(...),
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     service = get_document_service()
     results = []
@@ -62,9 +62,9 @@ async def upload_documents(
 
 @router.get("/documents")
 def list_documents(
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     limit: int = 50,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     query = select(Document).order_by(Document.created_at.desc()).limit(min(limit, 200))
     org = _org_id(user)
@@ -84,8 +84,8 @@ def list_documents(
 @router.delete("/documents/{doc_id}")
 def delete_document(
     doc_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     deleted = get_document_service().delete_document(db, doc_id, _org_id(user))
     if not deleted:
@@ -95,7 +95,7 @@ def delete_document(
 
 @router.get("/rag/status")
 def rag_status(
-    user: Annotated[object, Depends(current_user)] = None,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     return get_document_service().rag.status()
 
@@ -103,8 +103,8 @@ def rag_status(
 @router.get("/rag/debug-query")
 def rag_debug_query(
     q: str,
+    user: Annotated[object, Depends(current_user)],
     top_k: int | None = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     return get_document_service().rag.query_debug(q, top_k=top_k)
 
@@ -120,8 +120,8 @@ DEFAULT_TEMPLATE = (
 @router.post("/chat", response_model=ChatResponse)
 def chat(
     payload: ChatRequest,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> ChatResponse:
     """RAG-augmented chat with persisted conversation history."""
     org = _org_id(user)
@@ -185,8 +185,8 @@ def chat(
 @router.get("/conversations/{conversation_id}/history")
 def conversation_history(
     conversation_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     conversation = db.get(Conversation, conversation_id)
     org = _org_id(user)
@@ -209,8 +209,8 @@ def conversation_history(
 @router.delete("/conversations/{conversation_id}/history")
 def clear_conversation(
     conversation_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     conversation = db.get(Conversation, conversation_id)
     org = _org_id(user)
@@ -227,7 +227,7 @@ def clear_conversation(
 
 # --- prompt templates ------------------------------------------------------------
 @router.get("/prompts")
-def list_prompts(db: DbSession = None, user: Annotated[object, Depends(current_user)] = None) -> dict:
+def list_prompts(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
     # `organization_id IN (org, NULL)` never matches the NULL rows, because SQL
     # three-valued logic makes any comparison with NULL unknown. Global templates
     # were therefore invisible to every tenant. Use an explicit OR.
@@ -250,8 +250,8 @@ def list_prompts(db: DbSession = None, user: Annotated[object, Depends(current_u
 @router.post("/prompts", status_code=201)
 def create_prompt(
     payload: PromptTemplateCreate,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     row = PromptTemplate(
         organization_id=_org_id(user),

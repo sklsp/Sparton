@@ -13,9 +13,10 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import func, select, update
+from sqlalchemy import Update, func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -122,8 +123,13 @@ def claim_next(db: Session, worker_id: str, job_type: str | None = None) -> Job 
     for job in candidates:
         if job.run_after is not None and as_utc(job.run_after) > now:
             continue
-        updated = db.execute(
-            update_job_status_stmt(job.id, JobStatus.RUNNING, JobStatus.QUEUED, worker_id=worker_id)
+        # Session.execute() is typed to return the base Result; DML statements
+        # actually yield a CursorResult, which is what exposes rowcount.
+        updated = cast(
+            CursorResult,
+            db.execute(
+                update_job_status_stmt(job.id, JobStatus.RUNNING, JobStatus.QUEUED, worker_id=worker_id)
+            ),
         )
         db.commit()
         if updated.rowcount:
@@ -137,7 +143,7 @@ def update_job_status_stmt(
     target: JobStatus,
     expected: JobStatus,
     worker_id: str | None = None,
-):
+) -> Update:
     values: dict[str, Any] = {"status": target.value}
     if target is JobStatus.RUNNING:
         values["started_at"] = utcnow()

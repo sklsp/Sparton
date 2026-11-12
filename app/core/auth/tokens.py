@@ -18,8 +18,10 @@ import hashlib
 import logging
 import secrets
 from datetime import UTC, timedelta
+from typing import cast
 
-from sqlalchemy import select, update
+from sqlalchemy import Table, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -119,10 +121,15 @@ def purge_expired(db: Session) -> int:
     from datetime import datetime
 
     cutoff = datetime.now(UTC) - timedelta(days=7)
-    result = db.execute(
-        AuthToken.__table__.delete().where(
-            (AuthToken.used_at.isnot(None)) | (AuthToken.expires_at < cutoff)
-        )
+    # __table__ is typed as the generic FromClause (it really is a Table), and
+    # Session.execute() for DML yields a CursorResult, which has rowcount.
+    result = cast(
+        CursorResult,
+        db.execute(
+            cast(Table, AuthToken.__table__).delete().where(
+                (AuthToken.used_at.isnot(None)) | (AuthToken.expires_at < cutoff)
+            )
+        ),
     )
     db.commit()
     return result.rowcount or 0

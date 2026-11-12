@@ -15,9 +15,46 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from html import escape
-from typing import Any
+from typing import Any, TypedDict, cast
 
-COPY = {
+
+class _Copy(TypedDict):
+    """One language of the weekly report email copy."""
+
+    subject: str
+    subject_one: str
+    subject_none: str
+    title: str
+    period: str
+    changes: str
+    cuts: str
+    rises: str
+    watched: str
+    changes_one: str
+    cuts_one: str
+    rises_one: str
+    watched_one: str
+    moves: str
+    col_who: str
+    col_what: str
+    col_was: str
+    col_now: str
+    col_delta: str
+    soldout: str
+    back: str
+    new: str
+    removed: str
+    evidence: str
+    quiet: str
+    open: str
+    fine: str
+    why: str
+    months: list[str]
+    decimal: str
+    thousands: str
+
+
+COPY: dict[str, _Copy] = {
     "en": {
         "subject": "Week {week}: {n} changes at your competitors",
         "subject_one": "Week {week}: 1 change at your competitors",
@@ -111,7 +148,7 @@ def _cells(change: dict, lang: str) -> tuple[str, str, str, str]:
         return (_money(change.get("previous_price"), lang), _money(change.get("new_price"), lang),
                 _pct(change), DOWN if kind == "price_decrease" else UP)
     word = {"out_of_stock": c["soldout"], "back_in_stock": c["back"], "new_product": c["new"],
-            "removed_product": c["removed"]}.get(kind, "")
+            "removed_product": c["removed"]}.get(cast(str, kind), "")
     return ("", _money(change.get("new_price"), lang), word, INK)
 
 
@@ -136,7 +173,10 @@ def render_report_email(
         c["subject_none"] if not total else c["subject_one"] if total == 1 else c["subject"]
     ).format(week=week, n=total)
     title = c["title"].format(shop=shop)
-    label = lambda n, key: c[f"{key}_one"] if n == 1 else c[key]  # noqa: E731
+    def label(n: int, key: str) -> str:
+        d = cast("dict[str, str]", c)
+        return d[f"{key}_one"] if n == 1 else d[key]
+
     counts = [(total, label(total, "changes"))]
     for n, key in (
         (by_kind.get("price_decrease"), "cuts"), (by_kind.get("price_increase"), "rises"), (watched, "watched")

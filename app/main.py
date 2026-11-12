@@ -172,8 +172,8 @@ def create_app() -> FastAPI:
     if WEB_DIR.is_dir():
         app.mount("/app", DashboardFiles(directory=WEB_DIR, html=True), name="app")
 
-    @app.get("/", include_in_schema=False)
-    async def root() -> FileResponse:
+    @app.get("/", include_in_schema=False, response_model=None)
+    async def root() -> FileResponse | RedirectResponse:
         """The public landing page. Everything a visitor needs before signup."""
         landing = WEB_DIR / "landing.html"
         if landing.is_file():
