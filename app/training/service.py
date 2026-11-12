@@ -287,7 +287,7 @@ class LoRATrainingService:
     def preflight(self, options: dict[str, Any]) -> dict[str, Any]:
         report = advise(options)
         if not settings.ai_toolkit_configured:
-            report.checks.insert(0, advise.__self__ and _toolkit_check())  # type: ignore[attr-defined]  # real bug, see sparton-quality-2/BUGS.md #5
+            report.checks.insert(0, _toolkit_check())
             report.verdict = "blocked" if report.verdict == "ok" else report.verdict
         return report.to_dict()
 
