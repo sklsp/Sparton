@@ -5,7 +5,7 @@
 - [x] T3. types: FastAPI dependency parameters without a None default (create, knowledge) (516 passed, 58 skipped, 2 warnings in 280.48s (0:04:40))
 - [x] T4. types: FastAPI dependency parameters without a None default (the other routers) (516 passed, 58 skipped, 2 warnings in 277.51s (0:04:37))
 - [x] T5. types: agent engine step types (516 passed, 58 skipped, 2 warnings in 276.16s (0:04:36))
-- [ ] T6. types: weekly report email copy
+- [x] T6. types: weekly report email copy (516 passed, 58 skipped, 2 warnings in 276.18s (0:04:36))
 - [ ] T7. types: auth routes
 - [ ] T8. types: commerce routes
 - [ ] T9. types: ecommerce
