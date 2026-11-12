@@ -42,7 +42,7 @@ _usage_user: contextvars.ContextVar[int | None] = contextvars.ContextVar(
 
 def set_usage_context(
     organization_id: int | None, user_id: int | None = None
-) -> contextvars.Token:
+) -> tuple[contextvars.Token[int | None], contextvars.Token[int | None]]:
     """Bind the calling request's organization for usage accounting."""
     return _usage_org.set(organization_id), _usage_user.set(user_id)
 

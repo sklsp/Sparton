@@ -28,8 +28,8 @@ def live() -> dict:
     return {"status": "live"}
 
 
-@router.get("/ready")
-def ready() -> dict:
+@router.get("/ready", response_model=None)
+def ready() -> dict | Response:
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))

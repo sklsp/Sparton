@@ -15,6 +15,7 @@ import socket
 import time
 from dataclasses import dataclass
 from threading import Lock
+from typing import cast
 from urllib.parse import urldefrag, urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 
@@ -71,7 +72,7 @@ def _resolve_public_addresses(hostname: str) -> list[str]:
     "unresolvable" and "resolves to something private" as one decision.
     """
     infos = socket.getaddrinfo(hostname, None)
-    return [info[4][0] for info in infos]
+    return [cast(str, info[4][0]) for info in infos]
 
 
 def _is_public_http_url(url: str) -> bool:

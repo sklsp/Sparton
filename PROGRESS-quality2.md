@@ -9,6 +9,6 @@
 - [x] T7. types: auth routes (516 passed, 58 skipped, 2 warnings in 281.00s (0:04:40))
 - [x] T8. types: commerce routes (516 passed, 58 skipped, 2 warnings in 281.22s (0:04:41))
 - [x] T9. types: ecommerce (516 passed, 58 skipped, 2 warnings in 279.59s (0:04:39))
-- [ ] T10. types: everything left
+- [x] T10. types: everything left (516 passed, 58 skipped, 2 warnings in 281.81s (0:04:41))
 - [ ] T11. ci: a type check job keeps mypy clean
 - [ ] T12. docs: the README says mypy runs in CI

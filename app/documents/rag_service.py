@@ -192,11 +192,11 @@ class RAGService:
         import shutil
         import time
 
-        quarantine = self.persist_dir / "quarantined"
+        quarantine = self.persist_dir / "quarantined"  # type: ignore[operator]  # real bug, see sparton-quality-2/BUGS.md #4
         quarantine.mkdir(parents=True, exist_ok=True)
         stamp = int(time.time())
         for name in ("index.faiss", "chunks.json", "meta.json"):
-            path = self.persist_dir / name
+            path = self.persist_dir / name  # type: ignore[operator]  # real bug, see sparton-quality-2/BUGS.md #4
             if path.is_file():
                 try:
                     shutil.move(str(path), str(quarantine / f"{name}.{stamp}"))

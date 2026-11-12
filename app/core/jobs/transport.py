@@ -221,7 +221,7 @@ class InlineQueueBackend(QueueBackend):
         job_id: str | None = None,
         delay_seconds: float = 0,
     ) -> str:
-        entry = {
+        entry: dict[str, Any] = {
             "id": job_id or uuid.uuid4().hex,
             "type": job_type,
             "payload": payload,

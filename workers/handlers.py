@@ -7,6 +7,7 @@ drives the durable Job row through its state machine.
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 from app.core.database.base import SessionLocal
 from app.core.database.domain_models import Job, JobStatus
@@ -22,7 +23,7 @@ def _handle_research(payload: dict) -> None:
     job_id = payload.get("job_id")
     db = SessionLocal()
     try:
-        job = db.get(Job, int(job_id))
+        job = db.get(Job, int(cast(str, job_id)))
         if job is None or job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED):
             return
         run_investigation(db, job, start_urls=payload.get("start_urls") or None)
@@ -41,7 +42,7 @@ def _handle_comfy_generation(payload: dict) -> None:
     db = SessionLocal()
     service = ComfyUIService()
     try:
-        job = db.get(Job, int(job_id))
+        job = db.get(Job, int(cast(str, job_id)))
         if job is None or job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED):
             return
         job.status = JobStatus.RUNNING.value
@@ -49,12 +50,16 @@ def _handle_comfy_generation(payload: dict) -> None:
         job.started_at = utcnow()
         db.commit()
 
+        def _progress(frac: float, msg: str) -> None:
+            job.progress = frac
+            job.message = msg
+            db.commit()
+
         try:
             saved = service.run_generation_sync(
                 payload["workflow_id"],
                 payload.get("params", {}),
-                progress=lambda frac, msg: setattr(job, "progress", frac)
-                or setattr(job, "message", msg) or db.commit(),
+                progress=_progress,
                 cancelled=lambda: db.execute(
                     __import__("sqlalchemy").select(Job.cancel_requested).where(Job.id == job.id)
                 ).scalar(),

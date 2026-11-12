@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Awaitable, Callable
+from typing import Protocol, cast
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -13,6 +14,12 @@ from app.core.observability.metrics import Timer, inc
 from app.core.observability.tracing import get_tracer
 
 CORRELATION_HEADER = "X-Correlation-ID"
+
+
+class _MatchedRoute(Protocol):
+    """The route object starlette stores on the scope once a request is routed."""
+
+    path: str
 
 
 class RequestInstrumentation(BaseHTTPMiddleware):
@@ -35,7 +42,7 @@ class RequestInstrumentation(BaseHTTPMiddleware):
 
         method = request.method
         path = (
-            request.scope.get("route").path
+            cast(_MatchedRoute, request.scope.get("route")).path
             if request.scope.get("route")
             else request.url.path
         )
