@@ -70,13 +70,14 @@ def _plausible_price(price: Decimal | None) -> bool:
     return price is not None and 0 < price <= PLAUSIBLE_MAX_PRICE
 
 
-def price_severity(delta_pct: float) -> str:
+def price_severity(delta_pct: Decimal | float) -> str:
     """How much a customer should care.
 
     The thresholds are the product's, not the crawler's: a 30% cut is a
     different event from a 3% rounding wobble.
     """
-    magnitude = abs(delta_pct)
+    # mypy infers object for abs() over a Decimal | float union, so spell it out.
+    magnitude = delta_pct if delta_pct >= 0 else -delta_pct
     if magnitude >= 20:
         return ChangeSeverity.HIGH
     if magnitude >= 10:
@@ -84,7 +85,7 @@ def price_severity(delta_pct: float) -> str:
     return ChangeSeverity.LOW
 
 
-def money(value: float | None, currency: str) -> str:
+def money(value: Decimal | float | None, currency: str) -> str:
     """`27.5, "EUR"` -> `€27.50`. Shared by the diff and the report writer."""
     if value is None:
         return "unknown"
@@ -124,7 +125,7 @@ class DetectedChange:
         return (self.new_price - self.previous_price).quantize(Decimal('0.01'))
 
     @property
-    def delta_pct(self) -> Decimal | None:
+    def delta_pct(self) -> float | None:
         """A percentage, so a float is right -- but computed in Decimal and
         converted once at the end, so the division does not inherit float
         error from the prices."""
@@ -154,11 +155,15 @@ def diff_captures(
     # --- price ---------------------------------------------------------
     old_price, new_price = previous.price, current.price
     if _plausible_price(old_price) and _plausible_price(new_price) and old_price != new_price:
+        # _plausible_price is True only for a non-None Decimal (see its body).
+        assert old_price is not None and new_price is not None
         delta = new_price - old_price
         delta_pct = (delta / old_price) * 100 if old_price else 0.0
         # Ignore rounding wobble: it trains customers to ignore real alerts.
+        # mypy infers object for abs() over a Decimal | float union, so spell it out.
+        magnitude = delta_pct if delta_pct >= 0 else -delta_pct
         meaningful = (
-            abs(delta_pct) >= PRICE_EPSILON_PCT or abs(delta) >= PRICE_EPSILON_ABS
+            magnitude >= PRICE_EPSILON_PCT or abs(delta) >= PRICE_EPSILON_ABS
         )
         if meaningful:
             dropped = delta < 0

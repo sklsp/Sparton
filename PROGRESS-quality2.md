@@ -8,7 +8,7 @@
 - [x] T6. types: weekly report email copy (516 passed, 58 skipped, 2 warnings in 276.18s (0:04:36))
 - [x] T7. types: auth routes (516 passed, 58 skipped, 2 warnings in 281.00s (0:04:40))
 - [x] T8. types: commerce routes (516 passed, 58 skipped, 2 warnings in 281.22s (0:04:41))
-- [ ] T9. types: ecommerce
+- [x] T9. types: ecommerce (516 passed, 58 skipped, 2 warnings in 279.59s (0:04:39))
 - [ ] T10. types: everything left
 - [ ] T11. ci: a type check job keeps mypy clean
 - [ ] T12. docs: the README says mypy runs in CI

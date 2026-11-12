@@ -276,7 +276,7 @@ def suggest_competitors(
 
     own = _registrable(shop.domain)
     tracked = {
-        row.domain
+        row.domain  # type: ignore[attr-defined]  # real bug, see sparton-quality-2/BUGS.md #3
         for row in db.execute(
             select(Competitor.domain).where(
                 Competitor.organization_id == organization_id

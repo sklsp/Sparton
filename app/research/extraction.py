@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from decimal import Decimal
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin
@@ -20,7 +21,7 @@ class ExtractedProduct:
     name: str = ""
     brand: str = ""
     category: str = ""
-    price: float | None = None
+    price: Decimal | float | None = None
     currency: str = ""
     availability: str = "unknown"
     description: str = ""
