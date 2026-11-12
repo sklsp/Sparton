@@ -186,7 +186,7 @@ def set_language(
 # Email verification
 # ---------------------------------------------------------------------------
 @router.post("/verify-email", status_code=200)
-def verify_email(payload: VerifyRequest, db: DbSession = None) -> dict:
+def verify_email(payload: VerifyRequest, db: DbSession) -> dict:
     """Redeem a verification link.
 
     The token is single-use, and redeeming it marks the user verified. An unknown,
@@ -214,8 +214,8 @@ def verify_email(payload: VerifyRequest, db: DbSession = None) -> dict:
 @router.post("/resend-verification")
 def resend_verification(
     request: Request,
-    db: DbSession = None,
-    user: Annotated[object, Depends(unverified_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(unverified_user)],
 ) -> dict:
     """Send the verification link again.
 
@@ -240,7 +240,7 @@ def resend_verification(
 def forgot_password(
     payload: ForgotPasswordRequest,
     request: Request,
-    db: DbSession = None,
+    db: DbSession,
     _: None = Depends(rate_limit(limit=settings.rate_limit_forgot_password_per_minute)),
 ) -> dict:
     """Start a password reset.
@@ -268,7 +268,7 @@ def forgot_password(
 def reset_password(
     payload: ResetPasswordRequest,
     request: Request,
-    db: DbSession = None,
+    db: DbSession,
     _: None = Depends(rate_limit(limit=settings.rate_limit_forgot_password_per_minute)),
 ) -> dict:
     """Complete a password reset.
@@ -299,8 +299,8 @@ def reset_password(
 @router.post("/change-password")
 def change_password(
     payload: ChangePasswordRequest,
-    db: DbSession = None,
-    user: Annotated[object, Depends(unverified_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(unverified_user)],
 ) -> dict:
     """Change your own password. Requires the current one.
 
@@ -329,8 +329,8 @@ def change_password(
 @router.patch("/settings")
 def update_settings(
     payload: UserSettingsUpdate,
-    db: DbSession = None,
-    user: Annotated[object, Depends(unverified_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(unverified_user)],
 ) -> dict:
     """Update your own account preferences: UI language and the weekly email digest.
 

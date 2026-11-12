@@ -199,8 +199,8 @@ def get_competitor_or_404(db, competitor_id: int, organization_id: int | None) -
 @router.post("/shops", status_code=201)
 def create_shop(
     payload: ShopCreate,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     """Add your shop. This is the first step of the whole product."""
     org = _org_id(user)
@@ -234,8 +234,8 @@ def create_shop(
 
 @router.get("/shops")
 def list_shops(
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     org = _org_id(user)
     rows = db.execute(
@@ -258,8 +258,8 @@ def list_shops(
 @router.get("/shops/{shop_id}")
 def get_shop(
     shop_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     org = _org_id(user)
     shop = get_shop_or_404(db, shop_id, org)
@@ -277,8 +277,8 @@ def get_shop(
 def update_shop(
     shop_id: int,
     payload: ShopUpdate,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     shop = get_shop_or_404(db, shop_id, _org_id(user))
     if payload.name is not None:
@@ -301,8 +301,8 @@ def update_shop(
 @router.delete("/shops/{shop_id}")
 def delete_shop(
     shop_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     shop = get_shop_or_404(db, shop_id, _org_id(user))
     db.delete(shop)  # cascades to competitors, captures, changes
@@ -315,9 +315,9 @@ def delete_shop(
 # ---------------------------------------------------------------------------
 @router.get("/competitors")
 def list_competitors(
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     shop_id: int | None = None,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     org = _org_id(user)
     query = select(Competitor).where(Competitor.organization_id == org)
@@ -330,8 +330,8 @@ def list_competitors(
 @router.post("/competitors", status_code=201)
 def create_competitor(
     payload: CompetitorCreate,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     org = _org_id(user)
     check_competitors(db, org, _plan_of(db, user))
@@ -351,8 +351,8 @@ def create_competitor(
 @router.delete("/competitors/{competitor_id}")
 def delete_competitor(
     competitor_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     competitor = get_competitor_or_404(db, competitor_id, _org_id(user))
     db.delete(competitor)  # cascades to captures and changes
@@ -366,8 +366,8 @@ def delete_competitor(
 @router.post("/shops/{shop_id}/discover")
 def discover_competitors(
     shop_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     """Propose competitors. **Nothing is stored** until the customer confirms.
 
@@ -392,8 +392,8 @@ def discover_competitors(
 @router.post("/shops/{shop_id}/crawl", status_code=202)
 def crawl_shop_now(
     shop_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     """Queue an immediate crawl of every competitor on this shop."""
     org = _org_id(user)
@@ -434,8 +434,8 @@ def crawl_shop_now(
 @router.post("/competitors/{competitor_id}/crawl", status_code=202)
 def crawl_competitor_now(
     competitor_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     org = _org_id(user)
     competitor = get_competitor_or_404(db, competitor_id, org)
@@ -452,9 +452,9 @@ def crawl_competitor_now(
 @router.post("/shops/{shop_id}/report", status_code=202)
 def generate_report_now(
     shop_id: int,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     days: int = Query(default=7, ge=1, le=90),
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     """Write a report now over the last `days` days."""
     org = _org_id(user)
@@ -483,14 +483,14 @@ def generate_report_now(
 # ---------------------------------------------------------------------------
 @router.get("/changes")
 def list_changes(
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     shop_id: int | None = None,
     kind: str | None = None,
     severity: str | None = None,
     unacknowledged_only: bool = False,
     days: int = Query(default=30, ge=1, le=365),
     limit: int = Query(default=50, ge=1, le=200),
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     """The in-app alert inbox, newest first. Every row carries an evidence link."""
     from datetime import timedelta
@@ -528,8 +528,8 @@ def list_changes(
 @router.post("/changes/{change_id}/ack")
 def acknowledge_change(
     change_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     org = _org_id(user)
     row = db.execute(
@@ -548,9 +548,9 @@ def acknowledge_change(
 @router.get("/changes/{change_id}/history")
 def change_history(
     change_id: int,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     limit: int = Query(default=120, ge=1, le=500),
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     """Every capture of the product a change is about, oldest first: its price history.
 
@@ -640,9 +640,9 @@ def change_history(
 @router.get("/shops/{shop_id}/reports")
 def list_shop_reports(
     shop_id: int,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     limit: int = Query(default=20, ge=1, le=100),
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     org = _org_id(user)
     get_shop_or_404(db, shop_id, org)
@@ -661,9 +661,9 @@ def list_shop_reports(
 
 @router.get("/reports")
 def list_reports(
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     limit: int = Query(default=20, ge=1, le=100),
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     org = _org_id(user)
     rows = db.execute(
@@ -681,8 +681,8 @@ def list_reports(
 @router.get("/reports/{report_id}")
 def get_report(
     report_id: int,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     org = _org_id(user)
     row = db.execute(
@@ -698,8 +698,8 @@ def get_report(
 # ---------------------------------------------------------------------------
 @router.get("/overview")
 def overview(
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     """Everything the dashboard needs in one round trip.
 

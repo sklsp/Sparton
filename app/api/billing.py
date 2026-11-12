@@ -71,8 +71,8 @@ def list_plans() -> dict:
 
 @router.get("/billing/plan")
 def current_plan(
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     """The caller's plan, their usage, and what they could still add."""
     org_id = _org_id(user)
@@ -86,9 +86,9 @@ def current_plan(
 
 @router.get("/billing/usage")
 def usage(
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
     days: int = 30,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
 ) -> dict:
     """Measured token spend. This is what `docs/LAUNCH.md` quotes as unit cost."""
     org_id = _org_id(user)
@@ -100,8 +100,8 @@ def usage(
 
 @router.get("/billing/invoices")
 def invoices(
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     """Invoices for the caller's organization.
 
@@ -141,8 +141,8 @@ def invoices(
 def start_checkout(
     payload: CheckoutRequest,
     request: Request,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     """Send the customer to Stripe Checkout and return the URL.
 
@@ -215,8 +215,8 @@ def start_checkout(
 @router.post("/billing/portal")
 def open_portal(
     request: Request,
-    db: DbSession = None,
-    user: Annotated[object, Depends(current_user)] = None,
+    db: DbSession,
+    user: Annotated[object, Depends(current_user)],
 ) -> dict:
     """Open the Customer Portal, where a customer cancels or swaps card."""
     org_id = _org_id(user)
@@ -237,7 +237,7 @@ def open_portal(
 @router.post("/stripe/webhook")
 async def stripe_webhook(
     request: Request,
-    db: DbSession = None,
+    db: DbSession,
     _rate: None = Depends(rate_limit(limit=120)),
 ) -> dict:
     """Stripe's only callback.

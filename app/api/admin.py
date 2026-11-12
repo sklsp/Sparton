@@ -28,10 +28,10 @@ def _require_admin(user=Depends(current_user)):
 
 @router.get("/users")
 def list_users(
+    db: DbSession,
+    admin: Annotated[object, Depends(_require_admin)],
     search: str | None = None,
     limit: int = 50,
-    db: DbSession = None,
-    admin: Annotated[object, Depends(_require_admin)] = None,
 ) -> dict:
     query = select(User).order_by(User.id).limit(min(limit, 200))
     if search:
@@ -55,8 +55,8 @@ def list_users(
 def patch_user(
     user_id: int,
     payload: UserPatchRequest,
-    db: DbSession = None,
-    admin: Annotated[object, Depends(_require_admin)] = None,
+    db: DbSession,
+    admin: Annotated[object, Depends(_require_admin)],
 ) -> dict:
     target = db.get(User, user_id)
     if target is None:

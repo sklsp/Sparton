@@ -39,7 +39,7 @@ def ready() -> dict:
 
 
 @router.get("/health")
-def health(user: Annotated[object, Depends(current_user)] = None) -> dict:
+def health(user: Annotated[object, Depends(current_user)]) -> dict:
     db_ok = False
     try:
         with engine.connect() as conn:
@@ -65,13 +65,13 @@ def health(user: Annotated[object, Depends(current_user)] = None) -> dict:
 
 
 @router.get("/metrics")
-def metrics(user: Annotated[object, Depends(current_user)] = None) -> Response:
+def metrics(user: Annotated[object, Depends(current_user)]) -> Response:
     # Scraped by Prometheus with X-API-Key, or by a signed-in operator.
     return Response(content=render_metrics(), media_type="text/plain; version=0.0.4")
 
 
 @router.get("/tools")
-def tools(user: Annotated[object, Depends(current_user)] = None) -> dict:
+def tools(user: Annotated[object, Depends(current_user)]) -> dict:
     # Tool names, descriptions and full JSON schemas are internal surface.
     registry = build_registry()
     return {"count": len(registry), "tools": [t.to_info() for t in registry.list()]}
