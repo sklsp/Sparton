@@ -251,7 +251,6 @@ class TestGetSalesSummary:
 
         assert result == {"period_days": 30, "order_count": 2, "total_revenue": 30.75}
 
-    @pytest.mark.xfail(strict=True, reason="real bug, see sparton-quality-3/BUGS.md #4")
     def test_it_is_scoped_to_the_callers_tenant(self, db_session):
         mine = _product(db_session, 1, "M-S", "Mine")
         theirs = _product(db_session, 2, "F-S", "Theirs")
