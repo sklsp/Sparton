@@ -174,9 +174,13 @@ def get_sales_summary(ctx: ToolContext, params: GetSalesSummaryInput) -> dict:
     from app.core.database.models import utcnow
 
     since = utcnow() - timedelta(days=params.days)
-    orders = ctx.db.execute(
-        select(Order).where(Order.created_at >= since).limit(5000)
-    ).scalars().all()
+    query = select(Order).where(Order.created_at >= since).limit(5000)
+    if ctx.organization_id is not None:
+        # Orders carry no organization_id; they belong to a tenant through their product, as in get_inventory.
+        query = query.join(Product, Order.product_id == Product.id).where(
+            Product.organization_id == ctx.organization_id
+        )
+    orders = ctx.db.execute(query).scalars().all()
     total_revenue = sum(o.total for o in orders)
     return {
         "period_days": params.days,

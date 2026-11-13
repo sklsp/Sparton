@@ -803,3 +803,268 @@ class TestTheFeedReaderIsPolite:
         assert "sleep" in inspect.signature(
             crawl_module.read_feed_catalog
         ).parameters
+
+
+class TestTheMoneyCoercion:
+    """_money keeps the shop's exact Decimal and refuses what is not money."""
+
+    def test_none_stays_none(self):
+        from app.ecommerce.feeds import _money
+
+        assert _money(None) is None
+
+    def test_a_decimal_is_quantised_not_converted(self):
+        # MONEY_QUANTUM has four places, matching Numeric(12, 4); no float may sit between.
+        from decimal import Decimal
+
+        from app.ecommerce.feeds import _money
+
+        assert str(_money(Decimal("8.5"))) == "8.5000"
+        assert _money(Decimal("1.999")) == Decimal("1.9990")
+
+    def test_a_string_amount_is_accepted(self):
+        # A feed that stringified its numbers must not crash the crawl.
+        from decimal import Decimal
+
+        from app.ecommerce.feeds import _money
+
+        assert _money("12.34") == Decimal("12.3400")
+
+    def test_a_float_round_trips_without_binary_error(self):
+        # 0.45 has no exact binary form; going through str() keeps it clean.
+        from decimal import Decimal
+
+        from app.ecommerce.feeds import _money
+
+        assert _money(0.45) == Decimal("0.4500")
+
+    def test_nan_and_infinity_are_refused(self):
+        # A NaN compares unequal to itself and would poison every price diff.
+        from decimal import Decimal
+
+        from app.ecommerce.feeds import _money
+
+        assert _money(float("nan")) is None
+        assert _money(float("inf")) is None
+        assert _money(Decimal("NaN")) is None
+
+    def test_garbage_is_refused(self):
+        from app.ecommerce.feeds import _money
+
+        assert _money("not a price") is None
+
+    def test_a_value_that_cannot_be_stringified_is_refused(self):
+        from app.ecommerce.feeds import _money
+
+        class Broken:
+            def __str__(self):
+                raise TypeError("no string form")
+
+        assert _money(Broken()) is None
+
+
+class TestTheExtractionOfOneProduct:
+    """_to_extracted maps one shopfeed Product onto our row, honestly."""
+
+    def _product(self, **overrides):
+        from decimal import Decimal
+
+        from shopfeed.catalog import Product
+
+        base = dict(
+            platform="shopify",
+            id="101",
+            title="Cast Iron Skillet",
+            url=f"{SHOP}/products/cast-iron-skillet",
+            price=Decimal("24.99"),
+            compare_at=None,
+            currency="eur",
+            available=True,
+            sku="SKU-101",
+            variants=3,
+            vendor="Acme Foundry",
+            image=f"{SHOP}/img/skillet.jpg",
+            gtin="5012345678900",
+        )
+        base.update(overrides)
+        return Product(**base)
+
+    def test_a_product_with_no_title_and_no_price_is_dropped(self):
+        # Storing it would surface as a phantom "product removed" next crawl.
+        from app.ecommerce.feeds import _to_extracted
+
+        row = _to_extracted(
+            self._product(title="", price=None), source=SOURCE_FEED
+        )
+        assert row is None
+
+    def test_a_title_without_a_price_is_kept(self):
+        # The shop may hide the price behind a variant picker; the product itself is real.
+        from app.ecommerce.feeds import _to_extracted
+
+        row = _to_extracted(self._product(price=None), source=SOURCE_FEED)
+        assert row.name == "Cast Iron Skillet"
+        assert row.price is None
+
+    def test_a_price_without_a_title_gets_an_honest_placeholder(self):
+        from decimal import Decimal
+
+        from app.ecommerce.feeds import _to_extracted
+
+        row = _to_extracted(self._product(title=""), source=SOURCE_FEED)
+        assert row.name == "Untitled product"
+        assert row.price == Decimal("24.99")
+
+    def test_the_currency_is_normalised_and_given_a_default(self):
+        from app.ecommerce.feeds import _to_extracted
+
+        assert (
+            _to_extracted(self._product(currency="gbp"), source=SOURCE_FEED).currency
+            == "GBP"
+        )
+        # A feed that omits the currency is assumed to be in EUR, not left blank.
+        assert (
+            _to_extracted(self._product(currency=None), source=SOURCE_FEED).currency
+            == "EUR"
+        )
+
+    def test_availability_and_the_markdown_are_carried_through(self):
+        from decimal import Decimal
+
+        from app.ecommerce.feeds import _to_extracted
+
+        row = _to_extracted(
+            self._product(available=False, compare_at=Decimal("29.99")),
+            source=SOURCE_FEED,
+        )
+        assert row.availability == "out_of_stock"
+        assert row.attributes["compare_at"] == Decimal("29.99")
+
+    def test_the_source_is_stamped_into_the_row(self):
+        # The UI shows the customer which kind of number they are looking at.
+        from app.ecommerce.feeds import _to_extracted
+
+        feed = _to_extracted(self._product(), source=SOURCE_FEED)
+        ld = _to_extracted(self._product(), source=SOURCE_JSONLD)
+        # The row records the tier that produced it, not the shop's platform:
+        # the UI shows the customer which kind of number they are looking at.
+        assert (feed.method, feed.confidence) == ("feed", 1.0)
+        assert (ld.method, ld.confidence) == ("jsonld", 0.95)
+
+    def test_the_identifiers_and_variant_count_are_kept(self):
+        from app.ecommerce.feeds import _to_extracted
+
+        row = _to_extracted(self._product(variants=0), source=SOURCE_FEED)
+        assert row.attributes["external_id"] == "101"
+        assert row.attributes["sku"] == "SKU-101"
+        assert row.attributes["gtin"] == "5012345678900"
+        # A feed that reports zero variants means "not stated", not "none".
+        assert row.attributes["variants"] == 1
+
+
+class TestTheStrictResolver:
+    """_public_only must stay shopfeed's strict resolver."""
+
+    def test_a_globally_routable_address_passes(self):
+        from app.ecommerce.feeds import _public_only
+
+        assert _public_only("93.184.215.14") is True
+
+    def test_loopback_is_refused(self):
+        # The escape hatch for local fixtures is allow_private, not this resolver.
+        from app.ecommerce.feeds import _public_only
+
+        assert _public_only("localhost") is False
+        assert _public_only("127.0.0.1") is False
+
+    def test_a_name_that_does_not_resolve_is_refused(self):
+        # No address, no fetch: a name that dies on lookup must not pass.
+        from app.ecommerce.feeds import _public_only
+
+        assert _public_only("no-such-host.invalid") is False
+
+
+class TestTheSpartanGate:
+    """_sparton_allows decides before shopfeed is even called."""
+
+    def test_the_development_flag_opens_the_gate_without_resolving(self, monkeypatch):
+        from app.core.config import settings
+        from app.ecommerce.feeds import _sparton_allows
+
+        calls = []
+
+        def _must_not_run(url):
+            calls.append(url)
+            return True
+
+        monkeypatch.setattr("app.research.crawler._is_public_http_url", _must_not_run)
+        monkeypatch.setattr(settings, "crawler_allow_private_addresses", True)
+        assert _sparton_allows(SHOP) is True
+        assert calls == [], "the flag must short-circuit the address check"
+
+    def test_without_the_flag_the_crawler_guard_decides(self, monkeypatch):
+        from app.core.config import settings
+        from app.ecommerce.feeds import _sparton_allows
+
+        monkeypatch.setattr(settings, "crawler_allow_private_addresses", False)
+        monkeypatch.setattr("app.research.crawler._is_public_http_url", lambda url: True)
+        assert _sparton_allows(SHOP) is True
+        monkeypatch.setattr(
+            "app.research.crawler._is_public_http_url", lambda url: False
+        )
+        assert _sparton_allows(SHOP) is False
+
+    def test_read_feed_catalog_refuses_a_blocked_url_before_any_request(self, monkeypatch):
+        # The guard runs before the fetcher exists, so no request may be made.
+        from app.core.config import settings
+
+        def _no_request(request):
+            raise AssertionError("a blocked URL must not be fetched")
+
+        monkeypatch.setattr(settings, "crawler_allow_private_addresses", False)
+        monkeypatch.setattr(
+            "app.research.crawler._is_public_http_url", lambda url: False
+        )
+        result = read_feed_catalog(SHOP, transport=httpx.MockTransport(_no_request))
+        assert not result.found
+        assert result.source == SOURCE_HTML
+        assert "Blocked" in (result.error or "")
+
+    def test_a_public_ip_host_passes_the_gate_and_reaches_the_fetcher(self):
+        # An IP literal resolves without DNS, so the strict resolver runs end to end:
+        # gate passes, shopfeed probes find no feed, and the crawl falls back to HTML.
+        url = "https://93.184.215.14/"
+        transport = httpx.MockTransport(lambda request: httpx.Response(404))
+        result = read_feed_catalog(url, transport=transport, sleep=_NoWait())
+        assert not result.found
+        assert result.source == SOURCE_HTML
+
+
+class TestTheFeedReadFailureModes:
+    """A competitor's server can do anything; the crawl falls back to HTML."""
+
+    def test_an_unexpected_error_is_reported_not_raised(self):
+        # Network errors are wrapped by shopfeed and swallowed per probe, so this is
+        # something that slips past its wrapping: it must still end as a FeedResult.
+        def _explode(request):
+            raise RuntimeError("boom")
+
+        result = read_feed_catalog(
+            SHOP,
+            transport=httpx.MockTransport(_explode),
+            allow_private=True,
+            sleep=_NoWait(),
+        )
+        assert not result.found
+        assert result.source == SOURCE_HTML
+        assert "boom" in (result.error or "")
+
+    def test_a_page_that_breaks_the_jsonld_parser_yields_nothing(self, monkeypatch):
+        # Broken JSON-LD is common on the wild web; it must never fail a crawl.
+        import shopfeed.jsonld as jsonld_module
+
+        def _broken(html, url):
+            raise RuntimeError("parser exploded")
+
+        monkeypatch.setattr(jsonld_module, "products_from_html", _broken)
+        assert read_jsonld_products("<html></html>", SHOP) == []

@@ -83,6 +83,14 @@ class QueueBackend(ABC):
         """Transport reachability."""
 
 
+_RAW = "_raw"  # key under which claim() keeps the stored string of an entry
+
+
+def _public(entry: dict[str, Any], *drop: str) -> dict[str, Any]:
+    """The entry without claim bookkeeping (and without the named keys)."""
+    return {k: v for k, v in entry.items() if k != _RAW and k not in drop}
+
+
 class RedisQueueBackend(QueueBackend):
     """Redis transport using atomic list operations.
 
@@ -103,19 +111,15 @@ class RedisQueueBackend(QueueBackend):
         delay_seconds: float = 0,
     ) -> str:
         entry_id = job_id or uuid.uuid4().hex
-        entry = json.dumps(
-            {
-                "id": entry_id,
-                "type": job_type,
-                "payload": payload,
-                "enqueued_at": time.time(),
-            }
-        )
-        if delay_seconds > 0:
-            self.client.zadd(DELAYED_KEY, {entry: time.time() + delay_seconds})
-        else:
-            self.client.lpush(QUEUE_KEY, entry)
+        self._push({"id": entry_id, "type": job_type, "payload": payload}, delay_seconds)
         return entry_id
+
+    def _push(self, entry: dict[str, Any], delay_seconds: float) -> None:
+        raw = json.dumps({**entry, "enqueued_at": time.time()})
+        if delay_seconds > 0:
+            self.client.zadd(DELAYED_KEY, {raw: time.time() + delay_seconds})
+        else:
+            self.client.lpush(QUEUE_KEY, raw)
 
     def claim(self, worker_id: str, timeout_seconds: float = 1.0) -> dict[str, Any] | None:
         self._promote_delayed()
@@ -131,11 +135,16 @@ class RedisQueueBackend(QueueBackend):
         if result is None:
             return None
         try:
-            return json.loads(result)
+            entry = json.loads(result)
         except (ValueError, TypeError):
             logger.warning("Discarding malformed queue entry")
             self.client.lrem(processing_key, 1, result)
             return None
+        # The exact stored string: the caller adds keys (worker_id, retry_count), so re-serializing the dict
+        # would no longer match the processing-list item and LREM would remove nothing.
+        entry[_RAW] = result
+        entry["worker_id"] = worker_id
+        return entry
 
     def _promote_delayed(self) -> None:
         due = self.client.zrangebyscore(DELAYED_KEY, "-inf", time.time())
@@ -147,28 +156,24 @@ class RedisQueueBackend(QueueBackend):
                 self.client.lpush(QUEUE_KEY, entry)
 
     def complete(self, entry: dict[str, Any]) -> None:
-        self.client.lrem(
-            f"{PROCESSING_KEY}:{entry.get('worker_id', '')}", 1, json.dumps(entry)
-        )
+        self._remove_from_processing(entry)
 
     def requeue(self, entry: dict[str, Any], *, delay_seconds: float = 0) -> None:
         self._remove_from_processing(entry)
-        self.enqueue(
-            entry.get("type", "job"),
-            entry.get("payload", {}),
-            job_id=entry.get("id"),
-            delay_seconds=delay_seconds,
-        )
+        # Keep everything the worker recorded (retry_count above all: without it a failing job never reaches
+        # the dead letter); worker_id belongs to this claim only.
+        self._push(_public(entry, "worker_id", "enqueued_at"), delay_seconds)
 
     def dead_letter(self, entry: dict[str, Any], error: str) -> None:
         self._remove_from_processing(entry)
-        failed = dict(entry)
+        failed = _public(entry)
         failed["error"] = error[:2000]
         failed["failed_at"] = time.time()
         self.client.lpush(DEAD_LETTER_KEY, json.dumps(failed))
 
     def _remove_from_processing(self, entry: dict[str, Any]) -> None:
-        self.client.lrem(f"{PROCESSING_KEY}:{entry.get('worker_id', '')}", 1, json.dumps(entry))
+        raw = entry.get(_RAW) or json.dumps(_public(entry, "worker_id"))
+        self.client.lrem(f"{PROCESSING_KEY}:{entry.get('worker_id', '')}", 1, raw)
 
     def reclaim_stale(self, older_than_seconds: float) -> int:
         """Return entries parked by workers that died mid-job."""
