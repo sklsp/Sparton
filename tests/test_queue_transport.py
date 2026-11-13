@@ -351,7 +351,6 @@ def test_redis_delayed_entries_are_promoted_once_due(redis_backend, clock):
 # --- RedisQueueBackend: complete / requeue / dead_letter ------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="real bug, see sparton-quality-3/BUGS.md #1")
 def test_redis_complete_removes_entry_from_processing(redis_backend):
     """complete() must remove the entry from sparton:processing:{worker_id}."""
     fake = redis_backend.client
@@ -393,7 +392,6 @@ def test_redis_requeue_without_delay_puts_new_copy_back_in_queue(redis_backend):
     assert data["id"] == job_id
 
 
-@pytest.mark.xfail(strict=True, reason="real bug, see sparton-quality-3/BUGS.md #3")
 def test_redis_requeue_preserves_retry_count(redis_backend):
     """The worker's failure ladder needs the attempt count to survive requeue."""
     fake = redis_backend.client
@@ -409,7 +407,6 @@ def test_redis_requeue_preserves_retry_count(redis_backend):
     assert data["retry_count"] == 2
 
 
-@pytest.mark.xfail(strict=True, reason="real bug, see sparton-quality-3/BUGS.md #2")
 def test_redis_requeue_removes_original_from_processing(redis_backend):
     """requeue() must remove the original entry from processing before re-enqueuing."""
     fake = redis_backend.client
@@ -437,7 +434,6 @@ def test_redis_dead_letter_parks_entry_with_truncated_error(redis_backend):
     assert data["failed_at"] == FAKE_EPOCH
 
 
-@pytest.mark.xfail(strict=True, reason="real bug, see sparton-quality-3/BUGS.md #2")
 def test_redis_dead_letter_removes_original_from_processing(redis_backend):
     """dead_letter() must remove the original entry from processing."""
     fake = redis_backend.client
