@@ -291,6 +291,7 @@ class TestPriceGapEdges:
         assert price_gap(Decimal("20"), Decimal("20.01")) == Decimal("-0.1")  # -0.05 -> -0.1
 
 
+@needs_shopfeed
 @pytest.mark.usefixtures("auth_headers")
 class TestReadOwnCatalogBranches:
     def test_a_shop_without_url_is_read_from_its_domain(self, db_session):
@@ -358,6 +359,7 @@ class TestRematchBranches:
         assert rematch(db_session, shop) == 0
         assert [m.id for m in db_session.execute(select(ProductMatch)).scalars()] == [stale.id]
 
+    @needs_shopfeed
     def test_a_competitor_without_captures_loses_its_matches(self, db_session, shop_and_rival):
         """The rebuild is per competitor: an empty latest capture wipes that rival's pairs."""
         shop, rival = shop_and_rival
@@ -373,6 +375,7 @@ class TestRematchBranches:
         assert rematch(db_session, shop) == 0
         assert list(db_session.execute(select(ProductMatch)).scalars()) == []
 
+    @needs_shopfeed
     def test_no_own_captures_means_no_pairs(self, db_session, shop_and_rival):
         """`match(own, theirs) if own and theirs else []`: nothing on our side, no guessing."""
         shop, rival = shop_and_rival
@@ -388,6 +391,7 @@ class TestRematchBranches:
         assert rematch(db_session, shop) == 0
         assert list(db_session.execute(select(ProductMatch)).scalars()) == []
 
+    @needs_shopfeed
     def test_each_rival_is_paired_only_with_its_own_captures(self, db_session, shop_and_rival):
         """A rival that lists nothing gets no pairs and keeps none of its old ones."""
         shop, rival = shop_and_rival
