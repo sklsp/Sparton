@@ -221,7 +221,7 @@ pytest tests/test_browser_smoke.py
 `pip install -r requirements-dev.txt` installs the tools that check the code.
 `ruff check .` is the linter and CI fails on any finding. `pytest --cov` measures
 coverage of `app` and `workers`, leaving out the experimental domains, and CI fails
-below the 72% floor in `.coveragerc`.
+below the 85% floor in `.coveragerc`.
 
 `mypy` checks the type hints of `app` and `workers` (settings in `mypy.ini`) and CI fails on any error.
 
