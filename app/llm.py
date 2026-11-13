@@ -51,7 +51,7 @@ def clear_usage_context(tokens) -> None:
     for token in tokens or ():
         try:
             (_usage_org if token.var.name == "sparton_usage_org" else _usage_user).reset(token)
-        except (ValueError, LookupError):
+        except (ValueError, LookupError, RuntimeError):  # RuntimeError: a token reset twice
             pass
 
 

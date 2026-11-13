@@ -167,10 +167,6 @@ class TestUsageContext:
         clear_usage_context(None)
         clear_usage_context([])
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="real bug, see sparton-quality-3/BUGS.md #5",
-    )
     def test_resetting_an_already_consumed_token_is_swallowed(self):
         org_before = current_usage_org_id()
         tokens = set_usage_context(1, 2)
