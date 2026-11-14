@@ -246,3 +246,25 @@ test("dialog opens with showModal; close sets returnValue and fires the close ev
   bare.close(); // no value: returnValue stays undefined
   assert.equal(bare.returnValue, undefined);
 });
+
+test("dispatchEvent sets event.target like the browser (settings.js reads e.target)", () => {
+  const el = document.createElement("form");
+  let target;
+  el.addEventListener("submit", (e) => { target = e.target; });
+  el.dispatchEvent(new Event("submit"));
+  assert.equal(target, el);
+});
+
+test("reset clears text inputs and leaves checkboxes alone (settings.js password form)", () => {
+  const form = document.createElement("form");
+  const cur = document.createElement("input");
+  cur.type = "password";
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  form.append(cur, box);
+  cur.value = "secret";
+  box.checked = true;
+  form.reset();
+  assert.equal(cur.value, "");
+  assert.equal(box.checked, true); // browsers keep checkboxes at their default state
+});

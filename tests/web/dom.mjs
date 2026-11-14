@@ -162,6 +162,7 @@ class Element {
   }
 
   dispatchEvent(event) {
+    if (event && !event.target) event.target = this; // handlers read e.target, as in the browser
     const type = event ? event.type : "";
     for (const entry of [...(this._listeners.get(type) ?? [])]) {
       entry.listener.call(this, event);
@@ -179,6 +180,14 @@ class Element {
   /** HTMLDialogElement surface for ui.js's dialog(): open flag, returnValue and the close event. */
   showModal() { this.open = true; }
   close(returnValue) { if (returnValue !== undefined) this.returnValue = returnValue; this.open = false; this.dispatchEvent(new Event("close")); }
+
+  /** HTMLFormElement surface for settings.js's password form: clear text inputs on success. */
+  reset() {
+    for (const el of this.querySelectorAll("input")) {
+      if (el.type === "checkbox" || el.type === "radio") continue; // browsers keep these at their default
+      el.value = "";
+    }
+  }
 
   // Simple selectors only: tag, .class, #id, [attr], [attr="v"], freely combined.
   querySelectorAll(selector) {

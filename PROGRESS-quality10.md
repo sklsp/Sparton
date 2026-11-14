@@ -2,6 +2,6 @@
 
 - [x] V1. web tests: overview and the board view helpers (992 passed, 16 skipped, 1 warning in 69.08s (0:01:09))
 - [x] V2. web tests: alerts (992 passed, 16 skipped, 1 warning in 68.90s (0:01:08))
-- [ ] V3. web tests: shops and settings
+- [x] V3. web tests: shops and settings (992 passed, 16 skipped, 1 warning in 69.59s (0:01:09))
 - [ ] V4. web tests: reports and billing
 - [ ] V5. web tests: start and product

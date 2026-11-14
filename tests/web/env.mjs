@@ -28,6 +28,14 @@ const locationState = { hash: "", href: DEFAULT_HREF };
 locationState.assign = (url) => {
   locationState.href = url;
 };
+// Views call location.reload() after a language switch or sign-out; count the calls instead of looping.
+let reloadCount = 0;
+locationState.reload = () => {
+  reloadCount += 1;
+};
+
+/** How many times location.reload() was called since resetEnv(). */
+export const reloadCalls = () => reloadCount;
 
 let fetchHandler = null;
 
@@ -67,4 +75,5 @@ export function resetEnv() {
   locationState.hash = "";
   locationState.href = DEFAULT_HREF;
   fetchHandler = null;
+  reloadCount = 0;
 }
