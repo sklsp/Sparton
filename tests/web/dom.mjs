@@ -118,6 +118,17 @@ class Element {
     return child;
   }
 
+  prepend(...nodes) {
+    const list = nodes.map((raw) => {
+      const child = typeof raw === "string" ? new TextNode(raw) : raw;
+      if (!child || (child.nodeType !== 1 && child.nodeType !== 3)) throw new TypeError(`prepend: not a node (${String(raw)})`);
+      detach(child); // moving a node detaches it from its old parent first
+      return child;
+    });
+    this._childNodes.splice(0, 0, ...list);
+    for (const child of list) child._parent = this;
+  }
+
   replaceChildren(...nodes) {
     for (const child of this._childNodes) child._parent = null;
     this._childNodes.length = 0;

@@ -211,3 +211,24 @@ test("querySelectorAll refuses combinators instead of silently mis-matching", ()
   assert.throws(() => root.querySelector("ul > li"), /compound selectors only/);
   assert.equal(root.querySelectorAll('[data-x="a b"]').length, 0); // spaces inside an attribute value are fine
 });
+
+test("prepend inserts nodes before the first child, in order", () => {
+  const ul = document.createElement("ul");
+  const keep = document.createElement("li");
+  ul.append(keep);
+  const a = document.createElement("li");
+  const b = document.createElement("li");
+  ul.prepend(a, b);
+  assert.deepEqual([...ul.children], [a, b, keep]); // order kept, old child last
+
+  const moved = document.createElement("div");
+  moved.append(keep); // a node with a parent moves instead of duplicating; ul is down to two
+  ul.prepend(moved);
+  assert.deepEqual([...ul.children], [moved, a, b]);
+  assert.equal(moved.children.length, 1); // keep came along inside it
+
+  ul.prepend("hello"); // strings become text nodes like appendChild; prepend itself is void
+  assert.equal(ul.childNodes[0].nodeType, 3);
+  assert.equal(ul.childNodes[0].textContent, "hello");
+  assert.throws(() => ul.prepend(42), /prepend: not a node/);
+});
