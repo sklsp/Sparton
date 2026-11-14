@@ -156,7 +156,7 @@ jobs:
       # node:test is built into Node 22, so there is nothing to install either;
       # tests/web/env.mjs fakes the browser globals the modules touch at import.
       - name: Web unit tests
-        run: node --test tests/web/
+        run: node --test "tests/web/**/*.test.mjs"
 
       - name: Build context sanity
         run: |
