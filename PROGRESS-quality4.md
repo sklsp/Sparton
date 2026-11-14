@@ -1,0 +1,10 @@
+- [x] S1. types: experimental routers create and knowledge (983 passed, 16 skipped, 2 warnings in 599.02s (0:09:59))
+- [ ] S2. types: commerce routes
+- [ ] S3. types: the other routers
+- [ ] S4. types: platform core
+- [ ] S5. types: agent
+- [ ] S6. types: ecommerce
+- [ ] S7. types: experimental domains
+- [ ] S8. types: everything left
+- [ ] S9. build: strict mode on in mypy.ini
+- [ ] S10. docs: the README says mypy runs in strict mode
