@@ -11,8 +11,10 @@ import base64
 import hashlib
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -236,7 +238,7 @@ class DatasetService:
 
     # ---------- quality ----------
 
-    def validate(self, db: Session, dataset_id: int, organization_id: int | None) -> dict:
+    def validate(self, db: Session, dataset_id: int, organization_id: int | None) -> dict[str, Any]:
         rows = self.list_images(db, dataset_id, organization_id)
         entries = [
             {"id": str(r.id), "filename": r.filename, "caption": r.caption}
@@ -261,9 +263,9 @@ class DatasetService:
         *,
         model: str | None = None,
         overwrite: bool = False,
-        progress=None,
-        cancelled=None,
-    ) -> list[dict]:
+        progress: Callable[[int, int], None] | None = None,
+        cancelled: Callable[[], bool] | None = None,
+    ) -> list[dict[str, Any]]:
         """Caption uncaptioned images via the vision model."""
         provider = get_llm_provider()
         vision_model = model or settings.vision_model
@@ -271,7 +273,7 @@ class DatasetService:
         if dataset is None:
             raise DatasetError("Dataset not found", status_code=404)
 
-        results: list[dict] = []
+        results: list[dict[str, Any]] = []
         rows = self.list_images(db, dataset_id, organization_id)
         total = len(rows)
 

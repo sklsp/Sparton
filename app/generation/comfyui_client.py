@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -40,10 +40,10 @@ class ComfyUIClient:
         method: str,
         path: str,
         *,
-        json: dict | None = None,
-        params: dict | None = None,
-        files: dict | None = None,
-        data: dict | None = None,
+        json: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
+        files: dict[str, tuple[str, bytes]] | None = None,
+        data: dict[str, str] | None = None,
         raw: bool = False,
         timeout: float | None = None,
     ) -> Any:
@@ -81,18 +81,18 @@ class ComfyUIClient:
 
     # ---------- api ----------
 
-    def ping(self) -> dict:
+    def ping(self) -> dict[str, Any]:
         stats = self._request("GET", "/system_stats", timeout=min(self.timeout, 5))
         if not isinstance(stats, dict):
             raise ComfyUIError("ComfyUI returned unexpected system stats")
         return stats
 
-    def object_info(self, node_class: str | None = None) -> dict:
+    def object_info(self, node_class: str | None = None) -> dict[str, Any]:
         path = f"/object_info/{node_class}" if node_class else "/object_info"
         result = self._request("GET", path)
         return result if isinstance(result, dict) else {}
 
-    def queue_prompt(self, workflow: dict) -> str:
+    def queue_prompt(self, workflow: dict[str, Any]) -> str:
         payload = self._request(
             "POST", "/prompt", json={"prompt": workflow, "client_id": self.client_id}
         )
@@ -106,25 +106,28 @@ class ComfyUIClient:
         logger.info("[COMFYUI] Queued prompt %s", prompt_id)
         return str(prompt_id)
 
-    def history(self, prompt_id: str) -> dict:
+    def history(self, prompt_id: str) -> dict[str, Any]:
         result = self._request("GET", f"/history/{prompt_id}")
         if isinstance(result, dict):
             return result.get(prompt_id, {}) or {}
         return {}
 
-    def queue_state(self) -> dict:
+    def queue_state(self) -> dict[str, Any]:
         result = self._request("GET", "/queue")
         return result if isinstance(result, dict) else {}
 
     def view_image(self, filename: str, subfolder: str = "", folder_type: str = "output") -> bytes:
-        return self._request(
-            "GET",
-            "/view",
-            params={"filename": filename, "subfolder": subfolder, "type": folder_type},
-            raw=True,
+        return cast(
+            "bytes",
+            self._request(
+                "GET",
+                "/view",
+                params={"filename": filename, "subfolder": subfolder, "type": folder_type},
+                raw=True,
+            ),
         )
 
-    def upload_image(self, filename: str, content: bytes, overwrite: bool = True) -> dict:
+    def upload_image(self, filename: str, content: bytes, overwrite: bool = True) -> dict[str, Any]:
         result = self._request(
             "POST",
             "/upload/image",

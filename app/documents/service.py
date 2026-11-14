@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -32,7 +33,7 @@ class DocumentError(Exception):
 @dataclass
 class RetrievedContext:
     context: str
-    citations: list[dict]
+    citations: list[dict[str, Any]]
 
 
 class DocumentService:

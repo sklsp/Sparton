@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +107,9 @@ def _pixel_sha256(image: Any) -> str:
     return hashlib.sha256(image.convert("RGB").tobytes()).hexdigest()
 
 
-def _mean_color(image: Any) -> tuple[float, float, float]:
+def _mean_color(image: Any) -> tuple[int, int, int]:
     small = image.convert("RGB").resize((1, 1))
-    return small.getpixel((0, 0))
+    return cast("tuple[int, int, int]", small.getpixel((0, 0)))
 
 
 def _color_distance(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
@@ -175,7 +176,7 @@ def classify_pair(
 
 def validate_dataset(
     images: list[dict[str, Any]],
-    read_bytes,
+    read_bytes: Callable[[str], bytes],
 ) -> DatasetReport:
     """Validate a dataset of ``{id, filename, caption}`` dicts.
 
@@ -288,7 +289,7 @@ def validate_dataset(
 def _filename_of(images: list[dict[str, Any]], image_id: str) -> str:
     for entry in images:
         if entry["id"] == image_id:
-            return entry.get("filename", image_id)
+            return cast("str", entry.get("filename", image_id))
     return image_id
 
 
