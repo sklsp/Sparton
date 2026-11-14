@@ -1,6 +1,6 @@
 - [x] W1. web tests: environment and CI (992 passed, 16 skipped, 1 warning in 79.66s (0:01:19))
 - [x] W2. web tests: translations (992 passed, 16 skipped, 1 warning in 76.51s (0:01:16))
-- [ ] W3. web tests: formatting helpers
+- [x] W3. web tests: formatting helpers (992 passed, 16 skipped, 1 warning in 70.41s (0:01:10))
 - [ ] W4. web tests: the API client
 - [ ] W5. web tests: routes and plans
 - [ ] W6. docs: the README says how to run the web tests
