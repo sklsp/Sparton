@@ -2,7 +2,7 @@
 - [x] S2. types: commerce routes (983 passed, 16 skipped, 2 warnings in 605.32s (0:10:05))
 - [x] S3. types: the other routers (983 passed, 16 skipped, 2 warnings in 610.79s (0:10:10))
 - [x] S4. types: platform core (983 passed, 16 skipped, 2 warnings in 609.01s (0:10:09))
-- [ ] S5. types: agent
+- [x] S5. types: agent (983 passed, 16 skipped, 2 warnings in 609.82s (0:10:09))
 - [ ] S6. types: ecommerce
 - [ ] S7. types: experimental domains
 - [ ] S8. types: everything left

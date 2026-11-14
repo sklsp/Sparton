@@ -8,6 +8,7 @@ worker after an approval is resolved.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import Session
@@ -109,7 +110,7 @@ def shutdown() -> None:
         _executor = None
 
 
-def _with_run(run_id: int, action) -> None:
+def _with_run(run_id: int, action: Callable[[Session, AgentRun], None]) -> None:
     db = SessionLocal()
     try:
         run = db.get(AgentRun, run_id)

@@ -42,7 +42,7 @@ from app.core.database.domain_models import (
     StepType,
     utcnow,
 )
-from app.llm import LLMError, LLMProvider, Message
+from app.llm import LLMError, LLMProvider, Message, ToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -255,7 +255,7 @@ class AgentEngine:
 
         return False
 
-    def _execute(self, run: AgentRun, call) -> tuple[Any, str, str]:
+    def _execute(self, run: AgentRun, call: ToolCall) -> tuple[Any, str, str]:
         self._record(
             run, StepType.TOOL_CALL, f"Calling {call.name}",
             tool_name=call.name, input=call.arguments,
@@ -290,7 +290,7 @@ class AgentEngine:
             duration = int((time.monotonic() - started) * 1000)
             return result, StepStatus.OK, _summarize(call.name, result, duration)
 
-    def _finish_call(self, run: AgentRun, call, result: Any, *, status: str, message: str) -> None:
+    def _finish_call(self, run: AgentRun, call: ToolCall, result: Any, *, status: str, message: str) -> None:
         self._record(
             run, StepType.TOOL_RESULT, message,
             tool_name=call.name, output=result, status=status,
@@ -304,7 +304,7 @@ class AgentEngine:
     # ------------------------------------------------------------------
     # Approvals
     # ------------------------------------------------------------------
-    def _approval_state(self, run: AgentRun, raw: dict[str, Any], call):
+    def _approval_state(self, run: AgentRun, raw: dict[str, Any], call: ToolCall) -> ApprovalRequest | None:
         approval_id = raw.get("approval_id")
         if approval_id is not None:
             approval = self.db.get(ApprovalRequest, approval_id)
@@ -319,7 +319,7 @@ class AgentEngine:
         logger.info("Approval requested: run=%s tool=%s id=%s", run.id, call.name, approval.id)
         return None
 
-    def _request_approval(self, run: AgentRun, call) -> ApprovalRequest:
+    def _request_approval(self, run: AgentRun, call: ToolCall) -> ApprovalRequest:
         preview = {"arguments": call.arguments}
         summary = f"Run {call.name}"
         approval = ApprovalRequest(
