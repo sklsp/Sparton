@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
+from app.api.responses import errors
 from app.core.auth.api import DbSession, MachineUser, current_user
 from app.core.auth.service import ROLE_LEVEL, audit, role_at_least
 from app.core.database.identity import User
@@ -26,13 +27,18 @@ def _require_admin(user: Annotated[User | MachineUser, Depends(current_user)]) -
     return user
 
 
-@router.get("/users")
+@router.get("/users", responses=errors(401, 403))
 def list_users(
     db: DbSession,
     admin: Annotated[object, Depends(_require_admin)],
     search: str | None = None,
     limit: int = 50,
 ) -> dict[str, Any]:
+    """List the users of the caller's organization with their roles and active state.
+
+    Admins only; an API key sees all tenants instead. Optional email search;
+    the limit is capped at 200.
+    """
     query = select(User).order_by(User.id).limit(min(limit, 200))
     if search:
         query = query.where(User.email.ilike(f"%{search}%"))
@@ -51,13 +57,19 @@ def list_users(
     }
 
 
-@router.patch("/users/{user_id}")
+@router.patch("/users/{user_id}", responses=errors(400, 401, 403, 404, 409))
 def patch_user(
     user_id: int,
     payload: UserPatchRequest,
     db: DbSession,
     admin: Annotated[object, Depends(_require_admin)],
 ) -> dict[str, Any]:
+    """Change a user's role and/or active state.
+
+    Admins only; demoting or deactivating the last active admin of an
+    organization is refused with 409. Users of other organizations are not
+    visible to human admins (404).
+    """
     target = db.get(User, user_id)
     if target is None:
         raise HTTPException(status_code=404, detail="User not found")

@@ -19,6 +19,11 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
+#: The request was rejected; the detail field says why.
+BAD_REQUEST: dict[int, dict[str, Any]] = {
+    400: {"description": "The request was rejected; see the detail field for the reason.", "model": ErrorResponse}
+}
+
 #: Not signed in, or the session/API key is missing or invalid.
 UNAUTHORIZED: dict[int, dict[str, Any]] = {
     401: {"description": "Not signed in, or the session or API key is missing or invalid.", "model": ErrorResponse}
@@ -55,6 +60,7 @@ TOO_LARGE: dict[int, dict[str, Any]] = {
 }
 
 _BY_CODE: dict[int, dict[str, Any]] = {
+    **BAD_REQUEST,
     **UNAUTHORIZED,
     **FORBIDDEN,
     **PAYMENT_REQUIRED,
@@ -75,6 +81,7 @@ def errors(*codes: int) -> dict[int, dict[str, Any]]:
 
 
 __all__ = [
+    "BAD_REQUEST",
     "CONFLICT",
     "ErrorResponse",
     "FORBIDDEN",
