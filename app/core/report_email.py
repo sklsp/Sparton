@@ -1,7 +1,7 @@
 """The weekly report as an email: subject, plain text and HTML, in Dutch or English.
 
-Rendering only. Nothing sends this yet (docs/DECISIONS.md D-032): wiring it to the report job
-and a per-account language is a product decision. The design follows the dashboard's price
+Rendering only: ``send_weekly_digest`` in app/ecommerce/reports.py sends it after each weekly
+report, in the account's language (docs/DECISIONS.md D-032). The design follows the dashboard's price
 board, built for email clients: a 600px table layout, inline styles, no images (so nothing is
 lost with images off), every colour paired with a sign or word, and a dark-mode block for the
 clients that honour ``prefers-color-scheme``.
