@@ -153,6 +153,11 @@ jobs:
           done
           exit $fail
 
+      # node:test is built into Node 22, so there is nothing to install either;
+      # tests/web/env.mjs fakes the browser globals the modules touch at import.
+      - name: Web unit tests
+        run: node --test tests/web/
+
       - name: Build context sanity
         run: |
           # Catches a Dockerfile that copies a directory which no longer
