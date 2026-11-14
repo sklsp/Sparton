@@ -47,7 +47,7 @@ weaker one's useful behavior merged into it.
 | Queue transport | Ares | Redis lists (`BRPOPLPUSH`) + delayed zset + dead-letter list; inline fallback when Redis absent |
 | Workers | Ares | Standalone worker process (`workers/`), horizontally scalable replicas |
 | LLM providers | Ares + Apollo | One provider abstraction: Ollama, OpenAI-compatible, deterministic test provider |
-| Storage | Apollo paths + new | Asset abstraction with provenance chains; path-safety helpers (`safe_join`, sanitization) |
+| Storage | Apollo paths + new | Per-domain file handling on safe paths (`app/core/security/paths.py`: `safe_join`, sanitization); generated images recorded as `generated_images` rows + `.provenance.json` sidecars, discovered LoRAs as `lora_assets` |
 | Observability | Ares | Structured logging, zero-dependency Prometheus `/metrics`, correlation-ID middleware, optional OTel tracing |
 | Audit | Ares | Append-only audit log (actor, org, action, resource, outcome, correlation ID) |
 | Projects | New | Central cross-domain workspace entity |
@@ -70,7 +70,7 @@ by content hash + embedding model, corruption quarantine, RAG answers with
 citations.
 
 ### ecommerce (Ares)
-Store connections (provider protocol), catalog/inventory/orders, competitor
+Shop feed ingestion (shopfeed), catalog/inventory/orders, competitor
 discovery (DuckDuckGo HTML), robots-respecting SSRF-guarded crawler,
 intelligence pipeline → explainable opportunity scoring → evidence rows →
 approval workflow for WRITE actions.
@@ -93,7 +93,7 @@ quality score), Ollama-vision auto-captioning with human editing.
 ### training (Leonidas)
 Training projects, presets (character/style/product/concept × arch defaults),
 vendor-agnostic hardware detection, VRAM-aware preflight verdicts
-(ok/heavy/risky/unsupported), AI Toolkit subprocess orchestration, run history,
+(ok/heavy/risky/unsupported/blocked), AI Toolkit subprocess orchestration, run history,
 trained-LoRA discovery.
 
 ## 4. Athena agent architecture (`app/agent`)
@@ -117,7 +117,7 @@ Principles:
 - Invalid tool arguments → validate → reject → structured error → bounded
   retry → successful execution. Never *tool failure → hallucinated answer*.
 - Tools are namespaced: `documents.*`, `ecommerce.*`, `research.*`,
-  `generation.*`, `datasets.*`, `training.*`, `models.*`, `projects.*`.
+  `generation.*`, `datasets.*`, `training.*`.
 - READ/WRITE classification is the approval boundary.
 
 ## 5. Job architecture
@@ -125,8 +125,8 @@ Principles:
 All long-running operations use one system:
 
 ```
-DocumentIndexJob · ResearchJob · CrawlJob · DatasetValidationJob · CaptionJob
-· TrainingJob · ComfyGenerationJob · ReportJob
+research · comfy_generation · crawl_shop · crawl_competitor
+· generate_report · schedule_crawls
 ```
 
 - **Durable state**: DB rows (QUEUED/RUNNING/COMPLETED/FAILED/CANCELLED),
@@ -136,23 +136,28 @@ DocumentIndexJob · ResearchJob · CrawlJob · DatasetValidationJob · CaptionJo
   stale reclaim after 300 s. Inline backend for dev/tests.
 - **Retries**: worker-level exponential backoff (5 s × 3ⁿ capped 600 s),
   max 3 attempts → dead-letter.
-- **Idempotency**: SHA-256 signature keys, org-prefixed.
+- **Idempotency**: caller-provided keys or SHA-256 payload signatures,
+   org-prefixed (`org{N}:...`).
 - **Observability**: progress, correlation IDs, metrics.
 
 ## 6. Database strategy
 
 One coherent schema (Alembic-managed). Common entities:
-`organizations ← users ← sessions`, `memberships`, `projects`, `assets`,
-`jobs`, `agent_runs ← agent_steps / tool_calls / approval_requests`,
-`audit_logs`, `integrations`.
+`organizations ← users ← sessions`, `projects`, `jobs`,
+`agent_runs ← agent_steps / approval_requests` (tool calls are recorded
+inside `agent_steps`), `audit_logs`; billing tables (`subscriptions`,
+`invoices`, `stripe_events`) and `llm_usage` round out the core.
 
 Domain entities:
-- documents: `documents ← document_versions ← document_chunks`, `rag_indexes`
-- datasets: `datasets ← dataset_images`
-- training: `training_projects ← training_runs`, `loras`
-- ecommerce: `stores ← products ← inventory/orders`, `external_stores ←
-  external_products ← product_snapshots`, `competitors`
-- research/intelligence: `research_jobs ← opportunities ← opportunity_evidence`
+- documents: `documents ← document_chunks` (the FAISS index lives on disk)
+- datasets: `dataset_projects ← dataset_images`
+- training: `training_projects ← training_runs`, `lora_assets`
+- ecommerce: catalog `products ← inventory / orders`; shops and intelligence
+  `shops`, `competitors ← competitor_products`, `shop_products`,
+  `product_matches`, `change_events`, `reports`, `external_stores ←
+  external_products ← product_snapshots`
+- research/intelligence: shared `jobs` table (type `research`),
+  `opportunities ← opportunity_evidence`
 
 Naming conflicts resolved deliberately (e.g., Apollo's filesystem "projects"
 become `training_projects`; Ares' `research_jobs` generalize to the shared
@@ -162,45 +167,45 @@ become `training_projects`; Ares' `research_jobs` generalize to the shared
 
 ## 7. Frontend strategy
 
-One Next.js application (Ares foundation: Next 16 / React 19 / Tailwind v4 /
-shadcn-style components). Navigation:
+One static ES-module SPA served by FastAPI from `app/web/`: no build step,
+no framework; top-level modules plus `views/`, i18n and vendored assets.
+Navigation:
 
 ```
-SPARTON
-Home · Projects
-Intelligence (E-Commerce · Research · Opportunities)
-Knowledge (Documents · Collections · Reports)
-Create (Images · ComfyUI · Datasets · LoRA Training)
-Models (Library · LoRAs · Workflows)
-Activity (Jobs · Agent Runs)
-Approvals · Admin · Settings
+Overview · Alerts · Shops · Reports · Billing · Settings
+(start = post-signup onboarding, product = drill-down; labels via i18n `nav.<id>`)
 ```
 
-Shared shell: auth context (bearer token, 401 handling), project selector,
-job status components, toasts, tables/forms, permission-aware UI.
+Shared shell: auth context (bearer token, 401 handling), i18n, routing,
+toasts/dialogs from `ui.js`, permission-aware UI; each view builds its own
+rows and forms on top of the shared component set.
 
 ## 8. Integration strategy
 
-One integration layer (`app/integrations`) with connection status, config,
-credentials (org-scoped), health, capabilities for: Ollama, ComfyUI,
-e-commerce store APIs (provider protocol, mock today, real connectors later),
-web search.
+External systems sit behind per-domain adapters rather than one shared
+package: LLM providers (Ollama, OpenAI-compatible, deterministic test
+provider) in `app/llm.py`; shop feeds via the optional `shopfeed` package in
+`app/ecommerce/feeds.py`; web search and crawling in `app/research/discovery.py`
+and `crawler.py` (DuckDuckGo HTML); ComfyUI over its HTTP API in
+`app/generation/comfyui_client.py`; Stripe in `app/billing/stripe.py`. Each
+adapter degrades gracefully when its dependency is absent and has a
+deterministic path for tests.
 
 ## 9. Apollo → SPARTON mapping
 
 | Apollo | SPARTON | Strategy |
 |---|---|---|
 | `app/core/config.py` | `app/core/config` | MERGE into pydantic-settings |
-| `app/core/jobs.py` (threads + jobs.json) | `app/core/jobs` + queue | REWRITE onto shared durable queue |
-| `app/core/paths.py`, `persistence.py` | `app/core/storage`, `security` | ADAPT |
-| `rag/*` (ingestion/chunking/embeddings/vector_store/service) | `app/documents/rag` | KEEP (proven logic) |
+| `app/core/jobs.py` (threads + jobs.json) | `app/core/jobs` | REWRITE onto shared durable queue |
+| `app/core/paths.py`, `persistence.py` | `app/core/security/paths.py`, `core/database` | ADAPT |
+| `rag/*` (ingestion/chunking/embeddings/vector_store/service) | `app/documents` | KEEP (proven logic) |
 | `services/document_service.py` | `app/documents` | ADAPT to DB + tenancy |
 | `services/memory_service.py` | conversations under projects | ADAPT |
 | `services/dataset_validation.py` | `app/datasets/validation` | KEEP |
 | `services/lora_dataset_service.py` | `app/datasets`, `app/training` | SPLIT along domain line |
 | `services/lora_training_service.py`, `run_history.py`, `hardware.py`, `training_preflight.py` | `app/training` | KEEP, re-home onto shared jobs |
-| `clients/comfyui_client.py`, `services/comfyui_service.py`, `workflows/*.json` | `app/generation/comfyui` | KEEP |
-| `clients/ollama_client.py` | `app/integrations/ollama` | MERGE with Ares LLM abstraction |
+| `clients/comfyui_client.py`, `services/comfyui_service.py`, `workflows/*.json` | `app/generation/comfyui_client` | KEEP |
+| `clients/ollama_client.py` | `app/llm` | MERGE with Ares LLM abstraction |
 | `ai_agent/*` (legacy CLI) | superseded by Athena | REMOVE (behavior absorbed) |
 | `launcher.py` (cloudflared) | not carried forward | REMOVE (incompatible with auth model) |
 | tests (~224 real) | `tests/` | MIGRATE meaningful ones; drop vacuous print-scripts |
@@ -211,17 +216,17 @@ web search.
 |---|---|---|
 | `db/identity.py`, `api/auth.py` | `app/core/auth`, `database` | KEEP (stronger than Apollo's none) |
 | `api/tenancy.py` | `app/core/tenancy` | KEEP |
-| `jobs/queue.py`, `transport.py`, `worker.py` | `app/core/jobs`, `queue`, `workers/` | KEEP |
+| `jobs/queue.py`, `transport.py`, `worker.py` | `app/core/jobs`, `workers/` | KEEP |
 | `observability/*` | `app/core/observability` | KEEP |
 | `services/rate_limit.py` | `app/core/security` | KEEP (declare redis dep explicitly) |
-| `agent/engine.py`, `runner.py`, `grounding.py` | `app/agent/runtime` | EXTEND to multi-domain tools |
-| `tools/*` registry | `app/agent/tools` | EXTEND with domain namespaces |
-| `intelligence/*` (crawler/discovery/extraction) | `app/ecommerce/crawling`, `app/research` | SPLIT shared crawler into research |
-| `services/intelligence*.py`, approvals | `app/ecommerce/intelligence`, `approvals` | KEEP |
-| `integrations/base.py` (mock provider) | `app/integrations/ecommerce` | KEEP protocol |
-| frontend (`src/`) | `frontend/` | ADAPT into unified shell |
+| `agent/engine.py`, `runner.py`, `grounding.py` | `app/agent` | EXTEND to multi-domain tools |
+| `tools/*` registry | `app/agent/tools.py` | EXTEND with domain namespaces |
+| `intelligence/*` (crawler/discovery/extraction) | `app/ecommerce/crawl`, `app/research` | SPLIT shared crawler into research |
+| `services/intelligence*.py`, approvals | `app/research/intelligence`, `app/api/agent_api` (approvals) | KEEP |
+| `integrations/base.py` (mock provider) | `app/ecommerce/feeds` | KEEP protocol |
+| frontend (`src/`) | `app/web` | ADAPT into unified shell |
 | compose.yaml, Dockerfiles, scripts | root | ADAPT |
-| tests (~178) + Playwright specs | `tests/`, `frontend/tests` | MIGRATE |
+| tests (~178) + Playwright specs | `tests/` | MIGRATE |
 
 ## 11. Known issues resolved during unification
 
