@@ -76,12 +76,21 @@ def _routes_by_operation(app):
     Built from app.routes rather than the spec so dependency and source
     information stays reachable; operations without a match are skipped by
     callers instead of failing, which keeps these guards focused on metadata.
+    FastAPI 0.162 does not flatten included routers into app.routes: each
+    include_router call leaves an _IncludedRouter entry whose original_router
+    holds the real routes, so the walk descends into those to reach them.
     """
     routes = {}
-    for route in app.routes:
-        if isinstance(route, APIRoute):
-            for method in route.methods:
-                routes[(method.upper(), route.path)] = route
+
+    def walk(entries):
+        for route in entries:
+            if isinstance(route, APIRoute):
+                for method in route.methods - {"HEAD"}:
+                    routes[(method.upper(), route.path)] = route
+            elif hasattr(route, "original_router"):
+                walk(route.original_router.routes)
+
+    walk(app.routes)
     return routes
 
 

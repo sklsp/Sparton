@@ -138,7 +138,13 @@ def invoices(
     }
 
 
-@router.post("/billing/checkout", responses=errors(400, 401, 409))
+@router.post(
+    "/billing/checkout",
+    responses={
+        **errors(400, 401, 409),
+        503: {"description": "Billing is unavailable right now (disabled or not configured); retry later."},
+    },
+)
 def start_checkout(
     payload: CheckoutRequest,
     request: Request,
@@ -235,7 +241,14 @@ def open_portal(
     return {"url": url}
 
 
-@router.post("/stripe/webhook", responses=errors(400, 413))
+@router.post(
+    "/stripe/webhook",
+    responses={
+        **errors(400, 413),
+        500: {"description": "The event could not be processed; Stripe will retry."},
+        503: {"description": "The webhook secret is not configured; fix the deployment and retry."},
+    },
+)
 async def stripe_webhook(
     request: Request,
     db: DbSession,
