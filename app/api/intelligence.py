@@ -18,7 +18,7 @@ from app.research.intelligence import get_opportunity, list_opportunities
 router = APIRouter(prefix="/intelligence", tags=["intelligence"])
 
 
-def _org_id(user) -> int | None:
+def _org_id(user: object) -> int | None:
     return getattr(user, "organization_id", None)
 
 
@@ -27,7 +27,7 @@ def start_research(
     payload: ResearchJobRequest,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     inc("research_jobs_total")
     job, created = enqueue(
         db,
@@ -41,7 +41,7 @@ def start_research(
 
 
 @router.get("/jobs")
-def list_jobs(db: DbSession, user: Annotated[object, Depends(current_user)], limit: int = 20) -> dict:
+def list_jobs(db: DbSession, user: Annotated[object, Depends(current_user)], limit: int = 20) -> dict[str, Any]:
     query = select(Job).where(Job.type == "research").order_by(Job.created_at.desc()).limit(min(limit, 100))
     org = _org_id(user)
     if org is not None:
@@ -58,7 +58,7 @@ def list_jobs(db: DbSession, user: Annotated[object, Depends(current_user)], lim
 
 
 @router.get("/stores")
-def list_stores(db: DbSession, user: Annotated[object, Depends(current_user)], limit: int = 50) -> dict:
+def list_stores(db: DbSession, user: Annotated[object, Depends(current_user)], limit: int = 50) -> dict[str, Any]:
     query = select(ExternalStore).order_by(ExternalStore.last_crawled_at.desc().nullslast()).limit(min(limit, 200))
     org = _org_id(user)
     if org is not None:
@@ -88,7 +88,7 @@ def opportunities(
     user: Annotated[object, Depends(current_user)],
     kind: str | None = None,
     limit: int = 50,
-) -> dict:
+) -> dict[str, Any]:
     rows = list_opportunities(db, limit=min(limit, 200), kind=kind, organization_id=_org_id(user))
     return {
         "count": len(rows),
@@ -107,7 +107,7 @@ def opportunity_detail(
     opportunity_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     row = get_opportunity(db, opportunity_id)
     org = _org_id(user)
     if row is None or (org is not None and row.organization_id != org):

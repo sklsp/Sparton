@@ -7,7 +7,7 @@ internal state, so they require a principal.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy import text
@@ -23,13 +23,13 @@ router = APIRouter(tags=["system"])
 
 
 @router.get("/live")
-def live() -> dict:
+def live() -> dict[str, Any]:
     """Liveness: process is up. Deliberately dependency-free."""
     return {"status": "live"}
 
 
 @router.get("/ready", response_model=None)
-def ready() -> dict | Response:
+def ready() -> dict[str, Any] | Response:
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -39,7 +39,7 @@ def ready() -> dict | Response:
 
 
 @router.get("/health")
-def health(user: Annotated[object, Depends(current_user)]) -> dict:
+def health(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     db_ok = False
     try:
         with engine.connect() as conn:
@@ -71,7 +71,7 @@ def metrics(user: Annotated[object, Depends(current_user)]) -> Response:
 
 
 @router.get("/tools")
-def tools(user: Annotated[object, Depends(current_user)]) -> dict:
+def tools(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     # Tool names, descriptions and full JSON schemas are internal surface.
     registry = build_registry()
     return {"count": len(registry), "tools": [t.to_info() for t in registry.list()]}

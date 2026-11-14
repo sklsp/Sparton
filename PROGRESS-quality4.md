@@ -1,6 +1,6 @@
 - [x] S1. types: experimental routers create and knowledge (983 passed, 16 skipped, 2 warnings in 599.02s (0:09:59))
 - [x] S2. types: commerce routes (983 passed, 16 skipped, 2 warnings in 605.32s (0:10:05))
-- [ ] S3. types: the other routers
+- [x] S3. types: the other routers (983 passed, 16 skipped, 2 warnings in 610.79s (0:10:10))
 - [ ] S4. types: platform core
 - [ ] S5. types: agent
 - [ ] S6. types: ecommerce

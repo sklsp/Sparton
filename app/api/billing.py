@@ -13,7 +13,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -49,7 +49,7 @@ class CheckoutRequest(BaseModel):
     plan: str = Field(pattern="^(pro|business)$")
 
 
-def _org_id(user) -> int | None:
+def _org_id(user: object) -> int | None:
     return getattr(user, "organization_id", None)
 
 
@@ -60,7 +60,7 @@ def _price_id(plan: str) -> str:
 
 
 @router.get("/billing/plans")
-def list_plans() -> dict:
+def list_plans() -> dict[str, Any]:
     """The pricing table. Public: the landing page needs it before signup."""
     return {
         "plans": all_plans(),
@@ -73,7 +73,7 @@ def list_plans() -> dict:
 def current_plan(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     """The caller's plan, their usage, and what they could still add."""
     org_id = _org_id(user)
     plan_id = effective_plan(db, org_id)
@@ -89,7 +89,7 @@ def usage(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     days: int = 30,
-) -> dict:
+) -> dict[str, Any]:
     """Measured token spend. This is what `docs/LAUNCH.md` quotes as unit cost."""
     org_id = _org_id(user)
     if org_id is None:
@@ -102,7 +102,7 @@ def usage(
 def invoices(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     """Invoices for the caller's organization.
 
     A user with no organization yet is a real state, not an error: an admin
@@ -143,7 +143,7 @@ def start_checkout(
     request: Request,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     """Send the customer to Stripe Checkout and return the URL.
 
     Nothing about the subscription is decided here. The plan is granted when
@@ -217,7 +217,7 @@ def open_portal(
     request: Request,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     """Open the Customer Portal, where a customer cancels or swaps card."""
     org_id = _org_id(user)
     subscription = get_subscription(db, org_id) if org_id else None
@@ -239,7 +239,7 @@ async def stripe_webhook(
     request: Request,
     db: DbSession,
     _rate: None = Depends(rate_limit(limit=120)),
-) -> dict:
+) -> dict[str, Any]:
     """Stripe's only callback.
 
     No session auth (Stripe has no session), but every other control applies:

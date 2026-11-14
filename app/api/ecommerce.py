@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -15,11 +15,11 @@ from app.core.database.models import utcnow
 router = APIRouter(tags=["ecommerce"])
 
 
-def _org_id(user) -> int | None:
+def _org_id(user: object) -> int | None:
     return getattr(user, "organization_id", None)
 
 
-def _product_dict(p: Product) -> dict:
+def _product_dict(p: Product) -> dict[str, Any]:
     return {
         "id": p.id, "sku": p.sku, "title": p.title,
         "description": p.description, "price": p.price,
@@ -34,7 +34,7 @@ def list_products(
     user: Annotated[object, Depends(current_user)],
     search: str | None = None,
     limit: int = 50,
-) -> dict:
+) -> dict[str, Any]:
     query = select(Product).order_by(Product.id).limit(min(limit, 200))
     org = _org_id(user)
     if org is not None:
@@ -46,7 +46,7 @@ def list_products(
 
 
 @router.get("/products/{product_id}")
-def get_product(product_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
+def get_product(product_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     row = db.get(Product, product_id)
     org = _org_id(user)
     if row is None or (org is not None and row.organization_id != org):
@@ -55,7 +55,7 @@ def get_product(product_id: int, db: DbSession, user: Annotated[object, Depends(
 
 
 @router.get("/analytics/summary")
-def analytics_summary(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
+def analytics_summary(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     org = _org_id(user)
 
     product_query = select(func.count(Product.id))
