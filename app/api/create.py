@@ -53,7 +53,7 @@ def _org_id(user: object) -> int | None:
 # --------------------------------------------------------------------------
 # ComfyUI status + workflows
 # --------------------------------------------------------------------------
-@router.get("/comfyui/status")
+@router.get("/comfyui/status", responses={401: {"description": "Authentication required"}})
 def comfyui_status(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     try:
         return _get_comfyui().status()
@@ -61,13 +61,22 @@ def comfyui_status(user: Annotated[object, Depends(current_user)]) -> dict[str, 
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
-@router.get("/comfyui/workflows")
+@router.get(
+    "/comfyui/workflows", responses={401: {"description": "Authentication required"}}
+)
 def list_workflows(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     workflows = _get_comfyui().list_workflows()
     return {"count": len(workflows), "workflows": [w.to_dict() for w in workflows]}
 
 
-@router.post("/comfyui/workflows", status_code=201)
+@router.post(
+    "/comfyui/workflows",
+    status_code=201,
+    responses={
+        400: {"description": "Invalid workflow graph or unknown mapped inputs"},
+        401: {"description": "Authentication required"},
+    },
+)
 def import_workflow(
     payload: WorkflowImportRequest,
     user: Annotated[object, Depends(current_user)],
@@ -84,7 +93,13 @@ def import_workflow(
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
-@router.delete("/comfyui/workflows/{workflow_id}")
+@router.delete(
+    "/comfyui/workflows/{workflow_id}",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Workflow not found"},
+    },
+)
 def delete_workflow(
     workflow_id: str,
     user: Annotated[object, Depends(current_user)],
@@ -98,7 +113,10 @@ def delete_workflow(
 # --------------------------------------------------------------------------
 # Generation
 # --------------------------------------------------------------------------
-@router.post("/comfyui/validate-generation")
+@router.post(
+    "/comfyui/validate-generation",
+    responses={401: {"description": "Authentication required"}},
+)
 def validate_generation(
     payload: GenerationRequest,
     user: Annotated[object, Depends(current_user)],
@@ -107,7 +125,15 @@ def validate_generation(
     return _get_comfyui().validate_workflow_request(payload.workflow_id, params)
 
 
-@router.post("/comfyui/generate", status_code=202)
+@router.post(
+    "/comfyui/generate",
+    status_code=202,
+    responses={
+        400: {"description": "Invalid workflow graph or unmapped inputs"},
+        401: {"description": "Authentication required"},
+        404: {"description": "Workflow not found"},
+    },
+)
 def generate(
     payload: GenerationRequest,
     db: DbSession,
@@ -138,7 +164,7 @@ def generate(
     return {"job_id": job.id, "seed": seed, "status": job.status}
 
 
-@router.get("/generated")
+@router.get("/generated", responses={401: {"description": "Authentication required"}})
 def list_generated(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
@@ -156,7 +182,13 @@ def list_generated(
     return {"count": len(entries), "images": entries}
 
 
-@router.get("/generated/{filename}")
+@router.get(
+    "/generated/{filename}",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Generated image not found"},
+    },
+)
 def read_generated(
     filename: str,
     user: Annotated[object, Depends(current_user)],
@@ -179,7 +211,11 @@ def read_generated(
 # --------------------------------------------------------------------------
 # Datasets (Argo)
 # --------------------------------------------------------------------------
-@router.post("/datasets", status_code=201)
+@router.post(
+    "/datasets",
+    status_code=201,
+    responses={401: {"description": "Authentication required"}},
+)
 def create_dataset(
     payload: DatasetCreateRequest,
     db: DbSession,
@@ -196,7 +232,7 @@ def create_dataset(
     return {"id": row.id, "name": row.name}
 
 
-@router.get("/datasets")
+@router.get("/datasets", responses={401: {"description": "Authentication required"}})
 def list_datasets(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     rows = get_dataset_service().list_datasets(db, _org_id(user))
     return {
@@ -209,7 +245,16 @@ def list_datasets(db: DbSession, user: Annotated[object, Depends(current_user)])
     }
 
 
-@router.post("/datasets/{dataset_id}/images", status_code=201)
+@router.post(
+    "/datasets/{dataset_id}/images",
+    status_code=201,
+    responses={
+        400: {"description": "Unsupported image type"},
+        401: {"description": "Authentication required"},
+        404: {"description": "Dataset not found"},
+        413: {"description": "Image exceeds the upload size limit"},
+    },
+)
 async def upload_dataset_image(
     dataset_id: int,
     db: DbSession,
@@ -227,7 +272,13 @@ async def upload_dataset_image(
     return {"id": row.id, "filename": row.filename}
 
 
-@router.get("/datasets/{dataset_id}/images")
+@router.get(
+    "/datasets/{dataset_id}/images",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Dataset not found"},
+    },
+)
 def list_dataset_images(
     dataset_id: int,
     db: DbSession,
@@ -247,7 +298,13 @@ def list_dataset_images(
     }
 
 
-@router.put("/datasets/{dataset_id}/images/{image_id}/caption")
+@router.put(
+    "/datasets/{dataset_id}/images/{image_id}/caption",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Dataset or image not found"},
+    },
+)
 def set_caption(
     dataset_id: int,
     image_id: int,
@@ -263,7 +320,13 @@ def set_caption(
     return {"id": row.id, "caption": row.caption}
 
 
-@router.delete("/datasets/{dataset_id}/images/{image_id}")
+@router.delete(
+    "/datasets/{dataset_id}/images/{image_id}",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Dataset or image not found"},
+    },
+)
 def delete_dataset_image(
     dataset_id: int,
     image_id: int,
@@ -277,7 +340,13 @@ def delete_dataset_image(
     return {"deleted": deleted}
 
 
-@router.get("/datasets/{dataset_id}/validate")
+@router.get(
+    "/datasets/{dataset_id}/validate",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Dataset not found"},
+    },
+)
 def validate_dataset(
     dataset_id: int,
     db: DbSession,
@@ -289,7 +358,13 @@ def validate_dataset(
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
-@router.post("/datasets/{dataset_id}/captions")
+@router.post(
+    "/datasets/{dataset_id}/captions",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Dataset not found"},
+    },
+)
 def generate_captions(
     dataset_id: int,
     payload: CaptionRequest,
@@ -311,28 +386,40 @@ def generate_captions(
 # --------------------------------------------------------------------------
 # Training (Leonidas)
 # --------------------------------------------------------------------------
-@router.get("/training/status")
+@router.get(
+    "/training/status", responses={401: {"description": "Authentication required"}}
+)
 def training_status(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     return LoRATrainingService().status()
 
 
-@router.get("/training/presets")
+@router.get(
+    "/training/presets", responses={401: {"description": "Authentication required"}}
+)
 def training_presets(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     return {"presets": LoRATrainingService().presets()}
 
 
-@router.get("/training/hardware")
+@router.get(
+    "/training/hardware", responses={401: {"description": "Authentication required"}}
+)
 def hardware_info(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     # Reveals the host's GPU inventory: never expose it anonymously.
     return detect_hardware().to_dict()
 
 
-@router.post("/training/preflight")
+@router.post(
+    "/training/preflight", responses={401: {"description": "Authentication required"}}
+)
 def preflight(options: dict[str, Any], db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     return advise(options).to_dict()
 
 
-@router.post("/training/projects", status_code=201)
+@router.post(
+    "/training/projects",
+    status_code=201,
+    responses={401: {"description": "Authentication required"}},
+)
 def create_training_project(
     payload: TrainingProjectCreateRequest,
     db: DbSession,
@@ -352,7 +439,9 @@ def create_training_project(
     return {"id": row.id, "name": row.name}
 
 
-@router.get("/training/projects")
+@router.get(
+    "/training/projects", responses={401: {"description": "Authentication required"}}
+)
 def list_training_projects(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     query = select(TrainingProject).order_by(TrainingProject.created_at.desc())
     org = _org_id(user)

@@ -8,6 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 
+from app.api.responses import errors
 from app.api.schemas import ResearchJobRequest
 from app.core.auth.api import DbSession, current_user
 from app.core.database.domain_models import ExternalProduct, ExternalStore, Job
@@ -22,12 +23,16 @@ def _org_id(user: object) -> int | None:
     return getattr(user, "organization_id", None)
 
 
-@router.post("/jobs", status_code=202)
+@router.post("/jobs", status_code=202, responses=errors(401))
 def start_research(
     payload: ResearchJobRequest,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """Queue a research job that crawls the given start URLs and answers the query.
+
+    Returns 202 with the job id; poll GET /intelligence/jobs for progress.
+    """
     inc("research_jobs_total")
     job, created = enqueue(
         db,
@@ -40,8 +45,9 @@ def start_research(
     return {"job_id": job.id, "status": job.status, "created": created}
 
 
-@router.get("/jobs")
+@router.get("/jobs", responses=errors(401))
 def list_jobs(db: DbSession, user: Annotated[object, Depends(current_user)], limit: int = 20) -> dict[str, Any]:
+    """Your research jobs, newest first, with stage, stats and any error. The limit is capped at 100."""
     query = select(Job).where(Job.type == "research").order_by(Job.created_at.desc()).limit(min(limit, 100))
     org = _org_id(user)
     if org is not None:
@@ -57,8 +63,9 @@ def list_jobs(db: DbSession, user: Annotated[object, Depends(current_user)], lim
     }
 
 
-@router.get("/stores")
+@router.get("/stores", responses=errors(401))
 def list_stores(db: DbSession, user: Annotated[object, Depends(current_user)], limit: int = 50) -> dict[str, Any]:
+    """External stores you track, most recently crawled first, each with its product count."""
     query = select(ExternalStore).order_by(ExternalStore.last_crawled_at.desc().nullslast()).limit(min(limit, 200))
     org = _org_id(user)
     if org is not None:
@@ -82,13 +89,14 @@ def list_stores(db: DbSession, user: Annotated[object, Depends(current_user)], l
     }
 
 
-@router.get("/opportunities")
+@router.get("/opportunities", responses=errors(401))
 def opportunities(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     kind: str | None = None,
     limit: int = 50,
 ) -> dict[str, Any]:
+    """Opportunities ranked by score; filter by type with the kind parameter."""
     rows = list_opportunities(db, limit=min(limit, 200), kind=kind, organization_id=_org_id(user))
     return {
         "count": len(rows),
@@ -102,12 +110,16 @@ def opportunities(
     }
 
 
-@router.get("/opportunities/{opportunity_id}")
+@router.get("/opportunities/{opportunity_id}", responses=errors(401, 404))
 def opportunity_detail(
     opportunity_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """One opportunity in full: evidence, recommended action and source URLs.
+
+    Opportunities of other customers are not visible (404).
+    """
     row = get_opportunity(db, opportunity_id)
     org = _org_id(user)
     if row is None or (org is not None and row.organization_id != org):

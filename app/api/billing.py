@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from app.api.responses import errors
 from app.billing.plans import (
     PLANS,
     all_plans,
@@ -69,7 +70,7 @@ def list_plans() -> dict[str, Any]:
     }
 
 
-@router.get("/billing/plan")
+@router.get("/billing/plan", responses=errors(401))
 def current_plan(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
@@ -84,7 +85,7 @@ def current_plan(
     return payload
 
 
-@router.get("/billing/usage")
+@router.get("/billing/usage", responses=errors(401))
 def usage(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
@@ -98,7 +99,7 @@ def usage(
     return usage_summary(db, org_id, days=max(1, min(days, 365)))
 
 
-@router.get("/billing/invoices")
+@router.get("/billing/invoices", responses=errors(401))
 def invoices(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
@@ -137,7 +138,13 @@ def invoices(
     }
 
 
-@router.post("/billing/checkout")
+@router.post(
+    "/billing/checkout",
+    responses={
+        **errors(400, 401, 409),
+        503: {"description": "Billing is unavailable right now (disabled or not configured); retry later."},
+    },
+)
 def start_checkout(
     payload: CheckoutRequest,
     request: Request,
@@ -212,7 +219,7 @@ def start_checkout(
     return {"url": url, "plan": payload.plan}
 
 
-@router.post("/billing/portal")
+@router.post("/billing/portal", responses=errors(400, 401))
 def open_portal(
     request: Request,
     db: DbSession,
@@ -234,7 +241,14 @@ def open_portal(
     return {"url": url}
 
 
-@router.post("/stripe/webhook")
+@router.post(
+    "/stripe/webhook",
+    responses={
+        **errors(400, 413),
+        500: {"description": "The event could not be processed; Stripe will retry."},
+        503: {"description": "The webhook secret is not configured; fix the deployment and retry."},
+    },
+)
 async def stripe_webhook(
     request: Request,
     db: DbSession,
@@ -256,7 +270,7 @@ async def stripe_webhook(
     body = await request.body()
     if len(body) > MAX_WEBHOOK_BYTES:
         raise HTTPException(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Webhook body too large"
+            status.HTTP_413_CONTENT_TOO_LARGE, detail="Webhook body too large"
         )
 
     signature = request.headers.get("stripe-signature", "")

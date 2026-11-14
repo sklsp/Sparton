@@ -89,6 +89,10 @@ python start_sparton.py            # http://localhost:8000
 | `/live`, `/ready` | Liveness and readiness probes |
 | `/health`, `/metrics` | Diagnostics (require authentication) |
 
+The interactive docs are at `/docs` (the raw OpenAPI document is at
+`/openapi.json`). Every operation lists every error it can return;
+`tests/test_api_responses.py` keeps it that way.
+
 ### Launcher options
 
 ```text

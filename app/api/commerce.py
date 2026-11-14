@@ -34,6 +34,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from app.api.responses import errors
 from app.billing.plans import check_competitors, check_crawl_frequency, check_shops, check_tokens
 from app.billing.service import effective_plan
 from app.core.auth.api import DbSession, current_user
@@ -197,13 +198,17 @@ def get_competitor_or_404(db: DbSession, competitor_id: int, organization_id: in
 # ---------------------------------------------------------------------------
 # Shops
 # ---------------------------------------------------------------------------
-@router.post("/shops", status_code=201)
+@router.post("/shops", status_code=201, responses=errors(400, 401, 402, 409))
 def create_shop(
     payload: ShopCreate,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
-    """Add your shop. This is the first step of the whole product."""
+    """Add your shop. This is the first step of the whole product.
+
+    The URL must be a public shop (400), re-adding an already-tracked domain
+    is 409, and exceeding the plan's shop limit is 402.
+    """
     org = _org_id(user)
     # Validate and de-duplicate *before* the plan check: a customer re-adding a
     # shop they already have should be told "you already added it", not told to
@@ -233,11 +238,12 @@ def create_shop(
     return _shop_dict(shop)
 
 
-@router.get("/shops")
+@router.get("/shops", responses=errors(401))
 def list_shops(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """The caller's shops, newest first, each with its competitor count."""
     org = _org_id(user)
     rows = db.execute(
         select(Shop).where(Shop.organization_id == org).order_by(Shop.created_at.desc())
@@ -256,12 +262,13 @@ def list_shops(
     }
 
 
-@router.get("/shops/{shop_id}")
+@router.get("/shops/{shop_id}", responses=errors(401, 404))
 def get_shop(
     shop_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """One shop with its competitors. Shops of other customers are not visible (404)."""
     org = _org_id(user)
     shop = get_shop_or_404(db, shop_id, org)
     competitors = db.execute(
@@ -274,13 +281,17 @@ def get_shop(
     return payload
 
 
-@router.patch("/shops/{shop_id}")
+@router.patch("/shops/{shop_id}", responses=errors(401, 404))
 def update_shop(
     shop_id: int,
     payload: ShopUpdate,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """Change a shop's name, category, crawl cadence or active flag.
+
+    The plan clamps the requested cadence instead of refusing it.
+    """
     shop = get_shop_or_404(db, shop_id, _org_id(user))
     if payload.name is not None:
         shop.name = payload.name.strip()[:200]
@@ -299,12 +310,13 @@ def update_shop(
     return _shop_dict(shop)
 
 
-@router.delete("/shops/{shop_id}")
+@router.delete("/shops/{shop_id}", responses=errors(401, 404))
 def delete_shop(
     shop_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """Stop tracking a shop. Cascades to its competitors, captures and changes."""
     shop = get_shop_or_404(db, shop_id, _org_id(user))
     db.delete(shop)  # cascades to competitors, captures, changes
     db.commit()
@@ -314,12 +326,13 @@ def delete_shop(
 # ---------------------------------------------------------------------------
 # Competitors
 # ---------------------------------------------------------------------------
-@router.get("/competitors")
+@router.get("/competitors", responses=errors(401))
 def list_competitors(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     shop_id: int | None = None,
 ) -> dict[str, Any]:
+    """The caller's competitor watchlist; optionally filtered to one shop."""
     org = _org_id(user)
     query = select(Competitor).where(Competitor.organization_id == org)
     if shop_id is not None:
@@ -328,12 +341,17 @@ def list_competitors(
     return {"count": len(rows), "competitors": [_competitor_dict(c) for c in rows]}
 
 
-@router.post("/competitors", status_code=201)
+@router.post("/competitors", status_code=201, responses=errors(400, 401, 402, 404, 409))
 def create_competitor(
     payload: CompetitorCreate,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """Add a competitor by URL.
+
+    Invalid or non-shop URLs are 400, the plan's watchlist limit is 402, an
+    unknown shop_id is 404 and re-adding a tracked domain is 409.
+    """
     org = _org_id(user)
     check_competitors(db, org, _plan_of(db, user))
     try:
@@ -349,12 +367,13 @@ def create_competitor(
     return _competitor_dict(competitor)
 
 
-@router.delete("/competitors/{competitor_id}")
+@router.delete("/competitors/{competitor_id}", responses=errors(401, 404))
 def delete_competitor(
     competitor_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """Stop watching one competitor. Cascades to its captures and changes."""
     competitor = get_competitor_or_404(db, competitor_id, _org_id(user))
     db.delete(competitor)  # cascades to captures and changes
     db.commit()
@@ -364,7 +383,7 @@ def delete_competitor(
 # ---------------------------------------------------------------------------
 # Discovery
 # ---------------------------------------------------------------------------
-@router.post("/shops/{shop_id}/discover")
+@router.post("/shops/{shop_id}/discover", responses=errors(401, 404))
 def discover_competitors(
     shop_id: int,
     db: DbSession,
@@ -390,13 +409,17 @@ def discover_competitors(
 # ---------------------------------------------------------------------------
 # Crawl + report triggers
 # ---------------------------------------------------------------------------
-@router.post("/shops/{shop_id}/crawl", status_code=202)
+@router.post("/shops/{shop_id}/crawl", status_code=202, responses=errors(400, 401, 404))
 def crawl_shop_now(
     shop_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
-    """Queue an immediate crawl of every competitor on this shop."""
+    """Queue an immediate crawl of every active competitor on this shop.
+
+    Fails with 400 if the shop has no competitors yet; at most one manual or
+    scheduled crawl runs per day (D-015).
+    """
     org = _org_id(user)
     shop = get_shop_or_404(db, shop_id, org)
     competitors = db.execute(
@@ -432,12 +455,13 @@ def crawl_shop_now(
     }
 
 
-@router.post("/competitors/{competitor_id}/crawl", status_code=202)
+@router.post("/competitors/{competitor_id}/crawl", status_code=202, responses=errors(401, 404))
 def crawl_competitor_now(
     competitor_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """Queue an immediate crawl of one competitor."""
     org = _org_id(user)
     competitor = get_competitor_or_404(db, competitor_id, org)
     job, created = enqueue(
@@ -450,14 +474,17 @@ def crawl_competitor_now(
     return {"job_id": job.id, "status": job.status, "created": created}
 
 
-@router.post("/shops/{shop_id}/report", status_code=202)
+@router.post("/shops/{shop_id}/report", status_code=202, responses=errors(401, 402, 404))
 def generate_report_now(
     shop_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     days: int = Query(default=7, ge=1, le=90),
 ) -> dict[str, Any]:
-    """Write a report now over the last `days` days."""
+    """Write a report now over the last `days` days (default 7, max 90).
+
+    The plan's daily AI allowance is checked before queueing (402).
+    """
     org = _org_id(user)
     shop = get_shop_or_404(db, shop_id, org)
     # The daily AI allowance is checked *here*, before the job is queued, so the
@@ -482,7 +509,7 @@ def generate_report_now(
 # ---------------------------------------------------------------------------
 # Alerts
 # ---------------------------------------------------------------------------
-@router.get("/changes")
+@router.get("/changes", responses=errors(401))
 def list_changes(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
@@ -526,12 +553,13 @@ def list_changes(
     }
 
 
-@router.post("/changes/{change_id}/ack")
+@router.post("/changes/{change_id}/ack", responses=errors(401, 404))
 def acknowledge_change(
     change_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """Mark one alert as read. Idempotent: re-acknowledging returns the original timestamp."""
     org = _org_id(user)
     row = db.execute(
         select(ChangeEvent).where(
@@ -546,7 +574,7 @@ def acknowledge_change(
     return {"id": row.id, "acknowledged_at": row.acknowledged_at.isoformat()}
 
 
-@router.get("/changes/{change_id}/history")
+@router.get("/changes/{change_id}/history", responses=errors(401, 404))
 def change_history(
     change_id: int,
     db: DbSession,
@@ -638,13 +666,14 @@ def change_history(
 # ---------------------------------------------------------------------------
 # Reports
 # ---------------------------------------------------------------------------
-@router.get("/shops/{shop_id}/reports")
+@router.get("/shops/{shop_id}/reports", responses=errors(401, 404))
 def list_shop_reports(
     shop_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     limit: int = Query(default=20, ge=1, le=100),
 ) -> dict[str, Any]:
+    """Past reports for one shop, newest first. The markdown is omitted in listings."""
     org = _org_id(user)
     get_shop_or_404(db, shop_id, org)
     rows = db.execute(
@@ -660,12 +689,13 @@ def list_shop_reports(
     }
 
 
-@router.get("/reports")
+@router.get("/reports", responses=errors(401))
 def list_reports(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     limit: int = Query(default=20, ge=1, le=100),
 ) -> dict[str, Any]:
+    """All of the caller's reports across shops, newest first."""
     org = _org_id(user)
     rows = db.execute(
         select(Report)
@@ -679,12 +709,13 @@ def list_reports(
     }
 
 
-@router.get("/reports/{report_id}")
+@router.get("/reports/{report_id}", responses=errors(401, 404))
 def get_report(
     report_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """One report by id, including its markdown. Reports of other customers are not visible (404)."""
     org = _org_id(user)
     row = db.execute(
         select(Report).where(Report.id == report_id, Report.organization_id == org)
@@ -697,7 +728,7 @@ def get_report(
 # ---------------------------------------------------------------------------
 # Overview: the dashboard's single call
 # ---------------------------------------------------------------------------
-@router.get("/overview")
+@router.get("/overview", responses=errors(401))
 def overview(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],

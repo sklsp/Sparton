@@ -35,7 +35,11 @@ def _org_id(user: object) -> int | None:
     return getattr(user, "organization_id", None)
 
 
-@router.post("/documents/upload", status_code=201)
+@router.post(
+    "/documents/upload",
+    status_code=201,
+    responses={401: {"description": "Authentication required"}},
+)
 async def upload_documents(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
@@ -60,7 +64,7 @@ async def upload_documents(
     return {"uploaded": len(results) - len(failed), "failed": len(failed), "results": results}
 
 
-@router.get("/documents")
+@router.get("/documents", responses={401: {"description": "Authentication required"}})
 def list_documents(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
@@ -81,7 +85,13 @@ def list_documents(
     }
 
 
-@router.delete("/documents/{doc_id}")
+@router.delete(
+    "/documents/{doc_id}",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Document not found"},
+    },
+)
 def delete_document(
     doc_id: int,
     db: DbSession,
@@ -93,14 +103,16 @@ def delete_document(
     return {"deleted": True}
 
 
-@router.get("/rag/status")
+@router.get("/rag/status", responses={401: {"description": "Authentication required"}})
 def rag_status(
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
     return get_document_service().rag.status()
 
 
-@router.get("/rag/debug-query")
+@router.get(
+    "/rag/debug-query", responses={401: {"description": "Authentication required"}}
+)
 def rag_debug_query(
     q: str,
     user: Annotated[object, Depends(current_user)],
@@ -117,7 +129,15 @@ DEFAULT_TEMPLATE = (
 )
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Conversation not found"},
+        502: {"description": "LLM provider error"},
+    },
+)
 def chat(
     payload: ChatRequest,
     db: DbSession,
@@ -182,7 +202,13 @@ def chat(
     return ChatResponse(conversation_id=conversation.id, answer=answer, citations=citations)
 
 
-@router.get("/conversations/{conversation_id}/history")
+@router.get(
+    "/conversations/{conversation_id}/history",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Conversation not found"},
+    },
+)
 def conversation_history(
     conversation_id: int,
     db: DbSession,
@@ -206,7 +232,13 @@ def conversation_history(
     }
 
 
-@router.delete("/conversations/{conversation_id}/history")
+@router.delete(
+    "/conversations/{conversation_id}/history",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Conversation not found"},
+    },
+)
 def clear_conversation(
     conversation_id: int,
     db: DbSession,
@@ -226,7 +258,7 @@ def clear_conversation(
 
 
 # --- prompt templates ------------------------------------------------------------
-@router.get("/prompts")
+@router.get("/prompts", responses={401: {"description": "Authentication required"}})
 def list_prompts(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     # `organization_id IN (org, NULL)` never matches the NULL rows, because SQL
     # three-valued logic makes any comparison with NULL unknown. Global templates
@@ -247,7 +279,11 @@ def list_prompts(db: DbSession, user: Annotated[object, Depends(current_user)]) 
     }
 
 
-@router.post("/prompts", status_code=201)
+@router.post(
+    "/prompts",
+    status_code=201,
+    responses={401: {"description": "Authentication required"}},
+)
 def create_prompt(
     payload: PromptTemplateCreate,
     db: DbSession,

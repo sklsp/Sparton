@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy import text
 
 from app.agent.runner import build_registry
+from app.api.responses import errors
 from app.core.auth.api import current_user
 from app.core.config import settings
 from app.core.database.base import engine
@@ -28,8 +29,16 @@ def live() -> dict[str, Any]:
     return {"status": "live"}
 
 
-@router.get("/ready", response_model=None)
+@router.get(
+    "/ready",
+    response_model=None,
+    responses={503: {"description": "The database is unreachable; retry later."}},
+)
 def ready() -> dict[str, Any] | Response:
+    """Readiness: whether the process can reach its database.
+
+    Returns 503 while it cannot; no authentication required.
+    """
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -38,8 +47,10 @@ def ready() -> dict[str, Any] | Response:
         return Response(status_code=503)
 
 
-@router.get("/health")
+@router.get("/health", responses=errors(401))
 def health(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
+    """Deployment health for operators: database reachability, LLM provider
+    status and enabled features. Requires a signed-in member or an API key."""
     db_ok = False
     try:
         with engine.connect() as conn:
@@ -64,15 +75,21 @@ def health(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     }
 
 
-@router.get("/metrics")
+@router.get("/metrics", responses=errors(401))
+# Scraped by Prometheus with X-API-Key, or by a signed-in operator.
 def metrics(user: Annotated[object, Depends(current_user)]) -> Response:
-    # Scraped by Prometheus with X-API-Key, or by a signed-in operator.
+    """Prometheus metrics for this deployment in text format.
+
+    Requires a signed-in member or an API key.
+    """
     return Response(content=render_metrics(), media_type="text/plain; version=0.0.4")
 
 
-@router.get("/tools")
+@router.get("/tools", responses=errors(401))
+# Tool names, descriptions and full JSON schemas are internal surface.
 def tools(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
-    # Tool names, descriptions and full JSON schemas are internal surface.
+    """The agent tool registry: each tool's name, description and full JSON
+    schema. Requires a signed-in member or an API key."""
     registry = build_registry()
     return {"count": len(registry), "tools": [t.to_info() for t in registry.list()]}
 

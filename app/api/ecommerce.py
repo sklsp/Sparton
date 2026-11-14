@@ -8,6 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 
+from app.api.responses import errors
 from app.core.auth.api import DbSession, current_user
 from app.core.database.domain_models import Inventory, Order, Product
 from app.core.database.models import utcnow
@@ -28,13 +29,18 @@ def _product_dict(p: Product) -> dict[str, Any]:
     }
 
 
-@router.get("/products")
+@router.get("/products", responses=errors(401))
 def list_products(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     search: str | None = None,
     limit: int = 50,
 ) -> dict[str, Any]:
+    """List the organization's products with their price and stock.
+
+    Optional title search; the limit is capped at 200. An API key sees all
+    tenants instead of a single organization.
+    """
     query = select(Product).order_by(Product.id).limit(min(limit, 200))
     org = _org_id(user)
     if org is not None:
@@ -45,8 +51,12 @@ def list_products(
     return {"count": len(rows), "products": [_product_dict(r) for r in rows]}
 
 
-@router.get("/products/{product_id}")
+@router.get("/products/{product_id}", responses=errors(401, 404))
 def get_product(product_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
+    """One product by id, including its current stock quantity.
+
+    Products from other organizations are not visible (404).
+    """
     row = db.get(Product, product_id)
     org = _org_id(user)
     if row is None or (org is not None and row.organization_id != org):
@@ -54,8 +64,9 @@ def get_product(product_id: int, db: DbSession, user: Annotated[object, Depends(
     return _product_dict(row)
 
 
-@router.get("/analytics/summary")
+@router.get("/analytics/summary", responses=errors(401))
 def analytics_summary(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
+    """Catalog, inventory and sales totals for the dashboard's stat cards."""
     org = _org_id(user)
 
     product_query = select(func.count(Product.id))
