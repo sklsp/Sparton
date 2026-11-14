@@ -17,8 +17,10 @@ pre-existing research handler.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.database.base import SessionLocal
 from app.core.database.domain_models import Job, JobStatus
@@ -27,10 +29,13 @@ from app.core.database.models import utcnow
 from app.core.jobs.queue import enqueue
 from app.core.observability.metrics import inc
 
+if TYPE_CHECKING:  # type hint only; the real import stays lazy inside _shop_policy
+    from app.research.crawler import CrawlPolicy
+
 logger = logging.getLogger(__name__)
 
 
-def _load_job(payload: dict):
+def _load_job(payload: dict[str, Any]) -> tuple[Session | None, Job | None]:
     """Open a session, fetch the job, and skip work that is already done."""
     job_id = payload.get("job_id")
     db = SessionLocal()
@@ -41,7 +46,7 @@ def _load_job(payload: dict):
     return db, job
 
 
-def _fail(db, job: Job, exc: Exception) -> None:
+def _fail(db: Session, job: Job, exc: Exception) -> None:
     logger.exception("Job %s (%s) failed", getattr(job, "id", "?"), getattr(job, "type", "?"))
     try:
         db.rollback()
@@ -55,13 +60,13 @@ def _fail(db, job: Job, exc: Exception) -> None:
         db.rollback()
 
 
-def _shop_policy():
+def _shop_policy() -> CrawlPolicy:
     from app.ecommerce.crawl import default_crawl_policy
 
     return default_crawl_policy()
 
 
-def crawl_shop(payload: dict) -> None:
+def crawl_shop(payload: dict[str, Any]) -> None:
     """Crawl every competitor on a shop, then queue a report for the week."""
     from app.ecommerce.crawl import crawl_competitor
     from app.research.crawler import ResponsibleCrawler
@@ -69,6 +74,7 @@ def crawl_shop(payload: dict) -> None:
     db, job = _load_job(payload)
     if db is None:
         return
+    assert job is not None  # _load_job returns a session only together with the job row
     try:
         shop_id = int(payload["shop_id"])
         shop = db.get(Shop, shop_id)
@@ -155,7 +161,7 @@ def crawl_shop(payload: dict) -> None:
         db.close()
 
 
-def _read_own(db, shop: Shop) -> dict:
+def _read_own(db: Session, shop: Shop) -> dict[str, Any]:
     """The shop's own catalogue (matching.py). Never fails the crawl job."""
     from app.ecommerce.matching import read_own_catalog
 
@@ -167,7 +173,7 @@ def _read_own(db, shop: Shop) -> dict:
         return {"products": 0, "data_source": "", "error": str(exc)[:200]}
 
 
-def _rematch(db, shop: Shop | None) -> int:
+def _rematch(db: Session, shop: Shop | None) -> int:
     """Re-pair own and competitor products. Never fails the crawl job."""
     from app.ecommerce.matching import rematch
 
@@ -181,7 +187,7 @@ def _rematch(db, shop: Shop | None) -> int:
         return 0
 
 
-def _mark_shop_crawled(db, shop: Shop) -> None:
+def _mark_shop_crawled(db: Session, shop: Shop) -> None:
     """Stamp the shop and push its next scheduled crawl into the future."""
     from datetime import timedelta
 
@@ -191,13 +197,14 @@ def _mark_shop_crawled(db, shop: Shop) -> None:
     db.commit()
 
 
-def crawl_one_competitor(payload: dict) -> None:
+def crawl_one_competitor(payload: dict[str, Any]) -> None:
     """Crawl a single competitor, from the "crawl now" button."""
     from app.ecommerce.crawl import crawl_competitor
 
     db, job = _load_job(payload)
     if db is None:
         return
+    assert job is not None  # _load_job returns a session only together with the job row
     try:
         competitor = db.get(Competitor, int(payload["competitor_id"]))
         if competitor is None or competitor.organization_id is None:
@@ -224,13 +231,14 @@ def crawl_one_competitor(payload: dict) -> None:
         db.close()
 
 
-def generate_report_job(payload: dict) -> None:
+def generate_report_job(payload: dict[str, Any]) -> None:
     """Write a report over the requested period."""
     from app.ecommerce.reports import generate_report
 
     db, job = _load_job(payload)
     if db is None:
         return
+    assert job is not None  # _load_job returns a session only together with the job row
     try:
         shop = db.get(Shop, int(payload["shop_id"])) if payload.get("shop_id") else None
         org = shop.organization_id if shop else payload.get("organization_id")
@@ -273,7 +281,7 @@ def generate_report_job(payload: dict) -> None:
         db.close()
 
 
-def schedule_due_crawls(payload: dict) -> None:
+def schedule_due_crawls(payload: dict[str, Any]) -> None:
     """Enqueue a crawl for every shop whose next crawl is due.
 
     This is what makes "crawled on a schedule" true. The scheduler itself just

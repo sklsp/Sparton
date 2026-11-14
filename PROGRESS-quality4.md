@@ -3,7 +3,7 @@
 - [x] S3. types: the other routers (983 passed, 16 skipped, 2 warnings in 610.79s (0:10:10))
 - [x] S4. types: platform core (983 passed, 16 skipped, 2 warnings in 609.01s (0:10:09))
 - [x] S5. types: agent (983 passed, 16 skipped, 2 warnings in 609.82s (0:10:09))
-- [ ] S6. types: ecommerce
+- [x] S6. types: ecommerce (983 passed, 16 skipped, 2 warnings in 614.05s (0:10:14))
 - [ ] S7. types: experimental domains
 - [ ] S8. types: everything left
 - [ ] S9. build: strict mode on in mypy.ini

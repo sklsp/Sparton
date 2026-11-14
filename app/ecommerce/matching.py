@@ -18,13 +18,13 @@ prices. Only a barcode match is ever called certain (`MatchConfidence`).
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import delete, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app.core.config import settings
 from app.core.database.ecommerce_models import (
@@ -37,6 +37,9 @@ from app.core.database.ecommerce_models import (
 )
 from app.core.database.models import utcnow
 from app.ecommerce.feeds import read_feed_catalog, shopfeed_available
+
+if TYPE_CHECKING:  # shopfeed is optional; this name exists only for type hints
+    from shopfeed.catalog import Product
 
 logger = logging.getLogger(__name__)
 
@@ -105,17 +108,21 @@ def read_own_catalog(
 # --- pairing ------------------------------------------------------------------
 
 
-def _latest(db: Session, model, owner_col, owner_id: int) -> list:
+def _latest(
+    db: Session,
+    model: type[ShopProduct] | type[CompetitorProduct],
+    owner_col: InstrumentedAttribute[int],
+    owner_id: int,
+) -> list[ShopProduct | CompetitorProduct]:
     """Every row of the most recent capture for one shop or competitor."""
     last = db.execute(select(func.max(model.captured_at)).where(owner_col == owner_id)).scalar()
     if last is None:
         return []
-    return list(
-        db.execute(select(model).where(owner_col == owner_id, model.captured_at == last)).scalars()
-    )
+    rows = db.execute(select(model).where(owner_col == owner_id, model.captured_at == last)).scalars()
+    return list(cast("Iterable[ShopProduct | CompetitorProduct]", rows))
 
 
-def _as_product(row):
+def _as_product(row: ShopProduct | CompetitorProduct) -> Product:
     from shopfeed.catalog import Product
 
     return Product(
@@ -209,7 +216,9 @@ def own_history(db: Session, match: ProductMatch, limit: int = 500) -> list[Shop
     return list(reversed(list(rows)))
 
 
-def match_for(db: Session, organization_id: int | None, competitor_id: int | None, url: str):
+def match_for(
+    db: Session, organization_id: int | None, competitor_id: int | None, url: str
+) -> ProductMatch | None:
     if competitor_id is None or not url:
         return None
     return db.execute(

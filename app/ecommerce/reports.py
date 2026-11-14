@@ -476,7 +476,7 @@ def generate_report(
     return report
 
 
-def _digest_changes(db: Session, report: Report) -> list[dict]:
+def _digest_changes(db: Session, report: Report) -> list[dict[str, str | float]]:
     """The report's change rows in the shape ``render_report_email`` expects."""
     ids = [int(i) for i in (report.change_ids or [])]
     if not ids:
@@ -545,7 +545,7 @@ def send_weekly_digest(db: Session, report: Report) -> bool:
         # Session.execute() is typed to return the base Result; a DML statement
         # actually returns a CursorResult, which carries rowcount.
         claimed = cast(
-            "CursorResult",
+            "CursorResult[()]",
             db.execute(
                 update(Report)
                 .where(Report.id == report.id, Report.email_digest_sent.is_(False))
