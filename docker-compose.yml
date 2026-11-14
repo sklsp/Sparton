@@ -42,7 +42,7 @@ x-app-env: &app-env
   SMTP_PORT: ${SMTP_PORT:-587}
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-  SMTP_FROM: ${SMTP_FROM:-no-reply@sparton.io}
+  SMTP_FROM: ${SMTP_FROM:-no-reply@sparton.ai}
   SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
   # The model provider.
   LLM_PROVIDER: ${LLM_PROVIDER:-openai_compatible}
