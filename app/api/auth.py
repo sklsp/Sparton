@@ -142,6 +142,9 @@ def login(
 
 
 @router.post("/logout", responses=errors(401))
+# Reads the header directly rather than via FastAPI's `HTTPBearer`: its `__call__` is async, so calling it from a
+# sync handler returns a coroutine instead of the credentials, and `creds.credentials` raises `AttributeError`, a
+# 500 on the one route a user hits when something has already gone wrong.
 def logout(request: Request, db: DbSession) -> dict[str, Any]:
     """Revoke the caller's own session token.
 
@@ -162,6 +165,9 @@ def logout(request: Request, db: DbSession) -> dict[str, Any]:
 
 
 @router.get("/me", summary="Who am I", responses=errors(401))
+# Uses `unverified_user`, not `current_user`: the client calls this on every boot to decide whether to show the
+# "confirm your email" banner. Gating it behind verification would make an unverified customer unable to discover
+# that they need verifying.
 def me(user: Annotated[User | MachineUser, Depends(unverified_user)]) -> dict[str, Any]:
     """The caller's own account details, including whether the email is verified.
 
@@ -172,6 +178,7 @@ def me(user: Annotated[User | MachineUser, Depends(unverified_user)]) -> dict[st
 
 
 @router.put("/language", responses=errors(401, 404))
+# Any member may set it: it decides which language the next weekly report is written in, nothing else (D-038).
 def set_language(
     payload: LanguageRequest,
     db: DbSession,
@@ -194,6 +201,10 @@ def set_language(
 # Email verification
 # ---------------------------------------------------------------------------
 @router.post("/verify-email", status_code=200, responses=errors(400))
+# The token is single-use, and redeeming it marks the user verified. An unknown, used or expired link gets one and
+# the same 400. It used to report success, which told someone whose link had expired that their account was "fully
+# active" while the product kept refusing them. The 400 tells only the holder of a link that this link does not work
+# now; tokens are random, so there is nothing to enumerate.
 def verify_email(payload: VerifyRequest, db: DbSession) -> dict[str, Any]:
     """Redeem a verification link from the confirmation email.
 
@@ -217,6 +228,8 @@ def verify_email(payload: VerifyRequest, db: DbSession) -> dict[str, Any]:
 
 
 @router.post("/resend-verification", responses=errors(401, 403))
+# `unverified_user` is the whole point of this route: requiring a verified email to ask for a verification email is
+# a deadlock.
 def resend_verification(
     request: Request,
     db: DbSession,
@@ -244,6 +257,8 @@ def resend_verification(
 # Password reset
 # ---------------------------------------------------------------------------
 @router.post("/forgot-password", responses=errors(429))
+# Always returns the same thing, whether or not the address exists. Anything else turns this endpoint into a way to
+# enumerate who has an account.
 def forgot_password(
     payload: ForgotPasswordRequest,
     request: Request,
@@ -272,6 +287,8 @@ def forgot_password(
 
 
 @router.post("/reset-password", responses=errors(400, 429))
+# On success every existing session for that user is revoked: if the reset was prompted by a compromise, the
+# attacker's sessions must not survive it.
 def reset_password(
     payload: ResetPasswordRequest,
     request: Request,
@@ -307,6 +324,9 @@ def reset_password(
 
 
 @router.post("/change-password", responses=errors(400, 401, 403))
+# `unverified_user`: the password being changed is the one the customer was emailed about. Gating this behind
+# verification would lock out exactly the person who cannot receive mail yet. It still requires the *current*
+# password, so this is not a takeover vector.
 def change_password(
     payload: ChangePasswordRequest,
     db: DbSession,
@@ -337,6 +357,9 @@ def change_password(
 
 
 @router.patch("/settings", responses=errors(401, 403))
+# ``unverified_user`` on purpose (like change-password): these are personal preferences of your own account, not
+# tenant data, and a freshly signed-up customer should be able to set them before verifying their address. The
+# digest itself only ever goes out to verified addresses.
 def update_settings(
     payload: UserSettingsUpdate,
     db: DbSession,
