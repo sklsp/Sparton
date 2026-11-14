@@ -136,9 +136,10 @@ test("ui.bytes scales through B KB MB GB", () => {
   assert.equal(ui.bytes(5 * 1024 ** 3), "5.0 GB");
 });
 
-test("ui.bytes clamps negative input to 0 B", { todo: "real bug, see sparton-quality-8/BUGS.md #1" }, () => {
+test("ui.bytes clamps negative input to 0 B and keeps fractions in bytes", () => {
   // Currently returns "NaN undefined": the !n guard catches 0/null/NaN but not negatives.
   assert.equal(ui.bytes(-5), "0 B");
+  assert.equal(ui.bytes(0.5), "1 B");
 });
 
 test("ui.ago buckets recent timestamps", () => {

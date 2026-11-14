@@ -119,9 +119,9 @@ export const money = (value) => cf.format(Number(value ?? 0));
 
 export function bytes(value) {
   const n = Number(value ?? 0);
-  if (!n) return "0 B";
+  if (!(n > 0)) return "0 B"; // also negatives and NaN, which would index units[] out of range
   const units = ["B", "KB", "MB", "GB"];
-  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1);
+  const i = Math.max(0, Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1));
   return `${(n / 1024 ** i).toFixed(i ? 1 : 0)} ${units[i]}`;
 }
 
