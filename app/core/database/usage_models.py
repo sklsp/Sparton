@@ -28,7 +28,7 @@ from sqlalchemy import (
     func,
     select,
 )
-from sqlalchemy.orm import Mapped, mapped_column, Session
+from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from app.core.database.base import Base, JSONType
 from app.core.database.models import utcnow
