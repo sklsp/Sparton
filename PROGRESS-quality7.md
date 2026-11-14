@@ -2,7 +2,7 @@
 
 - [x] A1. api: shared error responses (989 passed, 16 skipped, 1 warning in 67.27s (0:01:07))
 - [x] A2. api: auth and admin routes document themselves (1043 passed, 16 skipped, 1 warning in 71.20s (0:01:11))
-- [ ] A3. api: commerce routes document themselves
+- [x] A3. api: commerce routes document themselves (1043 passed, 16 skipped, 1 warning in 70.37s (0:01:10))
 - [ ] A4. api: ecommerce and intelligence routes document themselves
 - [ ] A5. api: billing, health and agent routes document themselves
 - [ ] A6. api: experimental routers document themselves
