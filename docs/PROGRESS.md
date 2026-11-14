@@ -1,5 +1,7 @@
 # SPARTON: Launch Progress
 
+> Historical record (October 2026). The code has changed since; see README.md and docs/ARCHITECTURE.md for how it works now.
+
 Mission: turn the merged SPARTON codebase into a **launched, paid SaaS**,
 "Sparton Intelligence", competitor & pricing intelligence for small e-commerce
 sellers, on the Ares domain + Athena agent.

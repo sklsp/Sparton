@@ -4,7 +4,7 @@
 - [x] D2. docs: ARCHITECTURE claims match the code (983 passed, 16 skipped, 2 warnings in 68.04s (0:01:08))
 - [x] D3. docs: DEPLOYMENT claims match the code (983 passed, 16 skipped, 2 warnings in 66.89s (0:01:06))
 - [x] D4. docs: DECISIONS are referenced correctly (983 passed, 16 skipped, 2 warnings in 70.10s (0:01:10))
-- [ ] D5. docs: label the historical documents
+- [x] D5. docs: label the historical documents (983 passed, 16 skipped, 2 warnings in 66.83s (0:01:06))
 - [ ] D6. tests: doc paths and settings cannot drift
 
 ## Run 2026-11-14 (items 1-6 per 00-start.md)

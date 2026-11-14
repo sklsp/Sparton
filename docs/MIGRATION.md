@@ -1,5 +1,7 @@
 # SPARTON Staged Migration Plan
 
+> Historical record (October 2026). The code has changed since; see README.md and docs/ARCHITECTURE.md for how it works now.
+
 Sources (read-only): `Apollo/`, `Ares/` in the workspace root.
 Destination: this repository. Apollo and Ares are never modified.
 

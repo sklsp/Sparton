@@ -1,5 +1,7 @@
 # SPARTON: Audit (Phase 1 baseline)
 
+> Historical record (October 2026). The code has changed since; see README.md and docs/ARCHITECTURE.md for how it works now.
+
 **Date:** 2026-09-29
 **Commit audited:** `842c8cd`
 **Method:** every claim below was verified by *running* the code (app import, route

@@ -1,5 +1,7 @@
 # Launching SPARTON
 
+> Historical record (October 2026). The code has changed since; see README.md and docs/ARCHITECTURE.md for how it works now.
+
 The operational runbook is [DEPLOYMENT.md](DEPLOYMENT.md): how to build, run and
 operate the thing. This file is the *go-live* checklist, the decisions and
 values you must supply before real customers can use the product, and the
