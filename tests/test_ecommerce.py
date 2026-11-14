@@ -126,8 +126,29 @@ def make_crawler(handler, delay: float = 0.0):
         headers={"User-Agent": "SpartonIntelligence/1.0"},
     )
     policy = default_crawl_policy(max_pages=20)
-    policy = replace(policy, delay_seconds=delay)
+    # max_retries 0 keeps the retry backoff out of these tests: fetch() sleeps
+    # for real between attempts (1 s + 2 s per failed request), and nothing in
+    # this file checks that a failed request is retried. The dead-competitor
+    # test wants a fast FAILED, not three seconds of wall-clock.
+    policy = replace(policy, delay_seconds=delay, max_retries=0)
     return ResponsibleCrawler(policy=policy, client=client)
+
+
+def no_feed_transport():
+    """A shopfeed transport for the fake storefronts: they have no platform feed.
+
+    Without it the feed tier would dial out to the real domain behind the
+    competitor's URL -- these fakes only serve HTML -- and every crawl would pay
+    a round trip to the internet plus politeness sleeps before falling back to
+    the HTML tier. 404 everywhere is exactly what "no feed" looks like: no
+    robots.txt, no /products.json -> platform None -> HTML crawl.
+    """
+    import httpx
+
+    def transport(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, text="Not found", request=request)
+
+    return httpx.MockTransport(transport)
 
 
 @pytest.fixture()
@@ -411,7 +432,14 @@ def run_crawl(db, competitor, shop_id, store, monkeypatch):
     monkeypatch.setattr(settings, "crawler_allow_private_addresses", True)
     crawler = make_crawler(store.handle)
     try:
-        return crawl_competitor(db, competitor, shop_id=shop_id, crawler=crawler)
+        return crawl_competitor(
+            db,
+            competitor,
+            shop_id=shop_id,
+            feed_transport=no_feed_transport(),  # hermetic: the fake store has no platform feed
+            sleep=lambda _seconds: None,          # politeness pacing is asserted in test_feeds
+            crawler=crawler,
+        )
     finally:
         crawler.client.close()
 
@@ -550,7 +578,14 @@ class TestCrawlAndChanges:
         monkeypatch.setattr(settings, "crawler_allow_private_addresses", True)
         crawler = make_crawler(sold_out)
         try:
-            crawl_competitor(db_session, competitor, shop_id=shop["id"], crawler=crawler)
+            crawl_competitor(
+                db_session,
+                competitor,
+                shop_id=shop["id"],
+                feed_transport=no_feed_transport(),
+                sleep=lambda _seconds: None,
+                crawler=crawler,
+            )
         finally:
             crawler.client.close()
 
@@ -616,7 +651,14 @@ class TestCrawlAndChanges:
 
         crawler = make_crawler(lambda url: (500, "boom"))
         try:
-            outcome = crawl_competitor(db_session, competitor, shop_id=shop["id"], crawler=crawler)
+            outcome = crawl_competitor(
+                db_session,
+                competitor,
+                shop_id=shop["id"],
+                feed_transport=no_feed_transport(),
+                sleep=lambda _seconds: None,
+                crawler=crawler,
+            )
         finally:
             crawler.client.close()
 
