@@ -77,11 +77,11 @@ class CompetitorCreate(BaseModel):
     shop_id: int | None = None
 
 
-def _org_id(user) -> int | None:
+def _org_id(user: object) -> int | None:
     return getattr(user, "organization_id", None)
 
 
-def _plan_of(db, user) -> str:
+def _plan_of(db: DbSession, user: object) -> str:
     """The caller's plan, resolved server-side on every mutating route.
 
     Never read from the request body or a header: the browser does not get to
@@ -169,7 +169,7 @@ def _change_dict(row: ChangeEvent, vs_you: dict[str, Any] | None = None) -> dict
     }
 
 
-def get_shop_or_404(db, shop_id: int, organization_id: int | None) -> Shop:
+def get_shop_or_404(db: DbSession, shop_id: int, organization_id: int | None) -> Shop:
     """Tenant-scoped fetch.
 
     404 rather than 403, so we never confirm that another customer's shop
@@ -183,7 +183,7 @@ def get_shop_or_404(db, shop_id: int, organization_id: int | None) -> Shop:
     return row
 
 
-def get_competitor_or_404(db, competitor_id: int, organization_id: int | None) -> Competitor:
+def get_competitor_or_404(db: DbSession, competitor_id: int, organization_id: int | None) -> Competitor:
     row = db.execute(
         select(Competitor).where(
             Competitor.id == competitor_id, Competitor.organization_id == organization_id
@@ -202,7 +202,7 @@ def create_shop(
     payload: ShopCreate,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     """Add your shop. This is the first step of the whole product."""
     org = _org_id(user)
     # Validate and de-duplicate *before* the plan check: a customer re-adding a
@@ -237,7 +237,7 @@ def create_shop(
 def list_shops(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     org = _org_id(user)
     rows = db.execute(
         select(Shop).where(Shop.organization_id == org).order_by(Shop.created_at.desc())
@@ -261,7 +261,7 @@ def get_shop(
     shop_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     org = _org_id(user)
     shop = get_shop_or_404(db, shop_id, org)
     competitors = db.execute(
@@ -280,7 +280,7 @@ def update_shop(
     payload: ShopUpdate,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     shop = get_shop_or_404(db, shop_id, _org_id(user))
     if payload.name is not None:
         shop.name = payload.name.strip()[:200]
@@ -304,7 +304,7 @@ def delete_shop(
     shop_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     shop = get_shop_or_404(db, shop_id, _org_id(user))
     db.delete(shop)  # cascades to competitors, captures, changes
     db.commit()
@@ -319,7 +319,7 @@ def list_competitors(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     shop_id: int | None = None,
-) -> dict:
+) -> dict[str, Any]:
     org = _org_id(user)
     query = select(Competitor).where(Competitor.organization_id == org)
     if shop_id is not None:
@@ -333,7 +333,7 @@ def create_competitor(
     payload: CompetitorCreate,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     org = _org_id(user)
     check_competitors(db, org, _plan_of(db, user))
     try:
@@ -354,7 +354,7 @@ def delete_competitor(
     competitor_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     competitor = get_competitor_or_404(db, competitor_id, _org_id(user))
     db.delete(competitor)  # cascades to captures and changes
     db.commit()
@@ -369,7 +369,7 @@ def discover_competitors(
     shop_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     """Propose competitors. **Nothing is stored** until the customer confirms.
 
     Auto-adding would mean starting to crawl a stranger's server on the strength
@@ -395,7 +395,7 @@ def crawl_shop_now(
     shop_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     """Queue an immediate crawl of every competitor on this shop."""
     org = _org_id(user)
     shop = get_shop_or_404(db, shop_id, org)
@@ -437,7 +437,7 @@ def crawl_competitor_now(
     competitor_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     org = _org_id(user)
     competitor = get_competitor_or_404(db, competitor_id, org)
     job, created = enqueue(
@@ -456,7 +456,7 @@ def generate_report_now(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     days: int = Query(default=7, ge=1, le=90),
-) -> dict:
+) -> dict[str, Any]:
     """Write a report now over the last `days` days."""
     org = _org_id(user)
     shop = get_shop_or_404(db, shop_id, org)
@@ -492,7 +492,7 @@ def list_changes(
     unacknowledged_only: bool = False,
     days: int = Query(default=30, ge=1, le=365),
     limit: int = Query(default=50, ge=1, le=200),
-) -> dict:
+) -> dict[str, Any]:
     """The in-app alert inbox, newest first. Every row carries an evidence link."""
     from datetime import timedelta
 
@@ -531,7 +531,7 @@ def acknowledge_change(
     change_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     org = _org_id(user)
     row = db.execute(
         select(ChangeEvent).where(
@@ -552,7 +552,7 @@ def change_history(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     limit: int = Query(default=120, ge=1, le=500),
-) -> dict:
+) -> dict[str, Any]:
     """Every capture of the product a change is about, oldest first: its price history.
 
     The same product is the same competitor and the same page (`source_url`); the
@@ -644,7 +644,7 @@ def list_shop_reports(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     limit: int = Query(default=20, ge=1, le=100),
-) -> dict:
+) -> dict[str, Any]:
     org = _org_id(user)
     get_shop_or_404(db, shop_id, org)
     rows = db.execute(
@@ -665,7 +665,7 @@ def list_reports(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     limit: int = Query(default=20, ge=1, le=100),
-) -> dict:
+) -> dict[str, Any]:
     org = _org_id(user)
     rows = db.execute(
         select(Report)
@@ -684,7 +684,7 @@ def get_report(
     report_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     org = _org_id(user)
     row = db.execute(
         select(Report).where(Report.id == report_id, Report.organization_id == org)
@@ -701,7 +701,7 @@ def get_report(
 def overview(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     """Everything the dashboard needs in one round trip.
 
     One request instead of five keeps the first paint to a single round trip,
