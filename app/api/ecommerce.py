@@ -64,8 +64,9 @@ def get_product(product_id: int, db: DbSession, user: Annotated[object, Depends(
     return _product_dict(row)
 
 
-@router.get("/analytics/summary")
+@router.get("/analytics/summary", responses=errors(401))
 def analytics_summary(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
+    """Catalog, inventory and sales totals for the dashboard's stat cards."""
     org = _org_id(user)
 
     product_query = select(func.count(Product.id))
