@@ -7,4 +7,4 @@
 - [x] A5. api: billing, health and agent routes document themselves (1048 passed, 16 skipped, 1 warning in 70.72s (0:01:10))
 - [x] A6. api: experimental routers document themselves (1048 passed, 16 skipped, 1 warning in 70.71s (0:01:10))
 - [x] A7. tests: the API docs cannot regress (1051 passed, 16 skipped, 1 warning in 71.29s (0:01:11))
-- [ ] A8. docs: the README points to the API docs
+- [x] A8. docs: the README points to the API docs (1051 passed, 16 skipped, 1 warning in 70.72s (0:01:10))
