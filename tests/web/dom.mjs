@@ -176,6 +176,10 @@ class Element {
 
   click() { return this.dispatchEvent(new Event("click")); }
 
+  /** HTMLDialogElement surface for ui.js's dialog(): open flag, returnValue and the close event. */
+  showModal() { this.open = true; }
+  close(returnValue) { if (returnValue !== undefined) this.returnValue = returnValue; this.open = false; this.dispatchEvent(new Event("close")); }
+
   // Simple selectors only: tag, .class, #id, [attr], [attr="v"], freely combined.
   querySelectorAll(selector) {
     const spec = parseSelector(selector);

@@ -270,6 +270,9 @@ export function toast(message, tone = "info") {
   return close;
 }
 
+/** Test seam: drop the cached host so a fresh document gets its own toasts node. */
+export function resetToasts() { toastHost = null; }
+
 /* -------------------------------------------------------------- dialog */
 /** Native <dialog>: focus trapping, Esc and the backdrop come for free. */
 export function dialog({ title: heading, body, actions, onClose }) {

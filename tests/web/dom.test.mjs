@@ -232,3 +232,17 @@ test("prepend inserts nodes before the first child, in order", () => {
   assert.equal(ul.childNodes[0].textContent, "hello");
   assert.throws(() => ul.prepend(42), /prepend: not a node/);
 });
+
+test("dialog opens with showModal; close sets returnValue and fires the close event (ui.js dialog)", () => {
+  const el = document.createElement("dialog"); // ui.js dialog() pattern
+  let closedWith;
+  el.addEventListener("close", () => { closedWith = el.returnValue; });
+  el.showModal();
+  assert.equal(el.open, true);
+  el.close("ok");
+  assert.equal(el.open, false);
+  assert.equal(closedWith, "ok"); // the close handler reads returnValue synchronously
+  const bare = document.createElement("dialog");
+  bare.close(); // no value: returnValue stays undefined
+  assert.equal(bare.returnValue, undefined);
+});
