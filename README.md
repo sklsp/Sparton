@@ -15,7 +15,7 @@ every claim.
 - **A weekly AI-written report**, the numbers are computed by our diff engine;
   the AI writes the summary. It never invents a price.
 
-**Status: feature-complete, pre-launch.** 549 tests pass in CI, including 33 that drive
+**Status: feature-complete, pre-launch.** CI runs 996 tests, plus 33 more that drive
 a real browser through signup, the product loop and tenant isolation. What is left
 needs real accounts and money (a live Stripe charge, SMTP delivery, a production
 deploy) and is listed step by step in [docs/LAUNCH.md](docs/LAUNCH.md).
@@ -205,7 +205,7 @@ pytest
 ```
 
 The suite runs against SQLite with the deterministic LLM provider and the offline hash
-embedding backend: no network, no API key, no GPU, no Ollama. In CI that is 516 tests,
+embedding backend: no network, no API key, no GPU, no Ollama. In CI that is 996 tests,
 plus the 33 browser tests below in their own job; the experimental domains' tests skip
 unless `requirements-experimental.txt` is installed.
 
