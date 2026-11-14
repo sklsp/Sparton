@@ -256,7 +256,7 @@ async def stripe_webhook(
     body = await request.body()
     if len(body) > MAX_WEBHOOK_BYTES:
         raise HTTPException(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Webhook body too large"
+            status.HTTP_413_CONTENT_TOO_LARGE, detail="Webhook body too large"
         )
 
     signature = request.headers.get("stripe-signature", "")
