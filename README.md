@@ -208,6 +208,8 @@ browser.
 pytest
 ```
 
+The dashboard's unit tests run on plain Node with no dependencies: `node --test "tests/web/**/*.test.mjs"` (Node 22). CI runs them in the Frontend job.
+
 The suite runs against SQLite with the deterministic LLM provider and the offline hash
 embedding backend: no network, no API key, no GPU, no Ollama. In CI that is 996 tests,
 plus the 33 browser tests below in their own job; the experimental domains' tests skip
