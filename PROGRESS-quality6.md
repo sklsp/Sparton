@@ -2,7 +2,7 @@
 
 - [x] D1. docs: README claims match the code (983 passed, 16 skipped, 2 warnings in 66.99s (0:01:06))
 - [x] D2. docs: ARCHITECTURE claims match the code (983 passed, 16 skipped, 2 warnings in 68.04s (0:01:08))
-- [ ] D3. docs: DEPLOYMENT claims match the code
+- [x] D3. docs: DEPLOYMENT claims match the code (983 passed, 16 skipped, 2 warnings in 66.89s (0:01:06))
 - [ ] D4. docs: DECISIONS are referenced correctly
 - [ ] D5. docs: label the historical documents
 - [ ] D6. tests: doc paths and settings cannot drift
