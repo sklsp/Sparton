@@ -215,7 +215,7 @@ deterministic path for tests.
 | Ares | SPARTON | Strategy |
 |---|---|---|
 | `db/identity.py`, `api/auth.py` | `app/core/auth`, `database` | KEEP (stronger than Apollo's none) |
-| `api/tenancy.py` | `app/core/tenancy` | KEEP |
+| `api/tenancy.py` | removed (2026-11, never used; every query filters on `organization_id`) | DROPPED |
 | `jobs/queue.py`, `transport.py`, `worker.py` | `app/core/jobs`, `workers/` | KEEP |
 | `observability/*` | `app/core/observability` | KEEP |
 | `services/rate_limit.py` | `app/core/security` | KEEP (declare redis dep explicitly) |
