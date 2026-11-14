@@ -223,7 +223,7 @@ pytest tests/test_browser_smoke.py
 coverage of `app` and `workers`, leaving out the experimental domains, and CI fails
 below the 85% floor in `.coveragerc`.
 
-`mypy` checks the type hints of `app` and `workers` (settings in `mypy.ini`) and CI fails on any error.
+`mypy` runs in strict mode over the type hints of `app` and `workers` (settings in `mypy.ini`) and CI fails on any error.
 
 ---
 

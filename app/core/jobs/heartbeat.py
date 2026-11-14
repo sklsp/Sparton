@@ -24,7 +24,10 @@ from __future__ import annotations
 
 import socket
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from redis import Redis
 
 #: Namespace for heartbeat keys, kept in one place because the writer
 #: (workers/worker.py) and the reader (workers/healthcheck.py) must not drift.
@@ -108,7 +111,7 @@ def heartbeat_is_fresh(
     return age is not None and age <= max_age_seconds
 
 
-def redis_client():
+def redis_client() -> Redis | None:
     """A Redis client for the heartbeat, or None when Redis is not configured."""
     from app.core.config import settings
 

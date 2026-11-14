@@ -117,7 +117,7 @@ class ToolRegistry:
         access: ToolAccess,
         input_model: type[BaseModel],
     ) -> Callable[[Callable[[ToolContext, Any], Any]], Callable[..., Any]]:
-        def decorator(fn: Callable[[ToolContext, Any], Any]):
+        def decorator(fn: Callable[[ToolContext, Any], Any]) -> Callable[[ToolContext, Any], Any]:
             self.register(Tool(
                 name=name,
                 description=description,

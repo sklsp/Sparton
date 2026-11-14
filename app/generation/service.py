@@ -15,6 +15,7 @@ import logging
 import random
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -88,7 +89,7 @@ def _write_json_atomic(path: Path, data: Any) -> None:
             os.unlink(tmp_name)
 
 
-def validate_graph(graph: Any) -> dict:
+def validate_graph(graph: Any) -> dict[str, Any]:
     """Check that ``graph`` is a ComfyUI API-format workflow."""
     if not isinstance(graph, dict) or not graph:
         raise WorkflowError("Workflow must be a non-empty JSON object")
@@ -109,7 +110,7 @@ def validate_graph(graph: Any) -> dict:
     return graph
 
 
-def infer_mapping(graph: dict) -> dict[str, dict[str, str]]:
+def infer_mapping(graph: dict[str, Any]) -> dict[str, dict[str, str]]:
     """Best-effort auto-mapping so an imported workflow is usable immediately."""
     mapping: dict[str, dict[str, str]] = {}
 
@@ -158,7 +159,9 @@ def infer_mapping(graph: dict) -> dict[str, dict[str, str]]:
     return mapping
 
 
-def inject_inputs(graph: dict, mapping: dict, params: dict[str, Any]) -> dict:
+def inject_inputs(
+    graph: dict[str, Any], mapping: dict[str, Any], params: dict[str, Any]
+) -> dict[str, Any]:
     """Return a copy of ``graph`` with mapped inputs replaced by ``params``."""
     result = copy.deepcopy(graph)
 
@@ -265,7 +268,7 @@ class ComfyUIService:
             node_count=len(graph),
         )
 
-    def load_workflow(self, workflow_id: str) -> tuple[dict, dict]:
+    def load_workflow(self, workflow_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
         graph_path = self._graph_path(workflow_id)
         if not graph_path.is_file():
             raise WorkflowError(f"Workflow '{workflow_id}' not found", status_code=404)
@@ -281,10 +284,10 @@ class ComfyUIService:
     def save_workflow(
         self,
         name: str,
-        graph: dict,
+        graph: dict[str, Any],
         description: str = "",
         arch: str = "generic",
-        inputs: dict | None = None,
+        inputs: dict[str, Any] | None = None,
     ) -> WorkflowInfo:
         from app.core.security.paths import sanitize_filename
 
@@ -316,7 +319,7 @@ class ComfyUIService:
 
     # ---------- generation ----------
 
-    def build_graph(self, workflow_id: str, params: dict[str, Any]) -> tuple[dict, int]:
+    def build_graph(self, workflow_id: str, params: dict[str, Any]) -> tuple[dict[str, Any], int]:
         """Prepare a submittable graph. Returns ``(graph, resolved_seed)``."""
         graph, mapping = self.load_workflow(workflow_id)
 
@@ -340,8 +343,8 @@ class ComfyUIService:
         workflow_id: str,
         params: dict[str, Any],
         *,
-        progress=None,
-        cancelled=None,
+        progress: Callable[[float, str], None] | None = None,
+        cancelled: Callable[[], bool] | None = None,
     ) -> list[str]:
         """Run one generation to completion; returns saved local filenames.
 
@@ -383,7 +386,7 @@ class ComfyUIService:
             status_code=504,
         )
 
-    def _save_outputs(self, job_key: str, outputs: dict) -> list[str]:
+    def _save_outputs(self, job_key: str, outputs: dict[str, Any]) -> list[str]:
         saved: list[str] = []
         for node_output in outputs.values():
             for image in node_output.get("images", []):
@@ -597,7 +600,7 @@ class ComfyUIService:
         }
 
 
-def _first_error(status: dict) -> str:
+def _first_error(status: dict[str, Any]) -> str:
     for message in status.get("messages", []):
         if isinstance(message, list) and len(message) > 1 and "error" in str(message[0]):
             return str(message[1])[:500]

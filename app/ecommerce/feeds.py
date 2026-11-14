@@ -38,7 +38,11 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:  # shopfeed is optional; these names exist only for type hints
+    from shopfeed.catalog import Product
+    from shopfeed.net import Fetcher
 
 from app.core.config import settings
 from app.core.observability.metrics import inc
@@ -104,7 +108,7 @@ def _fetcher(
     allow_private: bool,
     transport: Any | None = None,
     sleep: Callable[[float], None] | None = None,
-):
+) -> Fetcher:
     """A shopfeed Fetcher wired to our politeness and size limits.
 
     **The per-host delay is real, and it has to be.** This function used to pass
@@ -159,7 +163,7 @@ def _public_only(_hostname: str) -> bool:
     """shopfeed's own strict resolver: globally routable addresses only."""
     from shopfeed.net import _public
 
-    return _public(_hostname)
+    return cast(bool, _public(_hostname))
 
 
 def _money(value: Decimal | None) -> Decimal | None:
@@ -184,7 +188,7 @@ def _money(value: Decimal | None) -> Decimal | None:
     return amount.quantize(MONEY_QUANTUM)
 
 
-def _to_extracted(product, *, source: str) -> ExtractedProduct | None:
+def _to_extracted(product: Product, *, source: str) -> ExtractedProduct | None:
     """One shopfeed Product -> our ExtractedProduct.
 
     Returns None when there is nothing to store: no title and no price is not a

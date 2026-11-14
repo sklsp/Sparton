@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Any
 
 
 class ToolState(StrEnum):
@@ -38,7 +39,7 @@ TRANSITIONS: dict[ToolState, set[ToolState]] = {
 @dataclass(slots=True)
 class ToolAttempt:
     tool: str
-    arguments: dict
+    arguments: dict[str, Any]
     state: ToolState = ToolState.TOOL_REQUESTED
     error_category: str | None = None
     error_detail: str | None = None
@@ -51,17 +52,17 @@ class GroundingPolicy:
     require_successful_data: bool = True
     history: list[ToolAttempt] = field(default_factory=list)
 
-    def record_invalid(self, tool: str, arguments: dict, detail: str) -> ToolAttempt:
+    def record_invalid(self, tool: str, arguments: dict[str, Any], detail: str) -> ToolAttempt:
         attempt = ToolAttempt(tool, arguments, ToolState.INVALID, "VALIDATION_ERROR", detail)
         self.history.append(attempt)
         return attempt
 
-    def record_failure(self, tool: str, arguments: dict, category: str, detail: str) -> ToolAttempt:
+    def record_failure(self, tool: str, arguments: dict[str, Any], category: str, detail: str) -> ToolAttempt:
         attempt = ToolAttempt(tool, arguments, ToolState.FAILED, category, detail)
         self.history.append(attempt)
         return attempt
 
-    def record_success(self, tool: str, arguments: dict) -> ToolAttempt:
+    def record_success(self, tool: str, arguments: dict[str, Any]) -> ToolAttempt:
         attempt = ToolAttempt(tool, arguments, ToolState.SUCCEEDED)
         self.history.append(attempt)
         return attempt

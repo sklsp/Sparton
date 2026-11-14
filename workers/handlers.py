@@ -7,7 +7,7 @@ drives the durable Job row through its state machine.
 from __future__ import annotations
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 from app.core.database.base import SessionLocal
 from app.core.database.domain_models import Job, JobStatus
@@ -16,7 +16,7 @@ from app.core.jobs.transport import register_handler
 logger = logging.getLogger(__name__)
 
 
-def _handle_research(payload: dict) -> None:
+def _handle_research(payload: dict[str, Any]) -> None:
     """Run one market-intelligence investigation."""
     from app.research.intelligence import run_investigation
 
@@ -31,7 +31,7 @@ def _handle_research(payload: dict) -> None:
         db.close()
 
 
-def _handle_comfy_generation(payload: dict) -> None:
+def _handle_comfy_generation(payload: dict[str, Any]) -> None:
     """Run one ComfyUI generation and record the produced images."""
     from app.core.database.creation_models import GeneratedImage
     from app.core.database.models import utcnow
@@ -60,9 +60,11 @@ def _handle_comfy_generation(payload: dict) -> None:
                 payload["workflow_id"],
                 payload.get("params", {}),
                 progress=_progress,
-                cancelled=lambda: db.execute(
-                    __import__("sqlalchemy").select(Job.cancel_requested).where(Job.id == job.id)
-                ).scalar(),
+                cancelled=lambda: bool(
+                    db.execute(
+                        __import__("sqlalchemy").select(Job.cancel_requested).where(Job.id == job.id)
+                    ).scalar()
+                ),
             )
         except ComfyUIError as exc:
             job.status = JobStatus.FAILED.value

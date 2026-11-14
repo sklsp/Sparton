@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database.ecommerce_models import (
+    ChangeEvent,
     ChangeKind,
     Competitor,
     CompetitorProduct,
@@ -446,7 +447,9 @@ def crawl_competitor(
             crawler.close()
 
 
-def _demote_to_baseline(db: Session, created, competitor: Competitor, total: int) -> None:
+def _demote_to_baseline(
+    db: Session, created: list[ChangeEvent], competitor: Competitor, total: int
+) -> None:
     """Rewrite a first crawl's "new product" rows into one baseline statement."""
     label = competitor.name or competitor.domain
     for row in created:

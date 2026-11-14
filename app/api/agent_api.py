@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Annotated
+from collections.abc import AsyncIterator
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -25,11 +26,11 @@ from app.core.observability.metrics import inc
 router = APIRouter(tags=["agent"])
 
 
-def _org_id(user) -> int | None:
+def _org_id(user: object) -> int | None:
     return getattr(user, "organization_id", None)
 
 
-def _run_dict(run: AgentRun) -> dict:
+def _run_dict(run: AgentRun) -> dict[str, Any]:
     return {
         "id": run.id,
         "status": run.status,
@@ -48,7 +49,7 @@ def start_run(
     payload: AgentRunRequest,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     inc("agent_runs_total")
     run = runner.create_run(
         db,
@@ -66,7 +67,7 @@ def list_runs(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     limit: int = 20,
-) -> dict:
+) -> dict[str, Any]:
     query = select(AgentRun).order_by(AgentRun.started_at.desc()).limit(min(limit, 100))
     org = _org_id(user)
     if org is not None:
@@ -76,7 +77,7 @@ def list_runs(
 
 
 @router.get("/agent/runs/{run_id}")
-def get_run(run_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
+def get_run(run_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     run = _get_scoped_run(db, run_id, _org_id(user))
     steps = db.execute(
         select(AgentStep).where(AgentStep.agent_run_id == run.id).order_by(AgentStep.step_number)
@@ -95,7 +96,7 @@ def get_run(run_id: int, db: DbSession, user: Annotated[object, Depends(current_
     return result
 
 
-def _get_scoped_run(db, run_id: int, org: int | None) -> AgentRun:
+def _get_scoped_run(db: DbSession, run_id: int, org: int | None) -> AgentRun:
     run = db.get(AgentRun, run_id)
     if run is None or (org is not None and run.organization_id != org):
         raise HTTPException(status_code=404, detail="Run not found")
@@ -103,12 +104,12 @@ def _get_scoped_run(db, run_id: int, org: int | None) -> AgentRun:
 
 
 @router.get("/agent/runs/{run_id}/events")
-async def run_events(run_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]):
+async def run_events(run_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]) -> StreamingResponse:
     """SSE stream of an agent run's step feed until it reaches a terminal state."""
     org = _org_id(user)
     last_step = 0
 
-    async def event_stream():
+    async def event_stream() -> AsyncIterator[str]:
         nonlocal last_step
         deadline_ticks = 600  # ~5 minutes at 0.5s cadence
         while deadline_ticks > 0:
@@ -148,7 +149,7 @@ def list_approvals(
     user: Annotated[object, Depends(current_user)],
     status_filter: str | None = None,
     limit: int = 50,
-) -> dict:
+) -> dict[str, Any]:
     query = (
         select(ApprovalRequest)
         .order_by(ApprovalRequest.created_at.desc())
@@ -185,7 +186,7 @@ def resolve_approval(
     payload: ApprovalDecisionRequest,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     approval = db.get(ApprovalRequest, approval_id)
     org = _org_id(user)
     if approval is None or (org is not None and approval.organization_id != org):

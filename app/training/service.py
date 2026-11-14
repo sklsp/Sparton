@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
-from app.training.preflight import advise
+from app.training.preflight import PreflightCheck, advise
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +153,7 @@ class AIToolkitProcess:
         self.toolkit_path = toolkit_path
         self.config_path = config_path
         self.log_path = log_path
-        self.process: subprocess.Popen | None = None
+        self.process: subprocess.Popen[str] | None = None
         self.current_step = 0
         self.total_steps = 0
         self.loss: float | None = None
@@ -303,9 +303,7 @@ class LoRATrainingService:
         return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
-def _toolkit_check():
-    from app.training.preflight import PreflightCheck
-
+def _toolkit_check() -> PreflightCheck:
     return PreflightCheck(
         name="AI Toolkit",
         passed=False,

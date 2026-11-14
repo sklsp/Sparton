@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import Table, select
@@ -37,7 +37,7 @@ from app.core.security.rate_limit import rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-def _user_dict(user) -> dict:
+def _user_dict(user: User | MachineUser) -> dict[str, Any]:
     org = getattr(user, "organization", None)
     return {
         "id": user.id,
@@ -132,7 +132,7 @@ def login(
 
 
 @router.post("/logout")
-def logout(request: Request, db: DbSession) -> dict:
+def logout(request: Request, db: DbSession) -> dict[str, Any]:
     """Revoke the caller's own session.
 
     Reads the header directly rather than via FastAPI's `HTTPBearer`: its
@@ -152,7 +152,7 @@ def logout(request: Request, db: DbSession) -> dict:
 
 
 @router.get("/me")
-def me(user: Annotated[object, Depends(unverified_user)]) -> dict:
+def me(user: Annotated[User | MachineUser, Depends(unverified_user)]) -> dict[str, Any]:
     """Who am I.
 
     Uses `unverified_user`, not `current_user`: the client calls this on every
@@ -168,7 +168,7 @@ def set_language(
     payload: LanguageRequest,
     db: DbSession,
     user: Annotated[User | MachineUser, Depends(unverified_user)],
-) -> dict:
+) -> dict[str, Any]:
     """The account's report language, set by the dashboard's NL/EN switch.
 
     Any member may set it: it decides which language the next weekly report is
@@ -186,7 +186,7 @@ def set_language(
 # Email verification
 # ---------------------------------------------------------------------------
 @router.post("/verify-email", status_code=200)
-def verify_email(payload: VerifyRequest, db: DbSession) -> dict:
+def verify_email(payload: VerifyRequest, db: DbSession) -> dict[str, Any]:
     """Redeem a verification link.
 
     The token is single-use, and redeeming it marks the user verified. An unknown,
@@ -216,7 +216,7 @@ def resend_verification(
     request: Request,
     db: DbSession,
     user: Annotated[User | MachineUser, Depends(unverified_user)],
-) -> dict:
+) -> dict[str, Any]:
     """Send the verification link again.
 
     `unverified_user` is the whole point of this route: requiring a verified
@@ -244,7 +244,7 @@ def forgot_password(
     request: Request,
     db: DbSession,
     _: None = Depends(rate_limit(limit=settings.rate_limit_forgot_password_per_minute)),
-) -> dict:
+) -> dict[str, Any]:
     """Start a password reset.
 
     Always returns the same thing, whether or not the address exists. Anything
@@ -272,7 +272,7 @@ def reset_password(
     request: Request,
     db: DbSession,
     _: None = Depends(rate_limit(limit=settings.rate_limit_forgot_password_per_minute)),
-) -> dict:
+) -> dict[str, Any]:
     """Complete a password reset.
 
     On success every existing session for that user is revoked: if the reset
@@ -305,7 +305,7 @@ def change_password(
     payload: ChangePasswordRequest,
     db: DbSession,
     user: Annotated[User | MachineUser, Depends(unverified_user)],
-) -> dict:
+) -> dict[str, Any]:
     """Change your own password. Requires the current one.
 
     `unverified_user`: the password being changed is the one the customer was
@@ -337,7 +337,7 @@ def update_settings(
     payload: UserSettingsUpdate,
     db: DbSession,
     user: Annotated[User | MachineUser, Depends(unverified_user)],
-) -> dict:
+) -> dict[str, Any]:
     """Update your own account preferences: UI language and the weekly email digest.
 
     ``unverified_user`` on purpose (like change-password): these are personal

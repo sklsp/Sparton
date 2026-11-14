@@ -6,8 +6,11 @@ attached to the ToolContext at engine build time.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Any
+
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import Select, select
 
 from app.agent.registry import ToolAccess, ToolContext, ToolRegistry
 from app.core.database.creation_models import (
@@ -85,14 +88,14 @@ class StartTrainingInput(BaseModel):
 # --------------------------------------------------------------------------
 # Tool implementations
 # --------------------------------------------------------------------------
-def _scoped(query, ctx: ToolContext):
+def _scoped[SelectQuery: "Select[Any]"](query: SelectQuery, ctx: ToolContext) -> SelectQuery:
     if ctx.organization_id is not None:
         column = query.column_descriptions[0]["entity"].organization_id
         query = query.where(column == ctx.organization_id)
     return query
 
 
-def search_documents(ctx: ToolContext, params: SearchDocumentsInput) -> dict:
+def search_documents(ctx: ToolContext, params: SearchDocumentsInput) -> dict[str, Any]:
     rag = ctx.services.get("rag")
     if rag is None:
         from app.documents.rag_service import RAGService
@@ -108,7 +111,7 @@ def search_documents(ctx: ToolContext, params: SearchDocumentsInput) -> dict:
     }
 
 
-def list_documents(ctx: ToolContext, params: ListDocumentsInput) -> dict:
+def list_documents(ctx: ToolContext, params: ListDocumentsInput) -> dict[str, Any]:
     rows = ctx.db.execute(
         _scoped(select(Document).order_by(Document.created_at.desc()).limit(params.limit), ctx)
     ).scalars().all()
@@ -118,7 +121,7 @@ def list_documents(ctx: ToolContext, params: ListDocumentsInput) -> dict:
     }
 
 
-def get_products(ctx: ToolContext, params: GetProductsInput) -> dict:
+def get_products(ctx: ToolContext, params: GetProductsInput) -> dict[str, Any]:
     query = select(Product).order_by(Product.id).limit(params.limit)
     if params.search:
         query = query.where(Product.title.ilike(f"%{params.search}%"))
@@ -133,7 +136,7 @@ def get_products(ctx: ToolContext, params: GetProductsInput) -> dict:
     }
 
 
-def get_product(ctx: ToolContext, params: GetProductInput) -> dict:
+def get_product(ctx: ToolContext, params: GetProductInput) -> dict[str, Any]:
     row = ctx.db.get(Product, params.product_id)
     if row is None or (ctx.organization_id is not None and row.organization_id != ctx.organization_id):
         return {"error": f"Product {params.product_id} not found"}
@@ -145,7 +148,7 @@ def get_product(ctx: ToolContext, params: GetProductInput) -> dict:
     }
 
 
-def get_inventory(ctx: ToolContext, params: GetInventoryInput) -> dict:
+def get_inventory(ctx: ToolContext, params: GetInventoryInput) -> dict[str, Any]:
     query = (
         select(Inventory, Product)
         .join(Product, Inventory.product_id == Product.id)
@@ -167,7 +170,7 @@ def get_inventory(ctx: ToolContext, params: GetInventoryInput) -> dict:
     }
 
 
-def get_sales_summary(ctx: ToolContext, params: GetSalesSummaryInput) -> dict:
+def get_sales_summary(ctx: ToolContext, params: GetSalesSummaryInput) -> dict[str, Any]:
     from datetime import timedelta
 
     from app.core.database.domain_models import Order
@@ -189,7 +192,7 @@ def get_sales_summary(ctx: ToolContext, params: GetSalesSummaryInput) -> dict:
     }
 
 
-def update_product(ctx: ToolContext, params: UpdateProductInput) -> dict:
+def update_product(ctx: ToolContext, params: UpdateProductInput) -> dict[str, Any]:
     """WRITE tool, pauses the run for human approval before executing."""
     row = ctx.db.get(Product, params.product_id)
     if row is None or (ctx.organization_id is not None and row.organization_id != ctx.organization_id):
@@ -206,7 +209,7 @@ def update_product(ctx: ToolContext, params: UpdateProductInput) -> dict:
     return {"sku": row.sku, "updated_fields": updated_fields}
 
 
-def list_opportunities(ctx: ToolContext, params: ListOpportunitiesInput) -> dict:
+def list_opportunities(ctx: ToolContext, params: ListOpportunitiesInput) -> dict[str, Any]:
     rows = list_opportunities_query(ctx, kind=params.kind, limit=params.limit)
     return {
         "count": len(rows),
@@ -218,7 +221,7 @@ def list_opportunities(ctx: ToolContext, params: ListOpportunitiesInput) -> dict
     }
 
 
-def list_opportunities_query(ctx: ToolContext, *, kind: str | None, limit: int):
+def list_opportunities_query(ctx: ToolContext, *, kind: str | None, limit: int) -> Sequence[Opportunity]:
     query = (
         select(Opportunity)
         .order_by(Opportunity.score.desc(), Opportunity.discovered_at.desc())
@@ -229,7 +232,7 @@ def list_opportunities_query(ctx: ToolContext, *, kind: str | None, limit: int):
     return ctx.db.execute(_scoped(query, ctx)).scalars().all()
 
 
-def list_datasets(ctx: ToolContext, params: ListDatasetsInput) -> dict:
+def list_datasets(ctx: ToolContext, params: ListDatasetsInput) -> dict[str, Any]:
     rows = ctx.db.execute(
         _scoped(select(DatasetProject).order_by(DatasetProject.created_at.desc()).limit(params.limit), ctx)
     ).scalars().all()
@@ -242,7 +245,7 @@ def list_datasets(ctx: ToolContext, params: ListDatasetsInput) -> dict:
     }
 
 
-def list_generated_images(ctx: ToolContext, params: ListGeneratedImagesInput) -> dict:
+def list_generated_images(ctx: ToolContext, params: ListGeneratedImagesInput) -> dict[str, Any]:
     rows = ctx.db.execute(
         _scoped(select(GeneratedImage).order_by(GeneratedImage.created_at.desc()).limit(params.limit), ctx)
     ).scalars().all()
@@ -256,7 +259,7 @@ def list_generated_images(ctx: ToolContext, params: ListGeneratedImagesInput) ->
     }
 
 
-def generate_image(ctx: ToolContext, params: GenerateImageInput) -> dict:
+def generate_image(ctx: ToolContext, params: GenerateImageInput) -> dict[str, Any]:
     """WRITE tool, queues a paid GPU generation; requires approval."""
     service = ctx.services.get("comfyui")
     if service is None:
@@ -274,7 +277,7 @@ def generate_image(ctx: ToolContext, params: GenerateImageInput) -> dict:
     return {"generated": saved}
 
 
-def start_training(ctx: ToolContext, params: StartTrainingInput) -> dict:
+def start_training(ctx: ToolContext, params: StartTrainingInput) -> dict[str, Any]:
     """WRITE tool, starts a long-running training run; requires approval."""
     project = ctx.db.get(TrainingProject, params.project_id)
     if project is None or (ctx.organization_id is not None and project.organization_id != ctx.organization_id):

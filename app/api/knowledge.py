@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import or_, select
@@ -31,7 +31,7 @@ def get_document_service() -> DocumentService:
     return _document_service
 
 
-def _org_id(user) -> int | None:
+def _org_id(user: object) -> int | None:
     return getattr(user, "organization_id", None)
 
 
@@ -40,7 +40,7 @@ async def upload_documents(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     files: list[UploadFile] = File(...),
-) -> dict:
+) -> dict[str, Any]:
     service = get_document_service()
     results = []
     for upload in files:
@@ -65,7 +65,7 @@ def list_documents(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     limit: int = 50,
-) -> dict:
+) -> dict[str, Any]:
     query = select(Document).order_by(Document.created_at.desc()).limit(min(limit, 200))
     org = _org_id(user)
     if org is not None:
@@ -86,7 +86,7 @@ def delete_document(
     doc_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     deleted = get_document_service().delete_document(db, doc_id, _org_id(user))
     if not deleted:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -96,7 +96,7 @@ def delete_document(
 @router.get("/rag/status")
 def rag_status(
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     return get_document_service().rag.status()
 
 
@@ -105,7 +105,7 @@ def rag_debug_query(
     q: str,
     user: Annotated[object, Depends(current_user)],
     top_k: int | None = None,
-) -> dict:
+) -> dict[str, Any]:
     return get_document_service().rag.query_debug(q, top_k=top_k)
 
 
@@ -141,7 +141,7 @@ def chat(
         db.add(conversation)
         db.flush()
 
-    citations: list[dict] = []
+    citations: list[dict[str, Any]] = []
     context_block = ""
     if payload.use_rag:
         retrieved = get_document_service().ask_context(payload.message, top_k=payload.top_k)
@@ -187,7 +187,7 @@ def conversation_history(
     conversation_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     conversation = db.get(Conversation, conversation_id)
     org = _org_id(user)
     if conversation is None or (org is not None and conversation.organization_id != org):
@@ -211,7 +211,7 @@ def clear_conversation(
     conversation_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     conversation = db.get(Conversation, conversation_id)
     org = _org_id(user)
     if conversation is None or (org is not None and conversation.organization_id != org):
@@ -227,7 +227,7 @@ def clear_conversation(
 
 # --- prompt templates ------------------------------------------------------------
 @router.get("/prompts")
-def list_prompts(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
+def list_prompts(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     # `organization_id IN (org, NULL)` never matches the NULL rows, because SQL
     # three-valued logic makes any comparison with NULL unknown. Global templates
     # were therefore invisible to every tenant. Use an explicit OR.
@@ -252,7 +252,7 @@ def create_prompt(
     payload: PromptTemplateCreate,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     row = PromptTemplate(
         organization_id=_org_id(user),
         key=payload.key,

@@ -28,7 +28,7 @@ import hmac
 import json
 import logging
 import time
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlencode
 
 import requests
@@ -79,7 +79,7 @@ def _flatten(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
     return flat
 
 
-def _error_message(response) -> str:
+def _error_message(response: requests.Response) -> str:
     try:
         payload = response.json()
     except ValueError:
@@ -127,7 +127,7 @@ class StripeClient:
                 status_code=402 if response.status_code == 402 else 502,
             )
         try:
-            return response.json()
+            return cast("dict[str, Any]", response.json())
         except ValueError as exc:
             raise StripeError("Stripe returned a non-JSON response") from exc
 
@@ -231,7 +231,7 @@ def verify_signature(
 
 def parse_event(payload: bytes) -> dict[str, Any]:
     try:
-        return json.loads(payload)
+        return cast("dict[str, Any]", json.loads(payload))
     except ValueError as exc:
         raise StripeError("Webhook body was not valid JSON") from exc
 

@@ -11,8 +11,10 @@ process: no second toolchain, no build step, no separate origin.
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
@@ -60,14 +62,14 @@ class DashboardFiles(StaticFiles):
     cached copy without asking.
     """
 
-    def file_response(self, *args, **kwargs) -> Response:
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:
         response = super().file_response(*args, **kwargs)
         response.headers["Cache-Control"] = "no-cache"
         return response
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
     # Dev convenience: create tables when they don't exist yet. Production
     # uses Alembic migrations (see migrations/).
@@ -127,7 +129,9 @@ def create_app() -> FastAPI:
     # scripts: tests/test_security_headers.py guards the pages), which blunts any XSS; inline
     # styles stay allowed. HSTS only in production, where the site is served over HTTPS.
     @app.middleware("http")
-    async def security_headers(request, call_next):
+    async def security_headers(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         response = await call_next(request)
         headers = response.headers
         headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -195,7 +199,7 @@ def create_app() -> FastAPI:
         ("styles.css", "text/css"),
         ("ui.js", "text/javascript"),
     ):
-        def _serve(_asset: str = _asset, _media: str = _media):
+        def _serve(_asset: str = _asset, _media: str = _media) -> FileResponse:
             path = WEB_DIR / _asset
             if not path.is_file():
                 raise HTTPException(status_code=404, detail="Not found")
@@ -209,7 +213,7 @@ def create_app() -> FastAPI:
     # rather than dead anchors: a pricing page that 404s on "Terms" is a
     # signal to a prospective customer about how the rest is run.
     for _page in ("privacy", "terms", "dpa"):
-        def _legal(_page: str = _page):
+        def _legal(_page: str = _page) -> FileResponse:
             path = WEB_DIR / "legal" / f"{_page}.html"
             if not path.is_file():
                 raise HTTPException(status_code=404, detail="Not found")
@@ -228,7 +232,7 @@ def create_app() -> FastAPI:
         ("/nl/concurrentieprijzen-shopify", "nl/concurrentieprijzen-shopify.html"),
         ("/nl/concurrentieprijzen-woocommerce-lightspeed", "nl/concurrentieprijzen-woocommerce-lightspeed.html"),
     ):
-        def _public(_file: str = _file):
+        def _public(_file: str = _file) -> FileResponse:
             path = WEB_DIR / _file
             if not path.is_file():
                 raise HTTPException(status_code=404, detail="Not found")
@@ -272,14 +276,16 @@ def create_app() -> FastAPI:
         return request.method == "GET" and "text/html" in request.headers.get("accept", "")
 
     @app.exception_handler(StarletteHTTPException)
-    async def html_not_found(request: Request, exc: StarletteHTTPException):
+    async def html_not_found(request: Request, exc: StarletteHTTPException) -> Response:
         page = WEB_DIR / "404.html"
         if exc.status_code == 404 and _wants_html(request) and page.is_file():
             return FileResponse(page, status_code=404, media_type="text/html")
         return await http_exception_handler(request, exc)
 
     @app.exception_handler(Exception)
-    async def html_server_error(request: Request, exc: Exception):
+    async def html_server_error(
+        request: Request, exc: Exception
+    ) -> FileResponse | JSONResponse:
         # Starlette still re-raises after this, so logging and test clients see the error.
         page = WEB_DIR / "500.html"
         if _wants_html(request) and page.is_file():
@@ -287,7 +293,7 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
     @app.exception_handler(ValueError)
-    async def value_error_handler(request: Request, exc: ValueError):
+    async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": str(exc)})
 
     return app

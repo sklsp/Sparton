@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
-from app.core.auth.api import DbSession, current_user
+from app.core.auth.api import DbSession, MachineUser, current_user
 from app.core.auth.service import ROLE_LEVEL, audit, role_at_least
 from app.core.database.identity import User
 
@@ -20,7 +20,7 @@ class UserPatchRequest(BaseModel):
     is_active: bool | None = None
 
 
-def _require_admin(user=Depends(current_user)):
+def _require_admin(user: Annotated[User | MachineUser, Depends(current_user)]) -> User | MachineUser:
     if not role_at_least(getattr(user, "role", ""), "admin"):
         raise HTTPException(status_code=403, detail="Requires admin role")
     return user
@@ -32,7 +32,7 @@ def list_users(
     admin: Annotated[object, Depends(_require_admin)],
     search: str | None = None,
     limit: int = 50,
-) -> dict:
+) -> dict[str, Any]:
     query = select(User).order_by(User.id).limit(min(limit, 200))
     if search:
         query = query.where(User.email.ilike(f"%{search}%"))
@@ -57,7 +57,7 @@ def patch_user(
     payload: UserPatchRequest,
     db: DbSession,
     admin: Annotated[object, Depends(_require_admin)],
-) -> dict:
+) -> dict[str, Any]:
     target = db.get(User, user_id)
     if target is None:
         raise HTTPException(status_code=404, detail="User not found")

@@ -28,8 +28,9 @@ from app.core.database.domain_models import (
     Product,
     ProductSnapshot,
 )
-from app.research.crawler import CrawlPolicy, ResponsibleCrawler
+from app.research.crawler import CrawlPolicy, CrawlResult, ResponsibleCrawler
 from app.research.discovery import DuckDuckGoProvider, SearchProvider
+from app.research.extraction import ExtractedProduct
 
 
 def utcnow() -> datetime:
@@ -40,11 +41,13 @@ def normalize_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
 
 
-def _store_name(result, domain: str) -> str:
+def _store_name(result: CrawlResult, domain: str) -> str:
     return result.metadata.get("title", "").strip() or domain
 
 
-def _upsert_product(db: Session, store: ExternalStore, product, captured_at: datetime) -> ExternalProduct:
+def _upsert_product(
+    db: Session, store: ExternalStore, product: ExtractedProduct, captured_at: datetime
+) -> ExternalProduct:
     existing = db.execute(
         select(ExternalProduct).where(ExternalProduct.source_url == product.url)
     ).scalars().first()
@@ -72,7 +75,9 @@ def _upsert_product(db: Session, store: ExternalStore, product, captured_at: dat
         existing.last_seen_at = captured_at
         existing.name = product.name or existing.name
         existing.normalized_name = normalize_name(existing.name)
-        existing.price = product.price
+        # The research model stores prices as Float; feed-tier products may carry a Decimal.
+        price_value = product.price
+        existing.price = float(price_value) if price_value is not None else None
         existing.currency = product.currency or existing.currency
         existing.availability = product.availability
         existing.description = product.description

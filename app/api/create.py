@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -42,11 +42,11 @@ def get_dataset_service() -> DatasetService:
     return _dataset_service
 
 
-def _get_comfyui():
+def _get_comfyui() -> ComfyUIService:
     return ComfyUIService()
 
 
-def _org_id(user) -> int | None:
+def _org_id(user: object) -> int | None:
     return getattr(user, "organization_id", None)
 
 
@@ -54,7 +54,7 @@ def _org_id(user) -> int | None:
 # ComfyUI status + workflows
 # --------------------------------------------------------------------------
 @router.get("/comfyui/status")
-def comfyui_status(user: Annotated[object, Depends(current_user)]) -> dict:
+def comfyui_status(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     try:
         return _get_comfyui().status()
     except ComfyUIError as exc:
@@ -62,7 +62,7 @@ def comfyui_status(user: Annotated[object, Depends(current_user)]) -> dict:
 
 
 @router.get("/comfyui/workflows")
-def list_workflows(user: Annotated[object, Depends(current_user)]) -> dict:
+def list_workflows(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     workflows = _get_comfyui().list_workflows()
     return {"count": len(workflows), "workflows": [w.to_dict() for w in workflows]}
 
@@ -71,7 +71,7 @@ def list_workflows(user: Annotated[object, Depends(current_user)]) -> dict:
 def import_workflow(
     payload: WorkflowImportRequest,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     # This route writes JSON files into the server's workflow directory, so it
     # must never be reachable without an authenticated principal.
     try:
@@ -88,7 +88,7 @@ def import_workflow(
 def delete_workflow(
     workflow_id: str,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     deleted = _get_comfyui().delete_workflow(workflow_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -102,7 +102,7 @@ def delete_workflow(
 def validate_generation(
     payload: GenerationRequest,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     params = {k: v for k, v in payload.model_dump().items() if v is not None}
     return _get_comfyui().validate_workflow_request(payload.workflow_id, params)
 
@@ -112,7 +112,7 @@ def generate(
     payload: GenerationRequest,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     """Queue a synchronous-tracked generation job on the shared job system."""
     service = _get_comfyui()
     params = {k: v for k, v in payload.model_dump().items() if v is not None}
@@ -143,7 +143,7 @@ def list_generated(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     limit: int = 50,
-) -> dict:
+) -> dict[str, Any]:
     entries = _get_comfyui().list_generated(limit=min(limit, 200))
     org = _org_id(user)
     rows = db.execute(
@@ -184,7 +184,7 @@ def create_dataset(
     payload: DatasetCreateRequest,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     row = get_dataset_service().create_dataset(
         db,
         name=payload.name,
@@ -197,7 +197,7 @@ def create_dataset(
 
 
 @router.get("/datasets")
-def list_datasets(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
+def list_datasets(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     rows = get_dataset_service().list_datasets(db, _org_id(user))
     return {
         "count": len(rows),
@@ -215,7 +215,7 @@ async def upload_dataset_image(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     file: UploadFile = File(...),
-) -> dict:
+) -> dict[str, Any]:
     content = await file.read()
     try:
         row = get_dataset_service().add_image(
@@ -232,7 +232,7 @@ def list_dataset_images(
     dataset_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     try:
         rows = get_dataset_service().list_images(db, dataset_id, _org_id(user))
     except DatasetError as exc:
@@ -251,10 +251,10 @@ def list_dataset_images(
 def set_caption(
     dataset_id: int,
     image_id: int,
-    body: dict,
+    body: dict[str, Any],
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     caption = str(body.get("caption", ""))
     try:
         row = get_dataset_service().set_caption(db, dataset_id, image_id, caption, _org_id(user))
@@ -269,7 +269,7 @@ def delete_dataset_image(
     image_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     try:
         deleted = get_dataset_service().delete_image(db, dataset_id, image_id, _org_id(user))
     except DatasetError as exc:
@@ -282,7 +282,7 @@ def validate_dataset(
     dataset_id: int,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     try:
         return get_dataset_service().validate(db, dataset_id, _org_id(user))
     except DatasetError as exc:
@@ -295,7 +295,7 @@ def generate_captions(
     payload: CaptionRequest,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     try:
         results = get_dataset_service().generate_captions(
             db, dataset_id, _org_id(user),
@@ -312,23 +312,23 @@ def generate_captions(
 # Training (Leonidas)
 # --------------------------------------------------------------------------
 @router.get("/training/status")
-def training_status(user: Annotated[object, Depends(current_user)]) -> dict:
+def training_status(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     return LoRATrainingService().status()
 
 
 @router.get("/training/presets")
-def training_presets(user: Annotated[object, Depends(current_user)]) -> dict:
+def training_presets(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     return {"presets": LoRATrainingService().presets()}
 
 
 @router.get("/training/hardware")
-def hardware_info(user: Annotated[object, Depends(current_user)]) -> dict:
+def hardware_info(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     # Reveals the host's GPU inventory: never expose it anonymously.
     return detect_hardware().to_dict()
 
 
 @router.post("/training/preflight")
-def preflight(options: dict, db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
+def preflight(options: dict[str, Any], db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     return advise(options).to_dict()
 
 
@@ -337,7 +337,7 @@ def create_training_project(
     payload: TrainingProjectCreateRequest,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
-) -> dict:
+) -> dict[str, Any]:
     row = TrainingProject(
         organization_id=_org_id(user),
         dataset_id=payload.dataset_id,
@@ -353,7 +353,7 @@ def create_training_project(
 
 
 @router.get("/training/projects")
-def list_training_projects(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict:
+def list_training_projects(db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
     query = select(TrainingProject).order_by(TrainingProject.created_at.desc())
     org = _org_id(user)
     if org is not None:

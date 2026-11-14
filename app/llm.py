@@ -14,8 +14,9 @@ import random
 import time
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -47,7 +48,9 @@ def set_usage_context(
     return _usage_org.set(organization_id), _usage_user.set(user_id)
 
 
-def clear_usage_context(tokens) -> None:
+def clear_usage_context(
+    tokens: tuple[contextvars.Token[int | None], contextvars.Token[int | None]] | None,
+) -> None:
     for token in tokens or ():
         try:
             (_usage_org if token.var.name == "sparton_usage_org" else _usage_user).reset(token)
@@ -63,7 +66,7 @@ def current_usage_user_id() -> int | None:
     return _usage_user.get()
 
 
-def _error_detail(response) -> str:
+def _error_detail(response: requests.Response) -> str:
     """The provider's own error message, which is usually the useful part."""
     try:
         payload = response.json()
@@ -226,7 +229,7 @@ class OllamaProvider(LLMProvider):
         self.base_url = (base_url or settings.ollama_base_url).rstrip("/")
         self.default_model = default_model or settings.ollama_model
 
-    def _post(self, path: str, payload: dict, timeout: float | None = None) -> dict:
+    def _post(self, path: str, payload: dict[str, Any], timeout: float | None = None) -> dict[str, Any]:
         try:
             response = requests.post(
                 f"{self.base_url}{path}",
@@ -234,7 +237,7 @@ class OllamaProvider(LLMProvider):
                 timeout=timeout or settings.llm_timeout_seconds,
             )
             response.raise_for_status()
-            return response.json()
+            return cast("dict[str, Any]", response.json())
         except requests.RequestException as exc:
             raise LLMError(f"Ollama request failed: {exc}") from exc
 
@@ -260,7 +263,7 @@ class OllamaProvider(LLMProvider):
             payload["response_format"] = {"type": "json_object"}
         data = self._post("/v1/chat/completions", payload)
         try:
-            return data["choices"][0]["message"]["content"]
+            return cast(str, data["choices"][0]["message"]["content"])
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMError(f"Unexpected Ollama response shape: {data}") from exc
 
@@ -282,7 +285,7 @@ class OllamaProvider(LLMProvider):
             timeout=settings.vision_timeout,
         )
         try:
-            return data["message"]["content"].strip()
+            return cast(str, data["message"]["content"]).strip()
         except (KeyError, TypeError) as exc:
             raise LLMError(f"Unexpected Ollama vision response: {data}") from exc
 
@@ -385,7 +388,7 @@ class OpenAICompatibleProvider(LLMProvider):
         app_name: str | None = None,
         max_retries: int | None = None,
         timeout: float | None = None,
-        sleep=time.sleep,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.base_url = (base_url or settings.openai_base_url).rstrip("/")
         self.api_key = api_key or settings.openai_api_key or ""
@@ -435,7 +438,7 @@ class OpenAICompatibleProvider(LLMProvider):
         )
         return random.uniform(0, max(ceiling, 0.0))
 
-    def _request(self, method: str, path: str, **kwargs) -> Any:
+    def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         """One HTTP call with retries. Returns parsed JSON, raises LLMError."""
         url = f"{self.base_url}{path}"
         attempts = max(0, self.max_retries) + 1

@@ -15,10 +15,14 @@ import threading
 import time
 from collections import defaultdict, deque
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, Request, status
 
 from app.core.config import settings
+
+if TYPE_CHECKING:
+    from redis import Redis
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +30,7 @@ _local_lock = threading.Lock()
 _local_hits: dict[str, deque[float]] = defaultdict(deque)
 
 
-def _redis_client():
+def _redis_client() -> Redis | None:
     if not settings.redis_url:
         return None
     try:
@@ -57,7 +61,7 @@ def _hit_local(key: str, limit: int, window_seconds: float) -> None:
         bucket.append(now)
 
 
-def _hit_distributed(client, key: str, limit: int, window_seconds: float) -> None:
+def _hit_distributed(client: Redis, key: str, limit: int, window_seconds: float) -> None:
     """Atomic INCR + EXPIRE window shared by every replica."""
     window = int(time.time() // window_seconds)
     redis_key = f"ratelimit:{key}:{window}"
@@ -148,7 +152,7 @@ def rate_limit(
     limit: int,
     window_seconds: float = 60.0,
     key_by: Callable[[Request], str] | None = None,
-) -> Callable:
+) -> Callable[[Request], None]:
     """Dependency factory: raises 429 when the caller exceeds `limit`/window."""
 
     def dependency(request: Request) -> None:

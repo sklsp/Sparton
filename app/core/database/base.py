@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from collections.abc import Iterator
 from decimal import Decimal
 from typing import Any
@@ -40,7 +41,7 @@ if settings.is_sqlite:
     # The agent runs on background threads and shares the engine pool.
     _connect_args["check_same_thread"] = False
 
-def _json_default(value):
+def _json_default(value: Any) -> str:
     """Teach JSON columns about Decimal.
 
     Prices are Decimal (see MONEY) and they end up inside JSON columns -- a
@@ -71,7 +72,7 @@ engine = create_engine(
 if settings.is_sqlite:
 
     @event.listens_for(Engine, "connect")
-    def _enable_sqlite_foreign_keys(dbapi_connection, _record) -> None:
+    def _enable_sqlite_foreign_keys(dbapi_connection: sqlite3.Connection, _record: Any) -> None:
         """SQLite ignores FK constraints unless asked, which would silently
         skip our ON DELETE CASCADE rules. PostgreSQL enforces them natively."""
         cursor = dbapi_connection.cursor()

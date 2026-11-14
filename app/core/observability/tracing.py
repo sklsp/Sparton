@@ -12,14 +12,18 @@ credentials, tokens, or scraped content.
 
 from __future__ import annotations
 
-from typing import Any
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Literal
 
 from app.core.config import settings
 from app.core.observability.logging_config import get_logger
 
+if TYPE_CHECKING:
+    from opentelemetry.trace import Span, Tracer
+
 logger = get_logger(__name__)
 
-_tracer = None
+_tracer: Tracer | None = None
 _configured = False
 
 
@@ -75,7 +79,41 @@ def _service_version() -> str:
         return "unknown"
 
 
-def get_tracer():
+class _NullSpan:
+    """No-op stand-in for `opentelemetry.trace.Span` when OTel is unavailable."""
+
+    def __enter__(self) -> _NullSpan:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> Literal[False]:
+        return False
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        pass
+
+    def record_exception(
+        self,
+        exception: BaseException,
+        attributes: dict[str, Any] | None = None,
+        timestamp: int | None = None,
+        escaped: bool = False,
+    ) -> None:
+        pass
+
+
+class _NullTracer:
+    """No-op stand-in for `opentelemetry.trace.Tracer` when OTel is unavailable."""
+
+    def start_as_current_span(self, name: str, **kwargs: Any) -> _NullSpan:
+        return _NullSpan()
+
+
+def get_tracer() -> Tracer | _NullTracer:
     """Return a tracer; a no-op when tracing is disabled/unavailable."""
     global _tracer
     if _tracer is None:
@@ -84,41 +122,34 @@ def get_tracer():
 
             _tracer = trace.get_tracer("sparton")
         except Exception:  # noqa: BLE001
-
-            class _NullSpan:
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, *_args):
-                    return False
-
-                def set_attribute(self, *_args, **_kwargs):
-                    pass
-
-                def record_exception(self, *_args, **_kwargs):
-                    pass
-
-            class _NullTracer:
-                def start_as_current_span(self, *_args, **_kwargs):
-                    return _NullSpan()
-
             return _NullTracer()
     return _tracer
 
 
-def traced(name: str, attributes: dict[str, Any] | None = None):
+class _TracedSpan:
+    """The context manager returned by `traced`; opens one span on enter."""
+
+    def __init__(self, name: str, attributes: dict[str, Any] | None = None) -> None:
+        self._name = name
+        self._attributes = attributes or {}
+
+    def __enter__(self) -> Span | _NullSpan:
+        self._cm = get_tracer().start_as_current_span(self._name)
+        span = self._cm.__enter__()
+        for key, value in self._attributes.items():
+            if value is not None:
+                span.set_attribute(key, value)
+        return span
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> bool | None:
+        return self._cm.__exit__(exc_type, exc, tb)
+
+
+def traced(name: str, attributes: dict[str, Any] | None = None) -> _TracedSpan:
     """Context-manager span helper safe to use when tracing is disabled."""
-
-    class _Span:
-        def __enter__(self):
-            self._cm = get_tracer().start_as_current_span(name)
-            span = self._cm.__enter__()
-            for key, value in (attributes or {}).items():
-                if value is not None:
-                    span.set_attribute(key, value)
-            return span
-
-        def __exit__(self, exc_type, exc, tb):
-            return self._cm.__exit__(exc_type, exc, tb)
-
-    return _Span()
+    return _TracedSpan(name, attributes)
