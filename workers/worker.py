@@ -22,7 +22,7 @@ import uuid
 import workers.handlers  # noqa: F401, register domain job handlers
 from app.core.config import settings
 from app.core.jobs.heartbeat import write_heartbeat
-from app.core.jobs.transport import get_backend, get_handler
+from app.core.jobs.transport import QueueBackend, get_backend, get_handler
 from app.core.observability.logging_config import configure_logging, get_logger
 from app.core.observability.metrics import inc, observe
 
@@ -86,7 +86,7 @@ class Worker:
         )
         return 0
 
-    def _work_once(self, backend) -> bool:
+    def _work_once(self, backend: QueueBackend) -> bool:
         entry = backend.claim(self.worker_id, timeout_seconds=POLL_TIMEOUT_SECONDS)
         if entry is None:
             return False

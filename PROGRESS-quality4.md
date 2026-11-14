@@ -5,6 +5,6 @@
 - [x] S5. types: agent (983 passed, 16 skipped, 2 warnings in 609.82s (0:10:09))
 - [x] S6. types: ecommerce (983 passed, 16 skipped, 2 warnings in 614.05s (0:10:14))
 - [x] S7. types: experimental domains (983 passed, 16 skipped, 2 warnings in 593.85s (0:09:53))
-- [ ] S8. types: everything left
+- [x] S8. types: everything left (983 passed, 16 skipped, 2 warnings in 590.69s (0:09:50))
 - [ ] S9. build: strict mode on in mypy.ini
 - [ ] S10. docs: the README says mypy runs in strict mode

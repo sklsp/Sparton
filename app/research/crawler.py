@@ -115,7 +115,9 @@ class CrawlResult:
     content_hash: str | None = None
 
 
-def _extract_with_fallback(html: str, url: str):
+def _extract_with_fallback(
+    html: str, url: str
+) -> tuple[list[ExtractedProduct], list[str], dict[str, str]]:
     """Products for one page: exact structured data first, parsing second.
 
     Nearly every webshop embeds schema.org JSON-LD on its product pages, and when
