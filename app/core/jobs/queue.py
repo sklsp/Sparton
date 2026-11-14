@@ -126,7 +126,7 @@ def claim_next(db: Session, worker_id: str, job_type: str | None = None) -> Job 
         # Session.execute() is typed to return the base Result; DML statements
         # actually yield a CursorResult, which is what exposes rowcount.
         updated = cast(
-            CursorResult,
+            CursorResult[()],
             db.execute(
                 update_job_status_stmt(job.id, JobStatus.RUNNING, JobStatus.QUEUED, worker_id=worker_id)
             ),

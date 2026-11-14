@@ -18,7 +18,7 @@ import hashlib
 import logging
 import secrets
 from datetime import UTC, timedelta
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import Table, select, update
 from sqlalchemy.engine import CursorResult
@@ -28,6 +28,9 @@ from app.core.config import settings
 from app.core.database.billing_models import AuthToken, AuthTokenPurpose
 from app.core.database.identity import User
 from app.core.database.models import utcnow
+
+if TYPE_CHECKING:
+    from app.core.auth.api import MachineUser
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +100,7 @@ def consume(db: Session, token: str, purpose: str) -> User | None:
     return user
 
 
-def is_verified(user) -> bool:
+def is_verified(user: User | MachineUser) -> bool:
     """Is this principal allowed to use the product?
 
     When verification is not required (local development, and the test suite),
@@ -124,7 +127,7 @@ def purge_expired(db: Session) -> int:
     # __table__ is typed as the generic FromClause (it really is a Table), and
     # Session.execute() for DML yields a CursorResult, which has rowcount.
     result = cast(
-        CursorResult,
+        CursorResult[()],
         db.execute(
             cast(Table, AuthToken.__table__).delete().where(
                 (AuthToken.used_at.isnot(None)) | (AuthToken.expires_at < cutoff)

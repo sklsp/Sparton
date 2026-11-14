@@ -13,6 +13,7 @@ import re
 import secrets
 from datetime import timedelta
 from enum import StrEnum
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -111,7 +112,7 @@ def audit(
     resource: str = "",
     outcome: str = "success",
     correlation_id: str | None = None,
-    detail: dict | None = None,
+    detail: dict[str, Any] | None = None,
 ) -> None:
     """Record a security-relevant event. Never include secrets in detail."""
     db.add(

@@ -15,6 +15,7 @@ unset ``API_KEY`` disables the machine principal rather than opening the API
 from __future__ import annotations
 
 import hmac
+from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
@@ -111,7 +112,7 @@ def unverified_user(
     return _resolve_principal(request, db)
 
 
-def _require_verified(principal) -> None:
+def _require_verified(principal: User | MachineUser) -> None:
     """Refuse product access to an unverified account, in production only.
 
     Deliberately *not* enforced at signup: a customer must be able to sign in,
@@ -169,10 +170,10 @@ def _authenticate(request: Request, db: Session) -> User | MachineUser:
     )
 
 
-def require_role(required: str):
+def require_role(required: str) -> Callable[[User | MachineUser], User | MachineUser]:
     """Dependency factory: gate an endpoint behind a minimum role level."""
 
-    def dependency(user: Annotated[User | MachineUser, Depends(current_user)]):
+    def dependency(user: Annotated[User | MachineUser, Depends(current_user)]) -> User | MachineUser:
         from app.core.auth.service import role_at_least
 
         if not role_at_least(getattr(user, "role", ""), required):

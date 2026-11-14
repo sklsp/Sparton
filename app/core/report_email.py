@@ -12,6 +12,7 @@ for its changes, so the email can never show a number the dashboard does not.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 from html import escape
@@ -131,7 +132,7 @@ def _money(value: Any, lang: str) -> str:
     return f"€ {whole}{c['decimal']}{cents}" if lang == "nl" else f"€{whole}{c['decimal']}{cents}"
 
 
-def _pct(change: dict) -> str:
+def _pct(change: dict[str, Any]) -> str:
     pct = change.get("delta_pct")
     if pct is None and change.get("previous_price"):
         pct = (float(change["new_price"]) - float(change["previous_price"])) / float(change["previous_price"]) * 100
@@ -140,7 +141,7 @@ def _pct(change: dict) -> str:
     return f"{'+' if pct > 0 else '−'}{abs(round(pct))}%"
 
 
-def _cells(change: dict, lang: str) -> tuple[str, str, str, str]:
+def _cells(change: dict[str, Any], lang: str) -> tuple[str, str, str, str]:
     """was, now, change text, and the colour that goes with the change's sign."""
     c = COPY[lang]
     kind = change.get("kind")
@@ -153,7 +154,7 @@ def _cells(change: dict, lang: str) -> tuple[str, str, str, str]:
 
 
 def render_report_email(
-    report: dict, changes: list[dict], *, lang: str = "en", report_url: str = ""
+    report: dict[str, Any], changes: list[dict[str, Any]], *, lang: str = "en", report_url: str = ""
 ) -> tuple[str, str, str]:
     """Return ``(subject, text, html)`` for one report in ``lang`` ("en" or "nl")."""
     lang = lang if lang in COPY else "en"
@@ -167,7 +168,7 @@ def render_report_email(
     by_kind = facts.get("by_kind") or {}
     watched = len(facts.get("competitors") or [])
 
-    fmt = lambda d: f"{d.day} {c['months'][d.month - 1]}"  # noqa: E731
+    fmt: Callable[[datetime], str] = lambda d: f"{d.day} {c['months'][d.month - 1]}"  # noqa: E731
     period = c["period"].format(week=week, start=fmt(start), end=f"{fmt(end)} {end.year}")
     subject = (
         c["subject_none"] if not total else c["subject_one"] if total == 1 else c["subject"]

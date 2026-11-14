@@ -28,7 +28,7 @@ from sqlalchemy import (
     func,
     select,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, Session
 
 from app.core.database.base import Base, JSONType
 from app.core.database.models import utcnow
@@ -72,7 +72,7 @@ class LLMUsage(Base):
 Index("ix_llm_usage_org_created", LLMUsage.organization_id, LLMUsage.created_at)
 
 
-def tokens_used_today(db, organization_id: int | None) -> int:
+def tokens_used_today(db: Session, organization_id: int | None) -> int:
     """Total tokens for one organization since midnight UTC.
 
     Counts *all* tasks: a customer's plan limit is on their total consumption,
@@ -90,7 +90,7 @@ def tokens_used_today(db, organization_id: int | None) -> int:
     return int(total or 0)
 
 
-def usage_summary(db, organization_id: int, *, days: int = 30) -> dict[str, Any]:
+def usage_summary(db: Session, organization_id: int, *, days: int = 30) -> dict[str, Any]:
     """Per-task and per-model totals for the last `days` days."""
     since = utcnow() - timedelta(days=days)
     scoped = (

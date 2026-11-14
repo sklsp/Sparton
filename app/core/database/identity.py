@@ -7,6 +7,7 @@ projects are the central cross-domain workspace entity.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -133,7 +134,7 @@ class AuditLog(Base):
     resource: Mapped[str] = mapped_column(String(160), default="")
     outcome: Mapped[str] = mapped_column(String(20), default="success")
     correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    detail: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    detail: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True
     )

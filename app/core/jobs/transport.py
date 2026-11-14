@@ -18,9 +18,12 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from app.core.observability.logging_config import get_logger
+
+if TYPE_CHECKING:
+    from redis import Redis
 
 logger = get_logger(__name__)
 
@@ -99,7 +102,7 @@ class RedisQueueBackend(QueueBackend):
     the same job, and a crashed worker's entry remains recoverable.
     """
 
-    def __init__(self, redis_client) -> None:
+    def __init__(self, redis_client: Redis) -> None:
         self.client = redis_client
 
     def enqueue(
@@ -135,10 +138,10 @@ class RedisQueueBackend(QueueBackend):
         if result is None:
             return None
         try:
-            entry = json.loads(result)
+            entry = cast("dict[str, Any]", json.loads(result))
         except (ValueError, TypeError):
             logger.warning("Discarding malformed queue entry")
-            self.client.lrem(processing_key, 1, result)
+            self.client.lrem(processing_key, 1, cast(str, result))
             return None
         # The exact stored string: the caller adds keys (worker_id, retry_count), so re-serializing the dict
         # would no longer match the processing-list item and LREM would remove nothing.
@@ -147,7 +150,8 @@ class RedisQueueBackend(QueueBackend):
         return entry
 
     def _promote_delayed(self) -> None:
-        due = self.client.zrangebyscore(DELAYED_KEY, "-inf", time.time())
+        # decode_responses=True: members come back as str.
+        due = cast("list[str]", self.client.zrangebyscore(DELAYED_KEY, "-inf", time.time()))
         if not due:
             return
         for entry in due:
@@ -187,7 +191,7 @@ class RedisQueueBackend(QueueBackend):
                 except (ValueError, TypeError):
                     continue
                 if time.time() - entry.get("enqueued_at", 0) > older_than_seconds:
-                    if self.client.lrem(worker_key, 1, raw):
+                    if self.client.lrem(worker_key, 1, cast(str, raw)):
                         self.client.lpush(QUEUE_KEY, raw)
                         reclaimed += 1
         return reclaimed
@@ -236,7 +240,7 @@ class InlineQueueBackend(QueueBackend):
         if handler is not None:
             handler(payload)
         self.executed.append(entry)
-        return entry["id"]
+        return cast(str, entry["id"])
 
     def claim(self, worker_id: str, timeout_seconds: float = 1.0) -> None:
         return None
