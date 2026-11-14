@@ -209,6 +209,9 @@ embedding backend: no network, no API key, no GPU, no Ollama. In CI that is 516 
 plus the 33 browser tests below in their own job; the experimental domains' tests skip
 unless `requirements-experimental.txt` is installed.
 
+The whole suite runs in about 1 minute, and tests must not sleep for real: pass a short
+delay or a no-op through the crawler's delay and `sleep=` seams instead of waiting.
+
 `tests/test_browser_smoke.py` drives real Chrome against a real server (landing
 page and prices, signup, the product loop, two accounts that must not see each
 other). It needs Playwright and skips loudly without it:

@@ -451,13 +451,15 @@ class TestTheCrawlPrefersTheShopFeed:
         db_session.refresh(row)
         return row
 
-    def _crawl(self, db, competitor, transport):
+    def _crawl(self, db, competitor, transport, sleep=None):
         """Crawl with both paths pointed at the same fake shop.
 
         The feed reader and the HTML crawler are separate HTTP clients, so both
         get the same MockTransport. Otherwise the "falls back to HTML" test
         would quietly reach the real internet for a host that does not exist --
         and pass or hang for reasons that have nothing to do with the code.
+
+        `sleep` defaults to no waiting; tests about pacing pass one in.
         """
         from dataclasses import replace
 
@@ -478,7 +480,7 @@ class TestTheCrawlPrefersTheShopFeed:
             crawler=crawler,
             feed_transport=transport,
             allow_private=True,
-            sleep=_NoWait(),
+            sleep=sleep if sleep is not None else _NoWait(),
         )
 
     def test_a_feed_crawl_records_no_llm_usage(self, db_session, competitor, llm):
@@ -496,6 +498,25 @@ class TestTheCrawlPrefersTheShopFeed:
         assert outcome.products_found == 2, outcome.products_found
         assert _usage_count(db_session) == before, "a feed crawl recorded LLM usage"
         assert _llm_calls(llm) == [], f"a feed crawl called the LLM: {_llm_calls(llm)}"
+
+    def test_the_crawl_passes_the_sleep_through(self, db_session, competitor):
+        """The hook has to reach the fetcher the crawl actually builds, or the
+        suite would take a real second per request on every competitor.
+
+        Asserted behaviorally: a sleep that records instead of waits must be
+        called by the crawl's own feed read. A signature check cannot catch a
+        parameter that is accepted and then dropped on the floor -- which is
+        exactly how this seam broke once before."""
+        from app.ecommerce.feeds import FEED_MIN_INTERVAL_SECONDS
+
+        sleep = RecordingSleep()
+        outcome = self._crawl(db_session, competitor, shopify_transport(), sleep=sleep)
+        assert outcome.status == "COMPLETED", outcome.error
+        assert sleep.calls >= 2, (
+            "the crawl's feed read made several requests but the injected sleep "
+            "was never called: it is not reaching the fetcher"
+        )
+        sleep.assert_spaced(FEED_MIN_INTERVAL_SECONDS)
 
     def test_a_feed_crawl_stamps_every_capture_with_its_source(
         self, db_session, competitor, llm
@@ -787,23 +808,6 @@ class TestTheFeedReaderIsPolite:
         assert real.found
         assert real.source == SOURCE_FEED
         assert {p.name for p in real.products} == {"Cast Iron Skillet", "Copper Kettle"}
-
-    def test_the_crawl_passes_the_sleep_through(self, db_session):
-        """The hook has to reach the fetcher the crawl actually builds, or the
-        suite would take a real second per request on every competitor."""
-        import inspect
-
-        from app.ecommerce import crawl as crawl_module
-
-        signature = inspect.signature(crawl_module.crawl_competitor)
-        assert "sleep" in signature.parameters, (
-            "crawl_competitor cannot inject a sleep, so the feed tests would "
-            "really wait"
-        )
-        assert "sleep" in inspect.signature(
-            crawl_module.read_feed_catalog
-        ).parameters
-
 
 class TestTheMoneyCoercion:
     """_money keeps the shop's exact Decimal and refuses what is not money."""

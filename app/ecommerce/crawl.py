@@ -400,6 +400,11 @@ def crawl_competitor(
             # cannot quietly cost more than the thing it replaces.
             max_products=(max_pages or settings.crawler_max_pages_per_shop or DEFAULT_MAX_PAGES),
             transport=feed_transport,
+            # The seam above only works if the delay reaches this call too; a
+            # test that thinks it disabled the politeness sleep while the feed
+            # reader still waits for real is slower than it looks. None keeps
+            # production on time.sleep.
+            sleep=sleep,
             allow_private=(
                 settings.crawler_allow_private_addresses
                 if allow_private is None
