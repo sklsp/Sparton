@@ -185,6 +185,11 @@ class Element {
 
 function parseSelector(selector) {
   const sel = String(selector).trim();
+  // Compound selectors only. A descendant or child combinator would otherwise be read as one compound selector and
+  // match the wrong element without a word, so refuse it loudly instead.
+  if (/[\s>+~,]/.test(sel.replace(/\[[^\]]*\]/g, ""))) {
+    throw new Error(`dom.mjs supports compound selectors only, not "${sel}"; query the parent and read its children`);
+  }
   const tagMatch = /^[a-z][a-z0-9-]*/i.exec(sel);
   const spec = { tag: tagMatch ? tagMatch[0].toLowerCase() : null, id: null, classes: [], attrs: [] };
   for (const m of sel.matchAll(/\.([a-zA-Z0-9_-]+)/g)) spec.classes.push(m[1]);
