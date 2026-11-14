@@ -115,8 +115,9 @@ class Settings(BaseSettings):
     # Backwards-compatible single-model setting. `llm_model_strong` wins when set.
     openai_model: str = "anthropic/claude-sonnet-4.6"
     # Model routing: the agent and the weekly report need reasoning quality and
-    # run once per shop per week; structured extraction runs on every crawled
-    # page and needs to be cheap (see docs/DECISIONS.md D-006).
+    # run once per shop per week (docs/DECISIONS.md D-006). The cheap model is
+    # configured for extraction, but extraction is rules-only today (D-029), so
+    # nothing reads llm_model_cheap yet.
     llm_model_strong: str = "anthropic/claude-sonnet-4.6"
     llm_model_cheap: str = "google/gemini-3.5-flash-lite"
     # OpenRouter asks every app to identify itself on the HTTP-Referer and

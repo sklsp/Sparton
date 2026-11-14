@@ -200,6 +200,7 @@ BILLING_ENABLED=true
 Then register the webhook endpoint, which is `POST /stripe/webhook`, for:
 
 - `checkout.session.completed`
+- `customer.subscription.created`
 - `customer.subscription.updated`
 - `customer.subscription.deleted`
 - `invoice.paid`
@@ -230,12 +231,11 @@ is down, the numbers still work and only the narrative is missing.
 LLM_PROVIDER=openai_compatible
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
 OPENAI_API_KEY=sk-or-v1-...
-LLM_MODEL_STRONG=anthropic/claude-3.5-sonnet
-LLM_MODEL_CHEAP=google/gemini-2.0-flash-001
+LLM_MODEL_STRONG=anthropic/claude-sonnet-4.6
+LLM_MODEL_CHEAP=google/gemini-3.5-flash-lite
 ```
 
-`LLM_MODEL_CHEAP` handles extraction, `LLM_MODEL_STRONG` handles report writing
-and the agent. Every call is recorded in `llm_usage` against the organization,
+`LLM_MODEL_STRONG` handles report writing and the agent; `LLM_MODEL_CHEAP` is configured but unused. Every call is recorded in `llm_usage` against the organization,
 
 ---
 
@@ -346,8 +346,7 @@ docker compose up -d --scale api=3
 
 The no-op is the point. Alembic is idempotent at head, so leaving the CMD in
 place is safe; what you must avoid is the *simultaneous* first run. If your
-platform supports a pre-deploy or init job, move the migration there instead
-and set `ALEMBIC_ON_BOOT=false` for the API service.
+platform supports a pre-deploy or init job, move the migration there.
 
 Schema changes and code changes must not land in the same rollout for the same
 reason: an old replica still serving requests against a migrated schema is the

@@ -108,6 +108,8 @@ layer already supports.
 
 ---
 
+> **Now (November 2026).** Nothing reads `llm_model_cheap` yet: extraction is rules-only (D-029), so every LLM call uses the strong model.
+
 ## D-007: Token usage is a first-class table, not a log line
 
 **Decision.** Every LLM call records an `LLMUsage` row (org, model, provider,
@@ -174,6 +176,8 @@ for machine principals, so a limit check must be org-explicit.
 
 ---
 
+> **Now (November 2026).** Enforcement lives in `app/billing/plans.py` (`check_shops`, `check_competitors`, `check_tokens`, and `check_crawl_frequency`, which clamps instead of refusing). There is no `limits.py`, and an over-limit request gets 402.
+
 ## D-013: Free / Pro / Business limits
 
 **Decision.** Free: 1 shop, 3 competitors, 200 AI tokens/day, weekly report.
@@ -186,6 +190,8 @@ cannot be resold as a monitoring service.
 **Cost.** A hardcoded table; changing it is a deploy.
 
 ---
+
+> **Now (November 2026).** The AI token allowances in `app/billing/plans.py` are 2,000 / 20,000 / 100,000 per day. Shops, competitors and prices are as above.
 
 ## D-014: Stripe webhooks are the only source of truth for subscription state
 
@@ -257,6 +263,8 @@ entries disappear with it. `/health` reports the active set.
 
 ---
 
+> **Now (November 2026).** The default is `intelligence,commerce,agent` (`app/core/config.py`).
+
 ## D-024: CI runs compile-check plus pytest; no linter dependency
 
 **Decision.** GitHub Actions: `python -m compileall` (catches syntax errors with
@@ -285,6 +293,8 @@ dependency and `hashlib` is stdlib.
 launched product and no product code path uses embeddings.
 
 ---
+
+> **Now (November 2026).** Fixed: `tests/conftest.py` forces `EMBEDDING_BACKEND=hash`, and numpy is only in `requirements-experimental.txt`.
 
 ## D-026: Slug, not name, is the unique organization key
 
@@ -346,6 +356,8 @@ no route at all, not a route that 403s, strictly less attack surface.
 route table is already data-driven, so this is cheap.
 
 ---
+
+> **Now (November 2026).** `EXTRACT_WITH_LLM` was never built; extraction is rules-only.
 
 ## D-021: Landing page and dashboard share one origin
 
@@ -493,8 +505,10 @@ send). The report renders in the persisted language (`User.language`, default Du
 existing M10 renderer; `app/core/email.py` gained a rich text+HTML sender used by this digest
 (verification/reset mails stay plain). Preferences live on Settings → "Weekly report email"
 (`PATCH /auth/settings`), which also persists the UI language switch. The pricing cards still do
-not list the feature; the weekly-report line covers it; `tests/test_email_digest.py` (15 tests)
+not list the feature; the weekly-report line covers it; `tests/test_email_digest.py`
 covers eligibility, recipient choice, idempotency, language and the settings endpoint.
+
+> **Now (November 2026).** The language is `Organization.language` (default `en`, set at signup), read by `send_weekly_digest` in `app/ecommerce/reports.py`.
 
 ## D-033: Comparison and email links are served by small static routes
 

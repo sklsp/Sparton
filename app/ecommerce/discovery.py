@@ -85,7 +85,7 @@ def shop_already_tracked(db: Session, organization_id: int | None, domain: str) 
 
     Checked by the API *before* the plan limit, so a customer re-adding a shop
     is told "you already have it" rather than "upgrade your plan": the second
-    message is both wrong and a way to make a limit feel arbitrary (D-009).
+    message is both wrong and a way to make a limit feel arbitrary.
     """
     return db.execute(
         select(Shop.id).where(
