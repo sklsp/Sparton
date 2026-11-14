@@ -168,7 +168,7 @@ become `training_projects`; Ares' `research_jobs` generalize to the shared
 ## 7. Frontend strategy
 
 One static ES-module SPA served by FastAPI from `app/web/`: no build step,
-no framework; top-level modules plus `views/`, i18n and vendored assets.
+no framework; top-level modules plus `app/web/views/`, i18n and vendored assets.
 Navigation:
 
 ```
@@ -177,7 +177,7 @@ Overview · Alerts · Shops · Reports · Billing · Settings
 ```
 
 Shared shell: auth context (bearer token, 401 handling), i18n, routing,
-toasts/dialogs from `ui.js`, permission-aware UI; each view builds its own
+toasts/dialogs from `app/web/ui.js`, permission-aware UI; each view builds its own
 rows and forms on top of the shared component set.
 
 ## 8. Integration strategy
@@ -186,7 +186,7 @@ External systems sit behind per-domain adapters rather than one shared
 package: LLM providers (Ollama, OpenAI-compatible, deterministic test
 provider) in `app/llm.py`; shop feeds via the optional `shopfeed` package in
 `app/ecommerce/feeds.py`; web search and crawling in `app/research/discovery.py`
-and `crawler.py` (DuckDuckGo HTML); ComfyUI over its HTTP API in
+and `app/research/crawler.py` (DuckDuckGo HTML); ComfyUI over its HTTP API in
 `app/generation/comfyui_client.py`; Stripe in `app/billing/stripe.py`. Each
 adapter degrades gracefully when its dependency is absent and has a
 deterministic path for tests.
@@ -197,7 +197,7 @@ deterministic path for tests.
 |---|---|---|
 | `app/core/config.py` | `app/core/config` | MERGE into pydantic-settings |
 | `app/core/jobs.py` (threads + jobs.json) | `app/core/jobs` | REWRITE onto shared durable queue |
-| `app/core/paths.py`, `persistence.py` | `app/core/security/paths.py`, `core/database` | ADAPT |
+| `app/core/paths.py`, `persistence.py` | `app/core/security/paths.py`, `app/core/database` | ADAPT |
 | `rag/*` (ingestion/chunking/embeddings/vector_store/service) | `app/documents` | KEEP (proven logic) |
 | `services/document_service.py` | `app/documents` | ADAPT to DB + tenancy |
 | `services/memory_service.py` | conversations under projects | ADAPT |
