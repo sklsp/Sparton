@@ -58,22 +58,52 @@ from app.llm import DeterministicProvider, set_llm_override  # noqa: E402
 from app.main import create_app  # noqa: E402
 
 
-@pytest.fixture()
-def db_session():
-    """A clean schema for one test.
+@pytest.fixture(scope="session", autouse=True)
+def _schema():
+    """Create the schema once per process, not once per test.
 
-    ``checkfirst`` matters: a previous test may have left a table behind if it
-    was interrupted, and a bare CREATE TABLE then fails on a database that is
-    logically clean. ``drop_all`` is scoped to the metadata, never the file.
+    Dropping and recreating it for every test cost about 0.65 s of DDL each
+    time (PROFILE.md). The tables now persist across tests; ``db_session``
+    empties them instead, which gives every test the same clean database
+    without paying full schema DDL per test.
     """
-    Base.metadata.drop_all(bind=engine, checkfirst=True)
     Base.metadata.create_all(bind=engine, checkfirst=True)
+    yield
+
+
+def _empty_database() -> None:
+    """Delete every row and reset id counters to what a fresh schema would give.
+
+    Children before parents (reversed sorted_tables), because this engine
+    enforces foreign keys on every connection. The autoincrement high-water
+    marks are reset too, so tests that assert on an id see the same numbers a
+    drop/create cycle would hand out. Emptying happens in setup rather than
+    teardown, so even an interrupted run cannot leak rows into the next test.
+    """
+    with engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            conn.execute(table.delete())
+        has_sequence = conn.execute(
+            text("SELECT 1 FROM sqlite_master WHERE name = 'sqlite_sequence'")
+        ).first()
+        if has_sequence:
+            conn.execute(text("UPDATE sqlite_sequence SET seq = 0"))
+
+
+@pytest.fixture()
+def db_session(_schema):
+    """A clean database for one test.
+
+    Every table is empty and the id counters are reset, so no row from a
+    previous test survives -- the same guarantee ``drop_all``/``create_all``
+    gave, without paying full schema DDL per test (see ``_schema``).
+    """
+    _empty_database()
     session = SessionLocal()
     try:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(bind=engine, checkfirst=True)
 
 
 @pytest.fixture()
