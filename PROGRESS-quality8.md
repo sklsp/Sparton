@@ -2,5 +2,5 @@
 - [x] W2. web tests: translations (992 passed, 16 skipped, 1 warning in 76.51s (0:01:16))
 - [x] W3. web tests: formatting helpers (992 passed, 16 skipped, 1 warning in 70.41s (0:01:10))
 - [x] W4. web tests: the API client (992 passed, 16 skipped, 1 warning in 70.58s (0:01:10))
-- [ ] W5. web tests: routes and plans
+- [x] W5. web tests: routes and plans (992 passed, 16 skipped, 1 warning in 71.46s (0:01:11))
 - [ ] W6. docs: the README says how to run the web tests
