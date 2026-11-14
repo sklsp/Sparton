@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
 from app.agent import runner
+from app.api.responses import errors
 from app.api.schemas import AgentRunRequest, ApprovalDecisionRequest
 from app.core.auth.api import DbSession, current_user
 from app.core.database.domain_models import (
@@ -44,12 +45,14 @@ def _run_dict(run: AgentRun) -> dict[str, Any]:
     }
 
 
-@router.post("/agent/run", status_code=202)
+@router.post("/agent/run", status_code=202, responses=errors(401))
 def start_run(
     payload: AgentRunRequest,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """Start an Athena run. Returns the run id at once; follow progress on
+    ``/agent/runs/{run_id}/events``."""
     inc("agent_runs_total")
     run = runner.create_run(
         db,
@@ -62,12 +65,13 @@ def start_run(
     return {"run_id": run.id, "status": run.status}
 
 
-@router.get("/agent/runs")
+@router.get("/agent/runs", responses=errors(401))
 def list_runs(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     limit: int = 20,
 ) -> dict[str, Any]:
+    """The caller's recent runs, newest first."""
     query = select(AgentRun).order_by(AgentRun.started_at.desc()).limit(min(limit, 100))
     org = _org_id(user)
     if org is not None:
@@ -76,8 +80,9 @@ def list_runs(
     return {"count": len(rows), "runs": [_run_dict(r) for r in rows]}
 
 
-@router.get("/agent/runs/{run_id}")
+@router.get("/agent/runs/{run_id}", responses=errors(401, 404))
 def get_run(run_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
+    """One run with its full step feed."""
     run = _get_scoped_run(db, run_id, _org_id(user))
     steps = db.execute(
         select(AgentStep).where(AgentStep.agent_run_id == run.id).order_by(AgentStep.step_number)
@@ -103,7 +108,7 @@ def _get_scoped_run(db: DbSession, run_id: int, org: int | None) -> AgentRun:
     return run
 
 
-@router.get("/agent/runs/{run_id}/events")
+@router.get("/agent/runs/{run_id}/events", responses=errors(401))
 async def run_events(run_id: int, db: DbSession, user: Annotated[object, Depends(current_user)]) -> StreamingResponse:
     """SSE stream of an agent run's step feed until it reaches a terminal state."""
     org = _org_id(user)
@@ -143,13 +148,14 @@ async def run_events(run_id: int, db: DbSession, user: Annotated[object, Depends
 
 
 # --- approvals -----------------------------------------------------------------
-@router.get("/approvals")
+@router.get("/approvals", responses=errors(401))
 def list_approvals(
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
     status_filter: str | None = None,
     limit: int = 50,
 ) -> dict[str, Any]:
+    """Approvals awaiting a decision; pass ``status`` to see other states."""
     query = (
         select(ApprovalRequest)
         .order_by(ApprovalRequest.created_at.desc())
@@ -180,13 +186,14 @@ def list_approvals(
     }
 
 
-@router.post("/approvals/{approval_id}/resolve")
+@router.post("/approvals/{approval_id}/resolve", responses=errors(401, 404, 409))
 def resolve_approval(
     approval_id: int,
     payload: ApprovalDecisionRequest,
     db: DbSession,
     user: Annotated[object, Depends(current_user)],
 ) -> dict[str, Any]:
+    """Approve or reject a pending approval; the paused run resumes here."""
     approval = db.get(ApprovalRequest, approval_id)
     org = _org_id(user)
     if approval is None or (org is not None and approval.organization_id != org):
