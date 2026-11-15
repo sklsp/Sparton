@@ -8,6 +8,8 @@ present, byte for byte where absent, error pages included.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from app.core.config import settings
@@ -49,3 +51,25 @@ class TestAppUrlAtServeTime:
         assert response.status_code == 404
         assert "%APP_URL%" not in response.text
         assert 'href="https://shop.example/missing"' in response.text
+
+
+class TestCanonicalMatchesSitemap:
+    """The sitemap and the canonical links can never drift apart again."""
+
+    def test_every_sitemap_page_has_exactly_one_canonical_and_og_url(self, client):
+        base = settings.app_url.rstrip("/")
+        locs = re.findall(r"<loc>(.*?)</loc>", client.get("/sitemap.xml").text)
+        assert len(locs) == 7, f"the sitemap lists {len(locs)} pages, expected 7: {locs}"
+        for url in locs:
+            path = url[len(base):]
+            body = client.get(path).text
+            canonicals = re.findall(r'<link rel="canonical" href="(.*?)"', body)
+            assert canonicals == [url], f"{path}: canonical {canonicals} != sitemap {url}"
+            og_urls = re.findall(r'<meta property="og:url" content="(.*?)"', body)
+            assert og_urls == [url], f"{path}: og:url {og_urls} != sitemap {url}"
+
+    def test_the_404_page_stays_noindex_without_a_canonical(self, client):
+        response = client.get("/no-such-page", headers={"Accept": "text/html"})
+        assert response.status_code == 404
+        assert '<meta name="robots" content="noindex">' in response.text
+        assert 'rel="canonical"' not in response.text
