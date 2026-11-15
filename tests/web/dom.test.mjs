@@ -203,12 +203,19 @@ test("resetDom empties the body and clears lang", () => {
   assert.equal(document.documentElement.lang, "");
 });
 
-test("querySelectorAll refuses combinators instead of silently mis-matching", () => {
-  const root = document.createElement("ul");
+test("descendant selectors match inside the queried root; child and sibling combinators are refused", () => {
+  const root = document.createElement("section");
   root.className = "plan-features";
-  root.append(document.createElement("li"));
-  assert.throws(() => root.querySelectorAll(".plan-features li"), /compound selectors only/);
-  assert.throws(() => root.querySelector("ul > li"), /compound selectors only/);
+  const ul = document.createElement("ul");
+  const li1 = document.createElement("li");
+  const li2 = document.createElement("li"); li2.className = "on";
+  ul.append(li1, li2);
+  root.append(ul);
+  assert.deepEqual(root.querySelectorAll("ul li"), [li1, li2]);
+  assert.deepEqual(root.querySelectorAll("ul li.on"), [li2]);
+  assert.deepEqual(root.querySelectorAll(".plan-features li"), []); // the root itself is not its own ancestor here
+  assert.throws(() => root.querySelectorAll("ul > li"), /descendants only/);
+  assert.throws(() => root.querySelector("li + li"), /descendants only/);
   assert.equal(root.querySelectorAll('[data-x="a b"]').length, 0); // spaces inside an attribute value are fine
 });
 
