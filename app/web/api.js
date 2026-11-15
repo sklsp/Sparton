@@ -153,6 +153,49 @@ export const api = {
   // --- admin
   users: () => get("/admin/users"),
   patchUser: (id, payload) => patch(`/admin/users/${id}`, payload),
+
+  // --- knowledge: documents, RAG chat, prompt templates
+  documents: (limit = 50) => get(`/documents?limit=${limit}`),
+  uploadDocuments: (files) => {
+    const form = new FormData();
+    for (const file of files) form.append("files", file);
+    return request("/documents/upload", { method: "POST", form });
+  },
+  deleteDocument: (id) => del(`/documents/${encodeURIComponent(id)}`),
+  ragStatus: () => get("/rag/status"),
+  chat: (message, conversationId, useRag = true) => {
+    const body = { message, use_rag: useRag };
+    if (conversationId) body.conversation_id = conversationId;
+    return post("/chat", body);
+  },
+  clearConversation: (id) => del(`/conversations/${encodeURIComponent(id)}/history`),
+  prompts: () => get("/prompts"),
+
+  // --- intelligence: research jobs, external stores, opportunities
+  startResearch: (query, startUrls = []) =>
+    post("/intelligence/jobs", { query, start_urls: startUrls }),
+  researchJobs: (limit = 20) => get(`/intelligence/jobs?limit=${limit}`),
+  stores: (limit = 50) => get(`/intelligence/stores?limit=${limit}`),
+  opportunities: (kind, limit = 50) => {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (kind) q.set("kind", kind);
+    return get(`/intelligence/opportunities?${q}`);
+  },
+  opportunity: (id) => get(`/intelligence/opportunities/${encodeURIComponent(id)}`),
+
+  // --- create: ComfyUI generation, datasets, LoRA training
+  comfyStatus: () => get("/comfyui/status"),
+  workflows: () => get("/comfyui/workflows"),
+  validateGeneration: (payload) => post("/comfyui/validate-generation", payload),
+  generate: (payload) => post("/comfyui/generate", payload),
+  generated: (limit = 50) => get(`/generated?limit=${limit}`),
+  hardware: () => get("/training/hardware"),
+  datasets: () => get("/datasets"),
+  createDataset: (payload) => post("/datasets", payload),
+  validateDataset: (id) => get(`/datasets/${encodeURIComponent(id)}/validate`),
+  trainingStatus: () => get("/training/status"),
+  trainingPresets: () => get("/training/presets"),
+  trainingProjects: () => get("/training/projects"),
 };
 
 /**

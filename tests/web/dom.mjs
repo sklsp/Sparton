@@ -198,15 +198,15 @@ class Element {
     }
   }
 
-  // Simple selectors only: tag, .class, #id, [attr], [attr="v"], freely combined; a comma
-  // list matches any of its parts (".ob-searching, .ob-none"), as in the browser.
+  // Compound selectors (tag, .class, #id, [attr], [attr="v"], freely combined), the descendant combinator
+  // (".page-head p": whitespace), and comma lists that match any of their parts, as in the browser.
   querySelectorAll(selector) {
-    const specs = String(selector).split(",").map(parseSelector);
+    const chains = splitList(String(selector)).map(parseChain);
     const found = [];
     const walk = (node) => {
       for (const child of node._childNodes) {
         if (child.nodeType !== 1) continue;
-        if (specs.some((spec) => matchesSpec(child, spec))) found.push(child);
+        if (chains.some((chain) => matchesChain(child, chain, this))) found.push(child);
         walk(child);
       }
     };
@@ -217,13 +217,52 @@ class Element {
   querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; }
 }
 
+/** Split a selector list on commas that are not inside [attr="..."] brackets. */
+function splitList(selector) {
+  const parts = [];
+  let depth = 0;
+  let cur = "";
+  for (const ch of selector) {
+    if (ch === "[") depth += 1;
+    if (ch === "]") depth -= 1;
+    if (ch === "," && depth === 0) { parts.push(cur); cur = ""; } else cur += ch;
+  }
+  parts.push(cur);
+  return parts;
+}
+
+/** ".a .b p" -> [spec(.a), spec(.b), spec(p)]: compound selectors joined by the descendant combinator. */
+function parseChain(selector) {
+  const sel = selector.trim();
+  // Child and sibling combinators would otherwise be read as part of a compound selector and match the wrong
+  // element without a word, so refuse them loudly instead.
+  if (/[>+~]/.test(sel.replace(/\[[^\]]*\]/g, ""))) {
+    throw new Error(`dom.mjs supports compound selectors and descendants only, not "${sel}"`);
+  }
+  const compounds = [];
+  let depth = 0;
+  let cur = "";
+  for (const ch of sel) {
+    if (ch === "[") depth += 1;
+    if (ch === "]") depth -= 1;
+    if (/\s/.test(ch) && depth === 0) { if (cur) compounds.push(cur); cur = ""; } else cur += ch;
+  }
+  if (cur) compounds.push(cur);
+  return compounds.map(parseSelector);
+}
+
+/** The last compound matches the element; each earlier one matches some ancestor below `root`, in order. */
+function matchesChain(el, chain, root) {
+  if (!matchesSpec(el, chain[chain.length - 1])) return false;
+  let i = chain.length - 2;
+  for (let node = el._parent; i >= 0 && node && node !== root; node = node._parent) {
+    if (node.nodeType === 1 && matchesSpec(node, chain[i])) i -= 1;
+  }
+  return i < 0;
+}
+
 function parseSelector(selector) {
   const sel = String(selector).trim();
-  // Compound selectors only. A descendant or child combinator would otherwise be read as one compound selector and
-  // match the wrong element without a word, so refuse it loudly instead.
-  if (/[\s>+~,]/.test(sel.replace(/\[[^\]]*\]/g, ""))) {
-    throw new Error(`dom.mjs supports compound selectors only, not "${sel}"; query the parent and read its children`);
-  }
   const tagMatch = /^[a-z][a-z0-9-]*/i.exec(sel);
   const spec = { tag: tagMatch ? tagMatch[0].toLowerCase() : null, id: null, classes: [], attrs: [] };
   for (const m of sel.matchAll(/\.([a-zA-Z0-9_-]+)/g)) spec.classes.push(m[1]);
