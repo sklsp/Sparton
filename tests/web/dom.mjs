@@ -1,7 +1,7 @@
 // A small DOM fake for node --test, just enough for app/web's builders (ui.js, board.js,
-// plans.js and i18n.js) to run in Node. Import env.mjs first; importing this file installs
-// the document on globalThis next to env's fakes BEFORE an app module is imported. No jsdom:
-// only what those modules call.
+// plans.js and i18n.js) and its views to run in Node. Import env.mjs first; importing this
+// file installs the document on globalThis next to env's fakes BEFORE an app module is
+// imported. No jsdom: only what those modules call.
 
 /** The event object click() builds and dispatchEvent passes to listeners. */
 export class Event {
@@ -101,6 +101,11 @@ class Element {
   getAttribute(name) { return this._attributes.has(name) ? this._attributes.get(name) : null; }
   hasAttribute(name) { return this._attributes.has(name); }
   removeAttribute(name) { this._attributes.delete(name); }
+  toggleAttribute(name, force) {
+    const on = force === undefined ? !this._attributes.has(name) : Boolean(force);
+    if (on) this._attributes.set(name, ""); else this._attributes.delete(name);
+    return on;
+  }
 
   get childNodes() { return [...this._childNodes]; }
   // children holds elements only, so text nodes never count against a tile row's length.
@@ -155,6 +160,9 @@ class Element {
   // board.js reads offsetWidth to restart the step animation; a constant is enough.
   get offsetWidth() { return 0; }
 
+  // Views move keyboard focus (url.focus() in start.js); document.activeElement tracks it.
+  focus() { setActive(this); }
+
   addEventListener(type, listener, options = {}) {
     const list = this._listeners.get(type) ?? [];
     list.push({ listener, once: Boolean(options.once) });
@@ -190,14 +198,15 @@ class Element {
     }
   }
 
-  // Simple selectors only: tag, .class, #id, [attr], [attr="v"], freely combined.
+  // Simple selectors only: tag, .class, #id, [attr], [attr="v"], freely combined; a comma
+  // list matches any of its parts (".ob-searching, .ob-none"), as in the browser.
   querySelectorAll(selector) {
-    const spec = parseSelector(selector);
+    const specs = String(selector).split(",").map(parseSelector);
     const found = [];
     const walk = (node) => {
       for (const child of node._childNodes) {
         if (child.nodeType !== 1) continue;
-        if (matchesSpec(child, spec)) found.push(child);
+        if (specs.some((spec) => matchesSpec(child, spec))) found.push(child);
         walk(child);
       }
     };
@@ -235,6 +244,10 @@ function matchesSpec(el, spec) {
   return true;
 }
 
+// Views move keyboard focus; track the focused element like document.activeElement does.
+let active = null;
+function setActive(el) { active = el; }
+
 function makeDocument() {
   const documentElement = new Element("html");
   const body = new Element("body");
@@ -243,6 +256,7 @@ function makeDocument() {
     nodeType: 9,
     documentElement,
     body,
+    get activeElement() { return active ?? body; }, // browsers report <body> before anything is focused
     createElement: (tag) => new Element(tag),
     createTextNode: (text) => new TextNode(text),
     createElementNS: (namespace, tag) => new Element(tag, namespace),
@@ -274,11 +288,12 @@ export function installDom() {
   return doc;
 }
 
-/** Empty the body, clear <html lang> and the media queries; call between tests. */
+/** Empty the body, clear <html lang>, focus and the media queries; call between tests. */
 export function resetDom() {
   if (!current) installDom();
   current.body.replaceChildren();
   current.documentElement.lang = "";
+  active = null;
   mediaMatches.clear();
 }
 

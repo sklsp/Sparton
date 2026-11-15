@@ -67,6 +67,15 @@ install("document", documentFake);
 install("location", locationState);
 install("fetch", fetchFake);
 
+// Views attach window-level listeners (product.js redraws its chart on resize); a real
+// EventTarget stands in for the window so dispatch is synchronous, as in the browser.
+let win = new EventTarget();
+install("addEventListener", (...args) => win.addEventListener(...args));
+install("removeEventListener", (...args) => win.removeEventListener(...args));
+
+/** Dispatch an event on the fake window, e.g. fireWindowEvent("resize"). */
+export const fireWindowEvent = (type) => win.dispatchEvent(new Event(type));
+
 /** Restore every fake to its import-time state; call between tests. */
 export function resetEnv() {
   storage.clear();
@@ -76,4 +85,5 @@ export function resetEnv() {
   locationState.href = DEFAULT_HREF;
   fetchHandler = null;
   reloadCount = 0;
+  win = new EventTarget(); // drop listeners a view forgot to detach
 }

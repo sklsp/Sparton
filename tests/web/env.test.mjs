@@ -72,3 +72,19 @@ test("location.reload counts calls instead of looping (views call it after sign-
   resetEnv();
   assert.equal(reloadCalls(), 0); // resetEnv restores the counter too
 });
+
+test("window listeners receive fireWindowEvent and resetEnv drops them", async () => {
+  const { fireWindowEvent, resetEnv } = await import("./env.mjs");
+  let calls = 0;
+  const onResize = () => { calls += 1; };
+  addEventListener("resize", onResize);
+  fireWindowEvent("resize");
+  assert.equal(calls, 1);
+  removeEventListener("resize", onResize);
+  fireWindowEvent("resize");
+  assert.equal(calls, 1);
+  addEventListener("resize", onResize);
+  resetEnv();
+  fireWindowEvent("resize");
+  assert.equal(calls, 1);
+});

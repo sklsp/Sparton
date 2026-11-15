@@ -268,3 +268,21 @@ test("reset clears text inputs and leaves checkboxes alone (settings.js password
   assert.equal(cur.value, "");
   assert.equal(box.checked, true); // browsers keep checkboxes at their default state
 });
+
+test("a comma list matches any of its parts, focus tracks activeElement, toggleAttribute flips", () => {
+  const list = document.createElement("ul");
+  const a = document.createElement("li"); a.className = "ob-searching";
+  const b = document.createElement("li"); b.className = "ob-none";
+  const c = document.createElement("li");
+  list.append(a, b, c);
+  assert.deepEqual(list.querySelectorAll(".ob-searching, .ob-none"), [a, b]);
+  assert.equal(document.activeElement, document.body); // nothing focused yet
+  const input = document.createElement("input");
+  input.focus();
+  assert.equal(document.activeElement, input);
+  assert.equal(c.toggleAttribute("data-done"), true);
+  assert.equal(c.hasAttribute("data-done"), true);
+  assert.equal(c.toggleAttribute("data-done"), false);
+  assert.equal(c.toggleAttribute("data-done", false), false);
+  assert.equal(c.hasAttribute("data-done"), false);
+});
