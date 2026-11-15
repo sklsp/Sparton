@@ -124,10 +124,15 @@ class TestPageStructure:
             self.in_title = False
             self.description: str | None = None
             self.h1_count = 0
+            # Bilingual pages hide one language with CSS ([data-lang]); count h1s per language block.
+            self.lang_stack: list[str | None] = []
+            self.h1_by_lang: dict[str, int] = {}
             self.imgs_without_alt: list[str] = []
 
         def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
             d = dict(attrs)
+            if tag == "article":
+                self.lang_stack.append(d.get("data-lang"))
             if tag == "html":
                 self.html_lang = d.get("lang")
             elif tag == "title":
@@ -136,12 +141,17 @@ class TestPageStructure:
                 self.description = d.get("content")
             elif tag == "h1":
                 self.h1_count += 1
+                block = next((x for x in reversed(self.lang_stack) if x), None)
+                if block:
+                    self.h1_by_lang[block] = self.h1_by_lang.get(block, 0) + 1
             elif tag == "img" and not (d.get("alt") or "").strip():
                 self.imgs_without_alt.append(d.get("src") or "?")
 
         def handle_endtag(self, tag: str) -> None:
             if tag == "title":
                 self.in_title = False
+            elif tag == "article" and self.lang_stack:
+                self.lang_stack.pop()
 
         def handle_data(self, data: str) -> None:
             if self.in_title:
@@ -153,7 +163,14 @@ class TestPageStructure:
             parser = TestPageStructure._Parser()
             parser.feed(client.get(path).text)
             parser.close()
-            if parser.h1_count != 1:
+            if parser.h1_by_lang:
+                # One h1 per language a reader can switch to; the other language is display: none.
+                for block, n in sorted(parser.h1_by_lang.items()):
+                    if n != 1:
+                        failures.append(f"{path}: {n} h1 tags in the {block} article")
+                if parser.h1_count != sum(parser.h1_by_lang.values()):
+                    failures.append(f"{path}: an h1 outside the language articles")
+            elif parser.h1_count != 1:
                 failures.append(f"{path}: {parser.h1_count} h1 tags")
             if not "".join(parser.title_parts).strip():
                 failures.append(f"{path}: missing or empty <title>")
