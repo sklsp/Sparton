@@ -165,6 +165,7 @@ class Element {
     if (event && !event.target) event.target = this; // handlers read e.target, as in the browser
     const type = event ? event.type : "";
     for (const entry of [...(this._listeners.get(type) ?? [])]) {
+      if (event) event.currentTarget = this; // like the browser: the element whose listeners are running
       entry.listener.call(this, event);
       if (entry.once) {
         const list = this._listeners.get(type) ?? [];
