@@ -211,3 +211,78 @@ test("querySelectorAll refuses combinators instead of silently mis-matching", ()
   assert.throws(() => root.querySelector("ul > li"), /compound selectors only/);
   assert.equal(root.querySelectorAll('[data-x="a b"]').length, 0); // spaces inside an attribute value are fine
 });
+
+test("prepend inserts nodes before the first child, in order", () => {
+  const ul = document.createElement("ul");
+  const keep = document.createElement("li");
+  ul.append(keep);
+  const a = document.createElement("li");
+  const b = document.createElement("li");
+  ul.prepend(a, b);
+  assert.deepEqual([...ul.children], [a, b, keep]); // order kept, old child last
+
+  const moved = document.createElement("div");
+  moved.append(keep); // a node with a parent moves instead of duplicating; ul is down to two
+  ul.prepend(moved);
+  assert.deepEqual([...ul.children], [moved, a, b]);
+  assert.equal(moved.children.length, 1); // keep came along inside it
+
+  ul.prepend("hello"); // strings become text nodes like appendChild; prepend itself is void
+  assert.equal(ul.childNodes[0].nodeType, 3);
+  assert.equal(ul.childNodes[0].textContent, "hello");
+  assert.throws(() => ul.prepend(42), /prepend: not a node/);
+});
+
+test("dialog opens with showModal; close sets returnValue and fires the close event (ui.js dialog)", () => {
+  const el = document.createElement("dialog"); // ui.js dialog() pattern
+  let closedWith;
+  el.addEventListener("close", () => { closedWith = el.returnValue; });
+  el.showModal();
+  assert.equal(el.open, true);
+  el.close("ok");
+  assert.equal(el.open, false);
+  assert.equal(closedWith, "ok"); // the close handler reads returnValue synchronously
+  const bare = document.createElement("dialog");
+  bare.close(); // no value: returnValue stays undefined
+  assert.equal(bare.returnValue, undefined);
+});
+
+test("dispatchEvent sets event.target like the browser (settings.js reads e.target)", () => {
+  const el = document.createElement("form");
+  let target;
+  el.addEventListener("submit", (e) => { target = e.target; });
+  el.dispatchEvent(new Event("submit"));
+  assert.equal(target, el);
+});
+
+test("reset clears text inputs and leaves checkboxes alone (settings.js password form)", () => {
+  const form = document.createElement("form");
+  const cur = document.createElement("input");
+  cur.type = "password";
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  form.append(cur, box);
+  cur.value = "secret";
+  box.checked = true;
+  form.reset();
+  assert.equal(cur.value, "");
+  assert.equal(box.checked, true); // browsers keep checkboxes at their default state
+});
+
+test("a comma list matches any of its parts, focus tracks activeElement, toggleAttribute flips", () => {
+  const list = document.createElement("ul");
+  const a = document.createElement("li"); a.className = "ob-searching";
+  const b = document.createElement("li"); b.className = "ob-none";
+  const c = document.createElement("li");
+  list.append(a, b, c);
+  assert.deepEqual(list.querySelectorAll(".ob-searching, .ob-none"), [a, b]);
+  assert.equal(document.activeElement, document.body); // nothing focused yet
+  const input = document.createElement("input");
+  input.focus();
+  assert.equal(document.activeElement, input);
+  assert.equal(c.toggleAttribute("data-done"), true);
+  assert.equal(c.hasAttribute("data-done"), true);
+  assert.equal(c.toggleAttribute("data-done"), false);
+  assert.equal(c.toggleAttribute("data-done", false), false);
+  assert.equal(c.hasAttribute("data-done"), false);
+});

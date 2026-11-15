@@ -1,7 +1,7 @@
 // The fakes in env.mjs behave like the browser bits the app modules touch at import.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setFetch, resetEnv } from "./env.mjs";
+import { setFetch, resetEnv, reloadCalls } from "./env.mjs";
 
 test("localStorage round trip", () => {
   localStorage.setItem("sparton.lang", "nl");
@@ -61,4 +61,30 @@ test("i18n.js imports under the fakes and loads en.json", async () => {
   assert.equal(document.documentElement.lang, "en");
   // A real key from app/web/i18n/en.json: the dictionary really loaded.
   assert.equal(i18n.t("nav.overview"), "Overview");
+});
+
+test("location.reload counts calls instead of looping (views call it after sign-out)", () => {
+  resetEnv();
+  assert.equal(reloadCalls(), 0);
+  location.reload();
+  location.reload();
+  assert.equal(reloadCalls(), 2);
+  resetEnv();
+  assert.equal(reloadCalls(), 0); // resetEnv restores the counter too
+});
+
+test("window listeners receive fireWindowEvent and resetEnv drops them", async () => {
+  const { fireWindowEvent, resetEnv } = await import("./env.mjs");
+  let calls = 0;
+  const onResize = () => { calls += 1; };
+  addEventListener("resize", onResize);
+  fireWindowEvent("resize");
+  assert.equal(calls, 1);
+  removeEventListener("resize", onResize);
+  fireWindowEvent("resize");
+  assert.equal(calls, 1);
+  addEventListener("resize", onResize);
+  resetEnv();
+  fireWindowEvent("resize");
+  assert.equal(calls, 1);
 });
