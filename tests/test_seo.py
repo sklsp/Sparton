@@ -73,3 +73,35 @@ class TestCanonicalMatchesSitemap:
         assert response.status_code == 404
         assert '<meta name="robots" content="noindex">' in response.text
         assert 'rel="canonical"' not in response.text
+
+
+class TestSocialCardImage:
+    """Link previews can only load an image from the site's full address."""
+
+    PAGES = ["/", "/pricing", "/faq", "/vs/prisync",
+             "/nl/prisync-alternatief", "/nl/concurrentieprijzen-shopify",
+             "/nl/concurrentieprijzen-woocommerce-lightspeed"]
+
+    def test_every_page_with_an_og_image_has_an_absolute_one(self, client):
+        base = settings.app_url.rstrip("/")
+        for path in self.PAGES:
+            body = client.get(path).text
+            images = re.findall(r'<meta property="og:image" content="(.*?)"', body)
+            assert len(images) == 1, f"{path}: og:image tags {images}"
+            image = images[0]
+            assert image.startswith(base), f"{path}: og:image is not absolute: {image}"
+
+    def test_the_error_pages_do_the_same(self, client):
+        base = settings.app_url.rstrip("/")
+        body = client.get("/no-such-page", headers={"Accept": "text/html"}).text
+        images = re.findall(r'<meta property="og:image" content="(.*?)"', body)
+        assert len(images) == 1, f"404 page og:image tags {images}"
+        assert images[0].startswith(base), f"404 page og:image is not absolute: {images[0]}"
+
+    def test_the_og_image_path_is_served(self, client):
+        base = settings.app_url.rstrip("/")
+        body = client.get("/").text
+        image = re.findall(r'<meta property="og:image" content="(.*?)"', body)[0]
+        path = image[len(base):]
+        response = client.get(path)
+        assert response.status_code == 200, f"{path} does not serve the social card image"
