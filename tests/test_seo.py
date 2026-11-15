@@ -9,6 +9,7 @@ present, byte for byte where absent, error pages included.
 from __future__ import annotations
 
 import re
+from html.parser import HTMLParser
 
 import pytest
 
@@ -105,3 +106,61 @@ class TestSocialCardImage:
         path = image[len(base):]
         response = client.get(path)
         assert response.status_code == 200, f"{path} does not serve the social card image"
+
+
+class TestPageStructure:
+    """Every public page: one h1, a title, a description, lang and alt on every img."""
+
+    PAGES = ["/", "/pricing", "/faq", "/vs/prisync",
+             "/nl/prisync-alternatief", "/nl/concurrentieprijzen-shopify",
+             "/nl/concurrentieprijzen-woocommerce-lightspeed",
+             "/legal/privacy", "/legal/terms", "/legal/dpa"]
+
+    class _Parser(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.html_lang: str | None = None
+            self.title_parts: list[str] = []
+            self.in_title = False
+            self.description: str | None = None
+            self.h1_count = 0
+            self.imgs_without_alt: list[str] = []
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            d = dict(attrs)
+            if tag == "html":
+                self.html_lang = d.get("lang")
+            elif tag == "title":
+                self.in_title = True
+            elif tag == "meta" and (d.get("name") or "").lower() == "description":
+                self.description = d.get("content")
+            elif tag == "h1":
+                self.h1_count += 1
+            elif tag == "img" and not (d.get("alt") or "").strip():
+                self.imgs_without_alt.append(d.get("src") or "?")
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag == "title":
+                self.in_title = False
+
+        def handle_data(self, data: str) -> None:
+            if self.in_title:
+                self.title_parts.append(data)
+
+    def test_every_public_page_passes_the_structure_check(self, client):
+        failures: list[str] = []
+        for path in self.PAGES:
+            parser = TestPageStructure._Parser()
+            parser.feed(client.get(path).text)
+            parser.close()
+            if parser.h1_count != 1:
+                failures.append(f"{path}: {parser.h1_count} h1 tags")
+            if not "".join(parser.title_parts).strip():
+                failures.append(f"{path}: missing or empty <title>")
+            if not (parser.description or "").strip():
+                failures.append(f"{path}: missing or empty meta description")
+            if not parser.html_lang:
+                failures.append(f"{path}: <html> has no lang attribute")
+            for src in parser.imgs_without_alt:
+                failures.append(f"{path}: img {src} has no alt text")
+        assert not failures, "pages failing the structure check:\n" + "\n".join(failures)
