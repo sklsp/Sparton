@@ -131,9 +131,11 @@ added in Phase 1 silently do nothing.
 ### `APP_URL`
 
 The public URL, including the scheme. Used for CORS, the OpenRouter attribution
-header, and **the links inside verification and password-reset emails**. Get it
-wrong and the reset link in a customer's inbox points at `localhost`, which is
-the worst possible moment to discover it. Set it before the first invitation.
+header, and **the links inside verification and password-reset emails**. The
+public pages use it for their canonical links and social cards as well, so it
+must be the exact public address (https, no trailing slash). Get it wrong and
+the reset link in a customer's inbox points at `localhost`, which is the worst
+possible moment to discover it. Set it before the first invitation.
 
 ### `CORS_ORIGINS`
 
