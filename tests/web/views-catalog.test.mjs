@@ -1,9 +1,8 @@
 // catalog.js on the DOM fake: the four stat cards from /analytics/summary, the product table
 // with its debounced server-side search, the empty plate and the per-product dialog from
 // /products/{id}. Fixtures mirror the API shapes built in app/api/ecommerce.py (_product_dict,
-// analytics_summary). BUG #1: api.js has no analytics(), products() or product() methods even
-// though ecommerce.py serves those URLs, so every data test below stays todo until that is
-// fixed; only the error-state behaviour is reachable today.
+// analytics_summary). These tests found BUG #1: api.js had no analytics(), products() or
+// product() methods, so the whole view failed; the methods exist now.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./env.mjs"; // browser fakes first...
@@ -67,29 +66,18 @@ async function flush() {
 
 const settled = (host) => host.querySelectorAll("article.metric").length === 4 && host.querySelector("table") !== null && !host.querySelector("[aria-busy]");
 const listCalls = (calls) => calls.filter(([m, href]) => m === "GET" && /^\/products(\?|$)/.test(href));
-const queryOf = (href) => new URLSearchParams(href.split("?")[1] ?? "");
+const queryOf = (call) => new URLSearchParams(call[1].split("?")[1] ?? ""); // call = [method, href]
 
-test("the catalog renders its header and settles into error states without a fetch", async () => {
+test("the catalog renders its header and loads both panels from the API", async () => {
   const { host, calls } = renderCatalog();
-  await waitFor(() => host.querySelectorAll(".error-state").length === 2, "both panels to fail");
-
+  await waitFor(() => settled(host), "the catalog to settle");
   assert.equal(host.querySelector("h1").textContent, "Catalog");
   assert.equal(host.children[0].querySelector("p").textContent, "Products, stock levels and sales performance across the workspace.");
-  assert.ok(host.querySelector("input.input"), "the search box is present even when nothing loads");
-
-  // BUG #1: api.js has no analytics() or products(), so both panels show the TypeError.
-  const [statsError, productsError] = host.querySelectorAll(".error-state");
-  for (const el of [statsError, productsError]) {
-    assert.equal(el.getAttribute("role"), "alert");
-    assert.equal(el.querySelector("h3").textContent, t("ui.error"));
-    assert.ok([...el.querySelectorAll("button")].some((b) => b.textContent === t("ui.retry")), "a retry button is offered");
-  }
-  assert.equal(statsError.querySelector("p").textContent, "api.analytics is not a function");
-  assert.equal(productsError.querySelector("p").textContent, "api.products is not a function");
-  assert.deepEqual(calls, []); // the view never reaches the network
+  assert.equal(host.querySelectorAll(".error-state").length, 0);
+  assert.deepEqual(calls.map(([m, href]) => `${m} ${href.split("?")[0]}`).sort(), ["GET /analytics/summary", "GET /products"]);
 });
 
-test("the stat cards show products, revenue with AOV, orders and low stock from /analytics/summary", { todo: "real bug, see sparton-quality-12/BUGS.md #1" }, async () => {
+test("the stat cards show products, revenue with AOV, orders and low stock from /analytics/summary", async () => {
   const { host } = renderCatalog();
   await waitFor(() => settled(host), "the catalog to settle");
 
@@ -103,7 +91,7 @@ test("the stat cards show products, revenue with AOV, orders and low stock from 
   assert.equal(cards[3].querySelector(".metric-value").style.color, "var(--warning)"); // low stock tints the value
 });
 
-test("the product table lists sku, title, category, status, price and stock in API order", { todo: "real bug, see sparton-quality-12/BUGS.md #1" }, async () => {
+test("the product table lists sku, title, category, status, price and stock in API order", async () => {
   const { host } = renderCatalog();
   await waitFor(() => settled(host), "the catalog to settle");
 
@@ -126,7 +114,7 @@ test("the product table lists sku, title, category, status, price and stock in A
   assert.equal(foot.textContent, "3 productsbread 2preserves 1"); // count plus the category breakdown dots
 });
 
-test("typing in the search box debounces and requests the trimmed term with limit 100", { todo: "real bug, see sparton-quality-12/BUGS.md #1" }, async (t) => {
+test("typing in the search box debounces and requests the trimmed term with limit 100", async (t) => {
   const { host, calls } = renderCatalog();
   await waitFor(() => settled(host), "the catalog to settle");
   const firstQuery = queryOf(listCalls(calls).at(-1));
@@ -152,11 +140,11 @@ test("typing in the search box debounces and requests the trimmed term with limi
     assert.deepEqual(rows.map((r) => r.querySelector("td.mono").textContent), ["BRD-001"]);
     assert.equal(host.querySelector(".card-foot").textContent, "1 product"); // singular, no breakdown for one category
   } finally {
-    t.mock.timers.restore();
+    t.mock.timers.reset();
   }
 });
 
-test("an empty catalog shows the no-products plate instead of a table", { todo: "real bug, see sparton-quality-12/BUGS.md #1" }, async () => {
+test("an empty catalog shows the no-products plate instead of a table", async () => {
   const { host } = renderCatalog({ list: { count: 0, products: [] } });
   await waitFor(() => host.querySelector(".empty") !== null, "the empty plate");
 
@@ -166,7 +154,7 @@ test("an empty catalog shows the no-products plate instead of a table", { todo: 
   assert.equal(plate.querySelector("p").textContent, "Nothing matches this search, or the catalog has not been populated yet.");
 });
 
-test("clicking a row opens the product dialog from /products/{id} and closes on Close", { todo: "real bug, see sparton-quality-12/BUGS.md #1" }, async () => {
+test("clicking a row opens the product dialog from /products/{id} and closes on Close", async () => {
   const { host } = renderCatalog();
   await waitFor(() => settled(host), "the catalog to settle");
 
@@ -196,7 +184,7 @@ test("clicking a row opens the product dialog from /products/{id} and closes on 
   assert.equal(document.querySelector("dialog"), null); // the close event removes it from the body
 });
 
-test("a missing product shows the API's 404 message inside the dialog", { todo: "real bug, see sparton-quality-12/BUGS.md #1" }, async () => {
+test("a missing product shows the API's 404 message inside the dialog", async () => {
   const notFound = (id) => json({ detail: "Product not found" }, 404);
   const { host } = renderCatalog({ product: notFound });
   await waitFor(() => settled(host), "the catalog to settle");

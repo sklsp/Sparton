@@ -95,6 +95,15 @@ export const api = {
   // --- product: the intelligence loop
   overview: () => get("/overview"),
 
+  // --- catalog (the commerce domain: products, analytics)
+  analytics: () => get("/analytics/summary"),
+  products: (search, limit = 50) => {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (search) q.set("search", search);
+    return get(`/products?${q}`);
+  },
+  product: (id) => get(`/products/${encodeURIComponent(id)}`),
+
   shops: () => get("/shops"),
   shop: (id) => get(`/shops/${id}`),
   createShop: (payload) => post("/shops", payload),
