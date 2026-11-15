@@ -293,3 +293,35 @@ test("a comma list matches any of its parts, focus tracks activeElement, toggleA
   assert.equal(c.toggleAttribute("data-done", false), false);
   assert.equal(c.hasAttribute("data-done"), false);
 });
+
+test("lastElementChild skips text nodes; scrollIntoView is a no-op (agent.js timeline)", () => {
+  const div = document.createElement("div");
+  assert.equal(div.lastElementChild, null); // an empty element has none
+  const span = document.createElement("span");
+  span.textContent = "x";
+  div.append(span, "trailing text");
+  assert.equal(div.lastElementChild, span); // the last child is a text node; elements only
+  let threw = false;
+  try {
+    div.scrollIntoView({ block: "nearest" }); // agent.js passes options; the fake ignores them
+  } catch {
+    threw = true;
+  }
+  assert.equal(threw, false);
+});
+
+test("replaceWith takes the node's place in its parent, in order (agent.js tab strip)", () => {
+  const parent = document.createElement("div");
+  const before = document.createElement("span");
+  const placeholder = document.createElement("i");
+  const after = document.createElement("b");
+  parent.append(before, placeholder, after);
+
+  const a = document.createElement("em");
+  const b = document.createElement("strong");
+  placeholder.replaceWith(a, "text", b); // strings become text nodes, like the browser
+
+  assert.deepEqual([...parent.children].map((el) => el.tagName), ["SPAN", "EM", "STRONG", "B"]); // in order, at its place
+  assert.equal(parent.textContent, "text");
+  assert.ok(![...parent.childNodes].includes(placeholder)); // the replaced node is out of the tree
+});

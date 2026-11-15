@@ -111,6 +111,8 @@ class Element {
   // children holds elements only, so text nodes never count against a tile row's length.
   get children() { return this._childNodes.filter((node) => node.nodeType === 1); }
   get lastChild() { return this._childNodes.at(-1) ?? null; }
+  // agent.js scrolls the newest timeline row into view; elements only, like the browser.
+  get lastElementChild() { return this.children.at(-1) ?? null; }
 
   append(...nodes) { for (const node of nodes) this.appendChild(node); }
 
@@ -140,6 +142,23 @@ class Element {
     this.append(...nodes);
   }
 
+  // agent.js swaps a placeholder element for the real tab strip at mount; browser semantics:
+  // the new nodes take this node's place in its parent, in order.
+  replaceWith(...nodes) {
+    const parent = this._parent;
+    if (!parent) return;
+    let index = parent._childNodes.indexOf(this);
+    parent._childNodes.splice(index, 1);
+    this._parent = null;
+    for (const raw of nodes) {
+      const child = typeof raw === "string" ? new TextNode(raw) : raw;
+      detach(child); // moving a node detaches it from its old parent first
+      child._parent = parent;
+      parent._childNodes.splice(index, 0, child);
+      index += 1;
+    }
+  }
+
   remove() { detach(this); }
 
   get textContent() {
@@ -162,6 +181,9 @@ class Element {
 
   // Views move keyboard focus (url.focus() in start.js); document.activeElement tracks it.
   focus() { setActive(this); }
+
+  // agent.js scrolls freshly rendered content into view; the fake has no layout, so a no-op.
+  scrollIntoView() {}
 
   addEventListener(type, listener, options = {}) {
     const list = this._listeners.get(type) ?? [];
