@@ -1,0 +1,3 @@
+- [x] Z1. web tests: intelligence view (1001 passed, 16 skipped, 1 warning in 73.48s (0:01:13))
+- [ ] Z2. web tests: agent view
+- [ ] Z3. web tests: create view
