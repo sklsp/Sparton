@@ -52,6 +52,24 @@ logger = logging.getLogger(__name__)
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
+# Public pages are static files and cannot know the site's own address, so they
+# carry a %APP_URL% placeholder that is filled in from settings.app_url at serve
+# time. Rendered bytes are cached per (file, app_url): the file never changes
+# under us, but APP_URL may point elsewhere after a deploy or in a test, and each
+# address gets its own entry instead of serving stale bytes.
+_PAGE_CACHE: dict[tuple[str, str], bytes] = {}
+
+
+def _public_page(path: Path, status_code: int = 200) -> Response:
+    """Serve a public HTML page with every %APP_URL% replaced by settings.app_url."""
+    base = settings.app_url.rstrip("/")
+    key = (str(path), base)
+    body = _PAGE_CACHE.get(key)
+    if body is None:
+        body = path.read_bytes().replace(b"%APP_URL%", base.encode("utf-8"))
+        _PAGE_CACHE[key] = body
+    return Response(content=body, status_code=status_code, media_type="text/html")
+
 
 class DashboardFiles(StaticFiles):
     """StaticFiles that always revalidates.
@@ -177,11 +195,11 @@ def create_app() -> FastAPI:
         app.mount("/app", DashboardFiles(directory=WEB_DIR, html=True), name="app")
 
     @app.get("/", include_in_schema=False, response_model=None)
-    async def root() -> FileResponse | RedirectResponse:
+    async def root() -> Response | RedirectResponse:
         """The public landing page. Everything a visitor needs before signup."""
         landing = WEB_DIR / "landing.html"
         if landing.is_file():
-            return FileResponse(landing, media_type="text/html")
+            return _public_page(landing)
         return RedirectResponse(url="/app/")
 
     # The landing page is served from `/`, but its assets live in the same
@@ -213,11 +231,11 @@ def create_app() -> FastAPI:
     # rather than dead anchors: a pricing page that 404s on "Terms" is a
     # signal to a prospective customer about how the rest is run.
     for _page in ("privacy", "terms", "dpa"):
-        def _legal(_page: str = _page) -> FileResponse:
+        def _legal(_page: str = _page) -> Response:
             path = WEB_DIR / "legal" / f"{_page}.html"
             if not path.is_file():
                 raise HTTPException(status_code=404, detail="Not found")
-            return FileResponse(path, media_type="text/html")
+            return _public_page(path)
 
         app.add_api_route(
             f"/legal/{_page}", _legal, methods=["GET"], include_in_schema=False
@@ -232,11 +250,11 @@ def create_app() -> FastAPI:
         ("/nl/concurrentieprijzen-shopify", "nl/concurrentieprijzen-shopify.html"),
         ("/nl/concurrentieprijzen-woocommerce-lightspeed", "nl/concurrentieprijzen-woocommerce-lightspeed.html"),
     ):
-        def _public(_file: str = _file) -> FileResponse:
+        def _public(_file: str = _file) -> Response:
             path = WEB_DIR / _file
             if not path.is_file():
                 raise HTTPException(status_code=404, detail="Not found")
-            return FileResponse(path, media_type="text/html")
+            return _public_page(path)
 
         app.add_api_route(_route, _public, methods=["GET"], include_in_schema=False)
 
@@ -279,17 +297,17 @@ def create_app() -> FastAPI:
     async def html_not_found(request: Request, exc: StarletteHTTPException) -> Response:
         page = WEB_DIR / "404.html"
         if exc.status_code == 404 and _wants_html(request) and page.is_file():
-            return FileResponse(page, status_code=404, media_type="text/html")
+            return _public_page(page, status_code=404)
         return await http_exception_handler(request, exc)
 
     @app.exception_handler(Exception)
     async def html_server_error(
         request: Request, exc: Exception
-    ) -> FileResponse | JSONResponse:
+    ) -> Response | JSONResponse:
         # Starlette still re-raises after this, so logging and test clients see the error.
         page = WEB_DIR / "500.html"
         if _wants_html(request) and page.is_file():
-            return FileResponse(page, status_code=500, media_type="text/html")
+            return _public_page(page, status_code=500)
         return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
     @app.exception_handler(ValueError)
