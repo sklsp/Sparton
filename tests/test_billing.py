@@ -689,6 +689,88 @@ class TestBillingApi:
         assert response.status_code == 503
         assert "No Stripe price is configured for the pro plan" in response.json()["detail"]
 
+    def test_checkout_creates_a_stripe_customer_and_subscription_row(
+        self, client, auth_headers, checkout_env, db_session, monkeypatch
+    ):
+        """A first-time buyer gets a Stripe customer made from the caller's
+        email and the org name, and a Subscription row that keeps its id so
+        later checkouts reuse it."""
+        org_id, calls = checkout_env
+        created = []
+
+        def fake_create_customer(self, email, name="", metadata=None):
+            created.append((email, name, metadata))
+            return "cus_new"
+
+        monkeypatch.setattr(StripeClient, "create_customer", fake_create_customer)
+
+        response = client.post("/billing/checkout", headers=auth_headers, json={"plan": "pro"})
+        assert response.status_code == 200, response.text
+        assert response.json() == {"url": "https://checkout.stripe.com/c/pay/cs_1", "plan": "pro"}
+
+        # The customer is built from the caller's email and the org name.
+        assert created == [("admin@example.com", "Test Org", {"organization_id": org_id})]
+        # ...and the checkout session is opened for that new customer.
+        assert [(c["customer_id"], c["price_id"]) for c in calls] == [("cus_new", "price_pro_123")]
+
+        db_session.expire_all()
+        row = db_session.execute(select(Subscription)).scalars().one()
+        # The row keeps the customer id; the plan stays free until the webhook (D-014).
+        assert row.stripe_customer_id == "cus_new"
+        assert row.plan == "free"
+        assert row.stripe_subscription_id is None
+
+    def test_checkout_reuses_an_existing_stripe_customer(
+        self, client, auth_headers, checkout_env, db_session, monkeypatch
+    ):
+        """A second checkout for the same org must not create another Stripe
+        customer: the id on the Subscription row wins."""
+        org_id, calls = checkout_env
+        db_session.add(Subscription(
+            organization_id=org_id, status=SubscriptionStatus.CANCELED,
+            stripe_customer_id="cus_1", stripe_subscription_id=None,
+        ))
+        db_session.commit()
+
+        def refuse(self, *args, **kwargs):
+            raise AssertionError("create_customer must not run for an existing customer")
+
+        monkeypatch.setattr(StripeClient, "create_customer", refuse)
+
+        response = client.post("/billing/checkout", headers=auth_headers, json={"plan": "pro"})
+        assert response.status_code == 200, response.text
+        assert [(c["customer_id"], c["price_id"]) for c in calls] == [("cus_1", "price_pro_123")]
+
+    def test_portal_returns_the_session_url_for_a_subscribed_organization(
+        self, client, auth_headers, db_session, monkeypatch
+    ):
+        """A customer with a Stripe id gets the Customer Portal URL to manage
+        payment and plan."""
+        from app.core.config import settings
+
+        org_id = client.get("/auth/me", headers=auth_headers).json()["organization_id"]
+        db_session.add(Subscription(
+            organization_id=org_id, status=SubscriptionStatus.ACTIVE,
+            stripe_customer_id="cus_1", stripe_subscription_id="sub_1",
+        ))
+        db_session.commit()
+
+        portal_calls = []
+
+        def fake_create_portal_session(self, *, customer_id, return_url):
+            portal_calls.append({"customer_id": customer_id, "return_url": return_url})
+            return "https://billing.stripe.com/p/session/ps_1"
+
+        monkeypatch.setattr(StripeClient, "create_portal_session", fake_create_portal_session)
+
+        response = client.post("/billing/portal", headers=auth_headers)
+        assert response.status_code == 200, response.text
+        assert response.json() == {"url": "https://billing.stripe.com/p/session/ps_1"}
+        assert portal_calls == [{
+            "customer_id": "cus_1",
+            "return_url": f"{settings.app_url.rstrip('/')}/app/?tab=billing",
+        }]
+
 
 # ---------------------------------------------------------------------------
 # The Stripe HTTP client
