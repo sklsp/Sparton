@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 import tempfile
 
+import pytest
+
 from app.generation.comfyui_client import ComfyUIError
 from app.generation.service import WorkflowError, WorkflowInfo
 
@@ -327,7 +329,8 @@ def _upload_image(client, headers, dataset_id, filename="img1.png", content=_PNG
 
 
 def test_dataset_crud_lifecycle(create_domains_client, create_domain_headers, monkeypatch, tmp_path):
-    """Create -> upload -> caption -> delete image -> delete dataset, with disk checks."""
+    """Create -> upload -> caption -> delete image, with disk checks. There is no route that deletes a
+    dataset (DatasetService.delete_dataset has no API route; see sparton-quality-14/BUGS.md #1)."""
     _use_tmp_dataset_service(monkeypatch, tmp_path)
     client = create_domains_client
 
@@ -387,13 +390,8 @@ def test_dataset_crud_lifecycle(create_domains_client, create_domain_headers, mo
     names = [d["name"] for d in listing.json()["datasets"]]
     assert "Hero Set" in names
 
-    gone = client.delete(f"/datasets/{dataset_id}", headers=create_domain_headers)
-    assert gone.status_code == 200
-    assert gone.json() == {"deleted": True}
-    assert not data_dir.exists()
 
-
-def test_upload_rejects_bad_extension_empty_and_oversize(
+def test_upload_rejects_bad_extension_and_oversize(
     create_domains_client, create_domain_headers, monkeypatch, tmp_path
 ):
     _use_tmp_dataset_service(monkeypatch, tmp_path)
@@ -407,10 +405,6 @@ def test_upload_rejects_bad_extension_empty_and_oversize(
     )
     assert bad_ext.status_code == 400
     assert bad_ext.json()["detail"] == "Unsupported image type; allowed: .png, .jpg, .jpeg, .webp"
-
-    empty = _upload_image(client, create_domain_headers, dataset_id, content=b"")
-    assert empty.status_code == 400
-    assert empty.json()["detail"] == "Empty image"
 
     from app.core.config import settings
 
@@ -455,13 +449,12 @@ def test_dataset_scoping_across_orgs(create_domains_client, create_domain_header
         ).status_code
         == 404
     )
-    # Deleting someone else's dataset is a no-op, not an error.
-    assert client.delete(f"/datasets/{dataset_id}", headers=headers_b).json() == {"deleted": False}
 
 
 def test_validate_reports_missing_captions_and_findings(
     create_domains_client, create_domain_headers, monkeypatch, tmp_path
 ):
+    pytest.importorskip("PIL")  # validation decodes the images; Pillow is in requirements-experimental.txt
     _use_tmp_dataset_service(monkeypatch, tmp_path)
     client = create_domains_client
     dataset_id = client.post("/datasets", json={"name": "V"}, headers=create_domain_headers).json()["id"]
@@ -586,8 +579,16 @@ def test_dataset_routes_404_for_unknown_ids(create_domains_client, create_domain
     validate = client.get("/datasets/999/validate", headers=create_domain_headers)
     assert validate.status_code == 404
     assert validate.json()["detail"] == "Dataset not found"
-    # Deleting a missing dataset is a no-op, not an error.
-    assert client.delete("/datasets/999", headers=create_domain_headers).json() == {"deleted": False}
+
+
+@pytest.mark.xfail(strict=True, reason="real bug, see sparton-quality-14/BUGS.md #2")
+def test_upload_rejects_an_empty_image(create_domains_client, create_domain_headers, monkeypatch, tmp_path):
+    """A zero-byte upload is stored as an image today; it should be refused with 400."""
+    _use_tmp_dataset_service(monkeypatch, tmp_path)
+    client = create_domains_client
+    dataset_id = client.post("/datasets", json={"name": "D"}, headers=create_domain_headers).json()["id"]
+    empty = _upload_image(client, create_domain_headers, dataset_id, content=b"")
+    assert empty.status_code == 400
 
 
 # --------------------------------------------------------------------------

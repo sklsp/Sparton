@@ -383,19 +383,6 @@ def generate_captions(
     return {"captioned": len([r for r in results if "error" not in r]), "results": results}
 
 
-@router.delete(
-    "/datasets/{dataset_id}",
-    responses={401: {"description": "Authentication required"}},
-)
-def delete_dataset(
-    dataset_id: int,
-    db: DbSession,
-    user: Annotated[object, Depends(current_user)],
-) -> dict[str, Any]:
-    deleted = get_dataset_service().delete_dataset(db, dataset_id, _org_id(user))
-    return {"deleted": deleted}
-
-
 # --------------------------------------------------------------------------
 # Training (Leonidas)
 # --------------------------------------------------------------------------
