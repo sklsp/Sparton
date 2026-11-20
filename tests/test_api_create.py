@@ -588,3 +588,246 @@ def test_dataset_routes_404_for_unknown_ids(create_domains_client, create_domain
     assert validate.json()["detail"] == "Dataset not found"
     # Deleting a missing dataset is a no-op, not an error.
     assert client.delete("/datasets/999", headers=create_domain_headers).json() == {"deleted": False}
+
+
+# --------------------------------------------------------------------------
+# Training (app/api/create.py) — status, presets, hardware, preflight, projects
+# --------------------------------------------------------------------------
+
+
+class _FakeHardwareInfo:
+    """Stands in for HardwareInfo; the route only calls .to_dict()."""
+
+    def to_dict(self):
+        return {
+            "gpus": [
+                {
+                    "vendor": "nvidia",
+                    "name": "RTX 4090",
+                    "vram_total_mb": 24564,
+                    "vram_free_mb": 23000,
+                    "source": "fake",
+                },
+            ],
+            "primary_gpu": {
+                "vendor": "nvidia",
+                "name": "RTX 4090",
+                "vram_total_mb": 24564,
+                "vram_free_mb": 23000,
+                "source": "fake",
+            },
+            "accelerator": "cuda",
+            "cpu_name": "Fake CPU",
+            "cpu_cores": 16,
+            "ram_total_mb": 32768,
+            "ram_available_mb": 16384,
+            "disk_free_gb": 500.0,
+            "cuda_available": True,
+            "rocm_available": False,
+        }
+
+
+class _FakePreflightReport:
+    """Stands in for PreflightReport; the route only calls .to_dict()."""
+
+    def to_dict(self):
+        return {
+            "checks": [
+                {"name": "VRAM", "passed": True, "detail": "fits with room to spare", "severity": "info"},
+            ],
+            "verdict": "ok",
+            "summary": "Configuration looks safe for this machine.",
+            "recommendations": [],
+            "estimated_vram_mb": 6144,
+            "hardware": None,
+            "can_proceed": True,
+        }
+
+
+class _FakeAdvise:
+    """Stands in for advise(options); records the options it was called with."""
+
+    def __init__(self) -> None:
+        self.seen: list[dict] = []
+
+    def __call__(self, options):
+        self.seen.append(dict(options))
+        return _FakePreflightReport()
+
+
+class _FakeTrainingService:
+    """Stands in for LoRATrainingService; the routes call .status() and .presets()."""
+
+    def status(self):
+        return {
+            "configured": True,
+            "toolkit_path": "/opt/ai-toolkit",
+            "python": "/opt/ai-toolkit/.venv/bin/python",
+            "supported_archs": ["flux", "sdxl"],
+            "error": None,
+        }
+
+    def presets(self):
+        return [
+            {"id": "character", "steps": 2000, "learning_rate": 1e-4, "lora_rank": 32, "batch_size": 1},
+            {"id": "style", "steps": 3000, "learning_rate": 1e-4, "lora_rank": 16, "batch_size": 2},
+        ]
+
+
+def test_training_status_returns_service_status(create_domains_client, create_domain_headers, monkeypatch):
+    fake = _FakeTrainingService()
+    monkeypatch.setattr("app.api.create.LoRATrainingService", lambda: fake)
+    response = create_domains_client.get("/training/status", headers=create_domain_headers)
+    assert response.status_code == 200
+    assert response.json() == {
+        "configured": True,
+        "toolkit_path": "/opt/ai-toolkit",
+        "python": "/opt/ai-toolkit/.venv/bin/python",
+        "supported_archs": ["flux", "sdxl"],
+        "error": None,
+    }
+
+
+def test_training_presets_lists_service_presets(create_domains_client, create_domain_headers, monkeypatch):
+    fake = _FakeTrainingService()
+    monkeypatch.setattr("app.api.create.LoRATrainingService", lambda: fake)
+    response = create_domains_client.get("/training/presets", headers=create_domain_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert [preset["id"] for preset in body["presets"]] == ["character", "style"]
+    assert body["presets"][1] == {
+        "id": "style",
+        "steps": 3000,
+        "learning_rate": 1e-4,
+        "lora_rank": 16,
+        "batch_size": 2,
+    }
+
+
+def test_training_hardware_returns_detection_dict(create_domains_client, create_domain_headers, monkeypatch):
+    fake = _FakeHardwareInfo()
+    monkeypatch.setattr("app.api.create.detect_hardware", lambda: fake)
+    response = create_domains_client.get("/training/hardware", headers=create_domain_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["accelerator"] == "cuda"
+    assert body["primary_gpu"]["name"] == "RTX 4090"
+    assert body["gpus"][0]["vram_total_mb"] == 24564
+
+
+def test_preflight_passes_options_through_to_advise(create_domains_client, create_domain_headers, monkeypatch):
+    fake = _FakeAdvise()
+    monkeypatch.setattr("app.api.create.advise", fake)
+    options = {"steps": 2000, "batch_size": 1, "resolution": [1024, 1024]}
+    response = create_domains_client.post("/training/preflight", json=options, headers=create_domain_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert fake.seen == [options]
+    assert body["verdict"] == "ok"
+    assert body["can_proceed"] is True
+    assert body["checks"][0]["name"] == "VRAM"
+
+
+def test_preflight_rejects_non_dict_body(create_domains_client, create_domain_headers):
+    response = create_domains_client.post("/training/preflight", json=[1, 2], headers=create_domain_headers)
+    assert response.status_code == 422
+
+
+def test_training_project_create_and_list(
+    create_domains_client, create_domain_headers, monkeypatch, tmp_path, db_session
+):
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+
+    from app.core.database.creation_models import TrainingProject
+    from app.core.database.identity import User
+
+    _use_tmp_dataset_service(monkeypatch, tmp_path)
+    client = create_domains_client
+    user = db_session.execute(select(User).where(User.email == "admin@example.com")).scalar_one()
+
+    # A row created a day earlier must sort after the fresh one (created_at desc).
+    stale = TrainingProject(organization_id=user.organization_id, name="Stale", preset="character")
+    stale.created_at = datetime.now(UTC) - timedelta(days=1)
+    db_session.add(stale)
+    db_session.commit()
+
+    dataset_id = client.post("/datasets", json={"name": "Train set"}, headers=create_domain_headers).json()["id"]
+
+    created = client.post(
+        "/training/projects",
+        json={
+            "name": "Alpha",
+            "preset": "style",
+            "base_model": "black-forest-labs/FLUX.1-dev",
+            "dataset_id": dataset_id,
+        },
+        headers=create_domain_headers,
+    )
+    assert created.status_code == 201
+    body = created.json()
+    assert body["name"] == "Alpha"
+    assert isinstance(body["id"], int)
+
+    listing = client.get("/training/projects", headers=create_domain_headers)
+    assert listing.status_code == 200
+    listed = listing.json()
+    assert listed["count"] == 2
+    assert [project["name"] for project in listed["projects"]] == ["Alpha", "Stale"]
+
+    row = db_session.get(TrainingProject, body["id"])
+    assert row.preset == "style"
+    assert row.base_model == "black-forest-labs/FLUX.1-dev"
+    assert row.dataset_id == dataset_id
+    assert row.organization_id == user.organization_id
+    assert row.created_by == user.id
+
+
+def test_training_project_defaults(create_domains_client, create_domain_headers):
+    created = create_domains_client.post(
+        "/training/projects", json={"name": "Plain"}, headers=create_domain_headers
+    )
+    assert created.status_code == 201
+    listed = create_domains_client.get("/training/projects", headers=create_domain_headers).json()
+    project = next(p for p in listed["projects"] if p["id"] == created.json()["id"])
+    # No preset or base_model sent: schema default and the route's "" fallback.
+    assert project["preset"] == "character"
+
+
+def test_training_projects_scoped_to_org(create_domains_client, create_domain_headers):
+    client = create_domains_client
+    created = client.post("/training/projects", json={"name": "A only"}, headers=create_domain_headers)
+    assert created.status_code == 201
+
+    registered = client.post(
+        "/auth/register",
+        json={
+            "email": "user-b@example.com",
+            "password": "long-password-2",
+            "organization_name": "Org B",
+        },
+    )
+    assert registered.status_code == 201
+    headers_b = {"Authorization": f"Bearer {registered.json()['token']}"}
+
+    listed = client.get("/training/projects", headers=headers_b).json()
+    assert listed["count"] == 0
+
+
+def test_training_project_rejects_empty_name(create_domains_client, create_domain_headers):
+    response = create_domains_client.post(
+        "/training/projects", json={"name": ""}, headers=create_domain_headers
+    )
+    assert response.status_code == 422
+
+
+def test_training_routes_require_auth(create_domains_client):
+    """Every training route answers 401 without headers, not 404."""
+    client = create_domains_client
+    assert client.get("/training/status").status_code == 401
+    assert client.get("/training/presets").status_code == 401
+    assert client.get("/training/hardware").status_code == 401
+    assert client.post("/training/preflight", json={}).status_code == 401
+    assert client.post("/training/projects", json={"name": "x"}).status_code == 401
+    assert client.get("/training/projects").status_code == 401
