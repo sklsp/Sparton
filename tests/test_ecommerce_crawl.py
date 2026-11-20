@@ -220,6 +220,10 @@ class TestCrawlCompetitorBranches:
         # prices, one request per page, no HTML walk and no LLM. The winning
         # tier is stamped on the competitor so the UI can show which kind of
         # number the customer is looking at.
+        from app.ecommerce.feeds import shopfeed_available
+
+        if not shopfeed_available():  # the feed tier needs the optional shopfeed package (not in CI)
+            pytest.skip("shopfeed is not installed, so there is no feed tier")
         _allow_private(monkeypatch)
         competitor = db_session.get(Competitor, rival["id"])
 
