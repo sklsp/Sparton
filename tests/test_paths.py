@@ -1,19 +1,32 @@
 """Unit tests for the path-safety helpers in app.core.security.paths.
 
 Every browser-supplied filename and every user-built path goes through these
-two functions before it touches disk. A regression here is not cosmetic: it is
-either a file written outside its designated directory, or an upload name that
-becomes a Windows device name. The tests pin the promises in the docstrings of
-sanitize_filename and safe_join with literal values.
+two functions before it touches disk; the upload, safetensors and JSON helpers
+in the same module are tested here as well. A regression here is not cosmetic:
+it is either a file written outside its designated directory, or an upload name
+that becomes a Windows device name. The tests pin the promises in the
+docstrings of sanitize_filename and safe_join with literal values.
 """
 
 from __future__ import annotations
 
+import json
 import os
 
 import pytest
 
-from app.core.security.paths import UnsafePathError, safe_join, sanitize_filename
+from app.core.security.paths import (
+    UnsafePathError,
+    is_safetensors,
+    read_json,
+    safe_join,
+    sanitize_filename,
+    validate_image_upload,
+    write_json_atomic,
+)
+
+#: Five megabytes, the limit used by the upload size tests.
+MAX_BYTES = 5 * 1024 * 1024
 
 
 class TestSanitizeFilename:
@@ -142,3 +155,131 @@ class TestSafeJoin:
             pytest.skip(f"this OS refuses to create symlinks here: {exc}")
         with pytest.raises(UnsafePathError):
             safe_join(root, "link.txt")
+
+    def test_an_empty_component_raises(self, tmp_path):
+        root = tmp_path / "root"
+        root.mkdir()
+        with pytest.raises(UnsafePathError):
+            safe_join(root, "")
+
+
+class TestValidateImageUpload:
+    @pytest.mark.parametrize("extension", [".png", ".jpg", ".jpeg"])
+    def test_each_allowed_extension_is_accepted(self, extension):
+        assert validate_image_upload(f"photo{extension}", 1024, MAX_BYTES) == f"photo{extension}"
+
+    @pytest.mark.parametrize(
+        ("filename", "message"),
+        [
+            ("photo.gif", "Unsupported image type '.gif'. Allowed: .jpeg, .jpg, .png"),
+            # No extension at all: the message shows the name, not an empty string.
+            ("README", "Unsupported image type 'README'. Allowed: .jpeg, .jpg, .png"),
+        ],
+    )
+    def test_a_refused_extension_raises_with_the_allowed_list(self, filename, message):
+        with pytest.raises(ValueError) as excinfo:
+            validate_image_upload(filename, 1024, MAX_BYTES)
+        assert str(excinfo.value) == message
+
+    def test_an_empty_file_is_rejected(self):
+        with pytest.raises(ValueError) as excinfo:
+            validate_image_upload("photo.png", 0, MAX_BYTES)
+        assert str(excinfo.value) == "Uploaded file is empty"
+
+    def test_a_size_exactly_at_the_limit_is_accepted(self):
+        assert validate_image_upload("photo.png", MAX_BYTES, MAX_BYTES) == "photo.png"
+
+    def test_a_size_above_the_limit_raises_with_both_numbers(self):
+        with pytest.raises(ValueError) as excinfo:
+            validate_image_upload("photo.png", 6 * 1024 * 1024, MAX_BYTES)
+        assert str(excinfo.value) == "File is 6.0 MB; the limit is 5 MB"
+
+
+class TestIsSafetensors:
+    @staticmethod
+    def _header(payload: bytes) -> bytes:
+        # The format is an 8-byte little-endian length, then that many JSON bytes.
+        return len(payload).to_bytes(8, "little") + payload
+
+    def test_a_real_minimal_header_is_recognised(self, tmp_path):
+        path = tmp_path / "model.safetensors"
+        path.write_bytes(self._header(b'{"__metadata__": {"format": "pt"}}'))
+        assert is_safetensors(path) is True
+
+    def test_a_truncated_file_is_not_safetensors(self, tmp_path):
+        # Fewer than 8 bytes: not even a length field.
+        path = tmp_path / "model.safetensors"
+        path.write_bytes(b"\x02\x00")
+        assert is_safetensors(path) is False
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            # Declared header length of zero fails the 0 < length check.
+            (0).to_bytes(8, "little"),
+            # Declared length larger than the whole file.
+            (100).to_bytes(8, "little") + b"{}",
+            # Declared length above the sane ceiling even though the file is tiny.
+            (100_000_001).to_bytes(8, "little") + b"{}",
+        ],
+    )
+    def test_a_wrong_length_is_not_safetensors(self, tmp_path, data):
+        path = tmp_path / "model.safetensors"
+        path.write_bytes(data)
+        assert is_safetensors(path) is False
+
+    def test_json_that_is_not_an_object_is_not_safetensors(self, tmp_path):
+        path = tmp_path / "model.safetensors"
+        path.write_bytes(self._header(b"[1]"))
+        assert is_safetensors(path) is False
+
+    def test_a_missing_file_is_not_safetensors(self, tmp_path):
+        assert is_safetensors(tmp_path / "nope.safetensors") is False
+
+
+class TestWriteJsonAtomic:
+    def test_it_writes_the_payload(self, tmp_path):
+        target = tmp_path / "state.json"
+        write_json_atomic(target, {"a": 1})
+        assert json.loads(target.read_text(encoding="utf-8")) == {"a": 1}
+
+    def test_a_second_write_overwrites_the_first(self, tmp_path):
+        target = tmp_path / "state.json"
+        write_json_atomic(target, {"a": 1})
+        write_json_atomic(target, {"b": 2})
+        assert json.loads(target.read_text(encoding="utf-8")) == {"b": 2}
+
+    def test_no_temp_file_is_left_behind(self, tmp_path):
+        target = tmp_path / "state.json"
+        write_json_atomic(target, {"a": 1})
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["state.json"]
+
+    def test_missing_parent_folders_are_created(self, tmp_path):
+        target = tmp_path / "a" / "b" / "state.json"
+        write_json_atomic(target, {"ok": True})
+        assert json.loads(target.read_text(encoding="utf-8")) == {"ok": True}
+
+    def test_a_crash_during_the_write_leaves_no_temp_file(self, tmp_path):
+        class Boom:
+            def __str__(self):
+                raise RuntimeError("cannot serialize")
+
+        target = tmp_path / "state.json"
+        with pytest.raises(RuntimeError, match="cannot serialize"):
+            write_json_atomic(target, {"x": Boom()})
+        assert list(tmp_path.iterdir()) == []
+
+
+class TestReadJson:
+    def test_a_missing_file_gives_the_default(self, tmp_path):
+        assert read_json(tmp_path / "nope.json", {"d": 1}) == {"d": 1}
+
+    def test_broken_json_gives_the_default(self, tmp_path):
+        path = tmp_path / "state.json"
+        path.write_text("{not json", encoding="utf-8")
+        assert read_json(path, {"d": 1}) == {"d": 1}
+
+    def test_valid_json_is_returned_as_parsed(self, tmp_path):
+        path = tmp_path / "state.json"
+        path.write_text('{"a": [1, 2]}', encoding="utf-8")
+        assert read_json(path) == {"a": [1, 2]}
