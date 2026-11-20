@@ -1,3 +1,0 @@
-- [x] C1. tests: the agent runner (1455 passed, 16 skipped, 2 xfailed, 1 warning in 185.12s (0:03:05))
-- [x] C2. tests: the ecommerce crawl (1465 passed, 16 skipped, 2 xfailed, 1 warning in 185.83s (0:03:05))
-- [x] C3. tests: the commerce API (1511 passed, 16 skipped, 2 xfailed, 1 warning in 193.78s (0:03:13))
