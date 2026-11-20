@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
-from app.core.report_email import render_report_email
+from app.core.report_email import DOWN, INK, UP, _cells, _date, _money, _pct, render_report_email
 
 REPORT = {
     "period_start": "2026-09-24T00:00:00",
@@ -62,6 +63,90 @@ class TestContent:
     def test_no_images_so_nothing_is_lost_with_images_off(self):
         _, _, html = render_report_email(REPORT, CHANGES)
         assert "<img" not in html and "background-image" not in html
+
+
+class TestDate:
+    def test_a_datetime_is_used_as_is(self):
+        moment = datetime(2026, 10, 1)
+        assert _date(moment) is moment
+
+    def test_an_iso_string_is_parsed(self):
+        assert _date("2026-09-24T00:00:00") == datetime(2026, 9, 24)
+
+    @pytest.mark.parametrize("bad", ["not a date", "", None, 12345])
+    def test_bad_input_gives_none(self, bad):
+        assert _date(bad) is None
+
+
+class TestMoney:
+    @pytest.mark.parametrize(
+        ("value", "lang", "expected"),
+        [
+            (None, "en", ""),
+            (None, "nl", ""),
+            (0, "en", "€0.00"),
+            (0, "nl", "€ 0,00"),
+            (34, "en", "€34.00"),
+            (27.5, "en", "€27.50"),
+            (1121.95, "en", "€1,121.95"),
+            (27.5, "nl", "€ 27,50"),
+            (1121.95, "nl", "€ 1.121,95"),
+        ],
+    )
+    def test_money_is_formatted_per_language(self, value, lang, expected):
+        assert _money(value, lang) == expected
+
+
+class TestPct:
+    def test_a_rise_gets_a_plus_sign(self):
+        assert _pct({"delta_pct": 10.1}) == "+10%"
+
+    def test_a_cut_uses_the_typographic_minus(self):
+        assert _pct({"delta_pct": -19.1}) == "−19%"
+
+    def test_no_movement_is_shown_as_minus_zero(self):
+        assert _pct({"delta_pct": 0}) == "−0%"
+
+    def test_a_missing_delta_is_computed_from_the_prices(self):
+        assert _pct({"previous_price": 100, "new_price": 110}) == "+10%"
+
+    def test_no_delta_and_no_prices_gives_an_empty_string(self):
+        assert _pct({}) == ""
+
+
+class TestCells:
+    def test_a_price_cut_shows_both_prices_the_drop_and_red(self):
+        was, now, delta, colour = _cells(
+            {"kind": "price_decrease", "previous_price": 34, "new_price": 27.5, "delta_pct": -19.1}, "en")
+        assert (was, now, delta) == ("€34.00", "€27.50", "−19%")
+        assert colour is DOWN
+
+    def test_a_price_rise_is_green(self):
+        _, _, _, colour = _cells(
+            {"kind": "price_increase", "previous_price": 10, "new_price": 12, "delta_pct": 20}, "en")
+        assert colour is UP
+
+    @pytest.mark.parametrize(
+        ("kind", "word"),
+        [
+            ("out_of_stock", "sold out"),
+            ("back_in_stock", "back in stock"),
+            ("new_product", "new"),
+            ("removed_product", "removed"),
+        ],
+    )
+    def test_a_non_price_kind_shows_its_word(self, kind, word):
+        was, now, delta, colour = _cells({"kind": kind, "new_price": 59}, "en")
+        assert (was, now, delta) == ("", "€59.00", word)
+        assert colour is INK
+
+    def test_the_words_are_translated(self):
+        _, _, soldout, _ = _cells({"kind": "out_of_stock"}, "nl")
+        assert soldout == "uitverkocht"
+
+    def test_an_unknown_kind_has_no_word(self):
+        was, now, delta, _ = _cells({"kind": "mystery", "new_price": 5}, "en")
+        assert (was, now, delta) == ("", "€5.00", "")
 
 
 playwright_api = pytest.importorskip("playwright.sync_api")
