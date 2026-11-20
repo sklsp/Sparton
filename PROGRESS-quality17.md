@@ -1,3 +1,3 @@
 - [x] S1. tests: billing service helpers (1202 passed, 16 skipped, 1 xfailed, 1 warning in 175.77s (0:02:55))
-- [ ] S2. tests: billing webhook events
+- [x] S2. tests: billing webhook events (1229 passed, 16 skipped, 1 xfailed, 1 warning in 176.56s (0:02:56))
 - [ ] S3. tests: shop discovery
