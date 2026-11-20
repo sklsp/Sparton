@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 
 # One database file per process. Two pytest runs sharing a file collide on
 # CREATE TABLE and produce failures that look like product bugs but are pure
@@ -155,6 +156,36 @@ def _outbox_in_tmp(tmp_path, monkeypatch):
     monkeypatch.setattr("app.core.email.OUTBOX_DIR", tmp_path / "outbox")
 
 
+def _domain_client(domains: list[str], required_modules: tuple[str, ...]) -> Iterator[TestClient]:
+    """Shared body for the domain client fixtures.
+
+    Imports the routers the enabled domains need and skips when an experimental
+    extra is missing (see all_domains_client), then swaps settings.enabled_domains
+    around a fresh app so the same factory returns a different surface per test.
+    """
+    import importlib
+
+    from app.core.config import settings
+    from app.main import create_app
+
+    # The experimental routers need requirements-experimental.txt, which the
+    # product image and CI do not install (test_product_dependencies.py checks
+    # that they refuse to start without it). Without the extras these tests skip.
+    for name in required_modules:
+        try:
+            importlib.import_module(name)
+        except ImportError as exc:
+            pytest.skip(f"needs requirements-experimental.txt ({exc})")
+
+    saved = settings.enabled_domains
+    settings.enabled_domains = ",".join(domains)
+    try:
+        with TestClient(create_app()) as client:
+            yield client
+    finally:
+        settings.enabled_domains = saved
+
+
 @pytest.fixture()
 def all_domains_client(db_session, llm):
     """A client with every domain enabled.
@@ -165,36 +196,43 @@ def all_domains_client(db_session, llm):
     of the flag mechanism: the same app factory returns a different surface
     depending on configuration.
     """
-    from fastapi.testclient import TestClient
+    yield from _domain_client(
+        ["intelligence", "commerce", "agent", "research",
+         "documents", "generation", "datasets", "training"],
+        ("app.api.create", "app.api.knowledge"),
+    )
 
-    from app.core.config import settings
-    from app.main import create_app
 
-    # The experimental routers need requirements-experimental.txt, which the
-    # product image and CI do not install (test_product_dependencies.py checks
-    # that they refuse to start without it). Without the extras these tests skip.
-    try:
-        import app.api.create  # noqa: F401
-        import app.api.knowledge  # noqa: F401
-    except ImportError as exc:
-        pytest.skip(f"needs requirements-experimental.txt ({exc})")
+@pytest.fixture()
+def create_domains_client(db_session, llm):
+    """A client with the default domains plus generation / datasets / training.
 
-    saved = settings.enabled_domains
-    settings.enabled_domains = ",".join([
-        "intelligence", "commerce", "agent", "research",
-        "documents", "generation", "datasets", "training",
-    ])
-    try:
-        with TestClient(create_app()) as client:
-            yield client
-    finally:
-        settings.enabled_domains = saved
+    Unlike all_domains_client it does not enable documents: app.api.create alone
+    imports without numpy, so these routes are testable without
+    requirements-experimental.txt (docs/DECISIONS.md D-020).
+    """
+    yield from _domain_client(
+        ["intelligence", "commerce", "agent", "generation", "datasets", "training"],
+        ("app.api.create",),
+    )
 
 
 @pytest.fixture()
 def all_domain_headers(all_domains_client):
     """Auth headers for a fresh org, against the all-domains client."""
     response = all_domains_client.post(
+        "/auth/register",
+        json={"email": TEST_ADMIN_EMAIL, "password": "correct-horse-battery",
+              "organization_name": "Test Org"},
+    )
+    assert response.status_code == 201, response.text
+    return {"Authorization": f"Bearer {response.json()['token']}"}
+
+
+@pytest.fixture()
+def create_domain_headers(create_domains_client):
+    """Auth headers for a fresh org, against the create-domains client."""
+    response = create_domains_client.post(
         "/auth/register",
         json={"email": TEST_ADMIN_EMAIL, "password": "correct-horse-battery",
               "organization_name": "Test Org"},
