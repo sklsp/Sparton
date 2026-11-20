@@ -1,3 +1,0 @@
-- [x] P1. tests: filenames and safe_join (1076 passed, 18 skipped, 1 xfailed, 1 warning in 79.30s (0:01:19))
-- [x] P2. tests: uploads, safetensors and JSON files (1100 passed, 18 skipped, 1 xfailed, 1 warning in 80.20s (0:01:20))
-- [x] P3. tests: the report email's formatting (1171 passed, 16 skipped, 1 xfailed, 1 warning in 175.88s (0:02:55))
