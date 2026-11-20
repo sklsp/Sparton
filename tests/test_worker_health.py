@@ -114,6 +114,42 @@ class TestReadingABeat:
         client.get_raises = True
         assert hb.heartbeat_age(client, "host-a") is None
 
+    def test_no_client_reads_as_no_beat(self):
+        """No Redis at all is "we do not know", the same answer as a missing key."""
+        assert hb.heartbeat_age(None) is None
+        assert hb.heartbeat_is_fresh(None) is False
+
+
+class TestRedisClient:
+    """redis_client() builds the client the worker and healthcheck share."""
+
+    def test_returns_a_client_when_redis_is_configured(self, monkeypatch):
+        import redis as redis_pkg
+
+        from app.core.config import settings
+
+        # from_url does not connect; it only parses the URL.
+        monkeypatch.setattr(settings, "redis_url", "redis://localhost:6379/0")
+        client = hb.redis_client()
+        assert isinstance(client, redis_pkg.Redis)
+
+    def test_returns_none_when_the_redis_package_is_missing(self, monkeypatch):
+        """The except exists for exactly this: a deployment without the extra."""
+        import sys
+
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "redis_url", "redis://localhost:6379/0")
+        # A None entry in sys.modules makes `import redis` raise ImportError.
+        monkeypatch.setitem(sys.modules, "redis", None)
+        assert hb.redis_client() is None
+
+    def test_returns_none_when_redis_is_not_configured(self, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "redis_url", "")
+        assert hb.redis_client() is None
+
 
 class TestTheHealthcheckCommand:
     """`python -m workers.healthcheck` is what compose runs. These tests are
