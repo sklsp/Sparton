@@ -1,0 +1,3 @@
+- [x] B1. tests: usage and plans edge cases (1041 passed, 17 skipped, 1 xfailed, 1 warning in 79.92s (0:01:19))
+- [ ] B2. tests: checkout and the Stripe customer
+- [ ] B3. tests: portal and webhook leftovers
