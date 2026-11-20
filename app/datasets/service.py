@@ -133,6 +133,9 @@ class DatasetService:
         if dataset is None:
             raise DatasetError("Dataset not found", status_code=404)
 
+        if not content:
+            raise DatasetError("Empty image")
+
         from app.core.security.paths import sanitize_filename
 
         safe_name = sanitize_filename(filename, default="image.png")

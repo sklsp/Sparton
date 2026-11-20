@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import tempfile
 
 from app.generation.comfyui_client import ComfyUIError
@@ -291,3 +292,299 @@ def test_generation_routes_require_auth(create_domains_client):
     assert client.post("/comfyui/generate", json={}).status_code == 401
     assert client.get("/generated").status_code == 401
     assert client.get("/generated/img.png").status_code == 401
+
+
+# --------------------------------------------------------------------------
+# Datasets (app/api/create.py) — projects, images, captions, validation
+# --------------------------------------------------------------------------
+
+# A real 1x1 red PNG. The tests must pass with or without Pillow installed:
+# without it, dimension detection degrades to 0x0 and validation marks the image
+# invalid; with it, the image decodes fine. Assertions below avoid depending on
+# either outcome (Pillow is an experimental extra, not in requirements.txt).
+_PNG_1X1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGM4IScHAAK2AQU0pnWq"
+    "AAAAAElFTkSuQmCC"
+)
+
+
+def _use_tmp_dataset_service(monkeypatch, tmp_path):
+    """Point the dataset service at a temp dir so tests never write to ./data/loras."""
+    from app.datasets.service import DatasetService
+
+    monkeypatch.setattr(
+        "app.api.create.get_dataset_service",
+        lambda: DatasetService(str(tmp_path / "datasets")),
+    )
+
+
+def _upload_image(client, headers, dataset_id, filename="img1.png", content=_PNG_1X1):
+    return client.post(
+        f"/datasets/{dataset_id}/images",
+        files={"file": (filename, content, "image/png")},
+        headers=headers,
+    )
+
+
+def test_dataset_crud_lifecycle(create_domains_client, create_domain_headers, monkeypatch, tmp_path):
+    """Create -> upload -> caption -> delete image -> delete dataset, with disk checks."""
+    _use_tmp_dataset_service(monkeypatch, tmp_path)
+    client = create_domains_client
+
+    # Auth dependency fires before routing: 401, not 404.
+    assert client.get("/datasets").status_code == 401
+
+    created = client.post(
+        "/datasets",
+        json={"name": "Hero Set", "description": "product shots", "trigger_word": "zephyr"},
+        headers=create_domain_headers,
+    )
+    assert created.status_code == 201
+    dataset_id = created.json()["id"]
+    assert created.json()["name"] == "Hero Set"
+
+    upload = _upload_image(client, create_domain_headers, dataset_id)
+    assert upload.status_code == 201
+    image_id = upload.json()["id"]
+    assert upload.json()["filename"] == "img1.png"
+
+    # Files land under <root>/dataset_<id>/ with an empty .txt sidecar.
+    data_dir = tmp_path / "datasets" / f"dataset_{dataset_id}"
+    assert (data_dir / "img1.png").is_file()
+    assert (data_dir / "img1.txt").read_text(encoding="utf-8") == ""
+
+    # A duplicate filename is deduplicated with a _1 suffix.
+    dup = _upload_image(client, create_domain_headers, dataset_id)
+    assert dup.status_code == 201
+    assert dup.json()["filename"] == "img1_1.png"
+
+    images = client.get(f"/datasets/{dataset_id}/images", headers=create_domain_headers)
+    assert images.status_code == 200
+    body = images.json()
+    assert body["count"] == 2
+    first = next(i for i in body["images"] if i["id"] == image_id)
+    assert first["filename"] == "img1.png"
+    assert isinstance(first["width"], int) and isinstance(first["height"], int)
+
+    captioned = client.put(
+        f"/datasets/{dataset_id}/images/{image_id}/caption",
+        json={"caption": "  a red car, parked  "},
+        headers=create_domain_headers,
+    )
+    assert captioned.status_code == 200
+    assert captioned.json()["caption"] == "a red car, parked"
+    assert (data_dir / "img1.txt").read_text(encoding="utf-8") == "a red car, parked"
+
+    deleted = client.delete(
+        f"/datasets/{dataset_id}/images/{image_id}", headers=create_domain_headers
+    )
+    assert deleted.status_code == 200
+    assert deleted.json() == {"deleted": True}
+    assert not (data_dir / "img1.png").exists() and not (data_dir / "img1.txt").exists()
+
+    listing = client.get("/datasets", headers=create_domain_headers)
+    assert listing.status_code == 200
+    names = [d["name"] for d in listing.json()["datasets"]]
+    assert "Hero Set" in names
+
+    gone = client.delete(f"/datasets/{dataset_id}", headers=create_domain_headers)
+    assert gone.status_code == 200
+    assert gone.json() == {"deleted": True}
+    assert not data_dir.exists()
+
+
+def test_upload_rejects_bad_extension_empty_and_oversize(
+    create_domains_client, create_domain_headers, monkeypatch, tmp_path
+):
+    _use_tmp_dataset_service(monkeypatch, tmp_path)
+    client = create_domains_client
+    dataset_id = client.post("/datasets", json={"name": "D"}, headers=create_domain_headers).json()["id"]
+
+    bad_ext = client.post(
+        f"/datasets/{dataset_id}/images",
+        files={"file": ("notes.txt", b"hello", "text/plain")},
+        headers=create_domain_headers,
+    )
+    assert bad_ext.status_code == 400
+    assert bad_ext.json()["detail"] == "Unsupported image type; allowed: .png, .jpg, .jpeg, .webp"
+
+    empty = _upload_image(client, create_domain_headers, dataset_id, content=b"")
+    assert empty.status_code == 400
+    assert empty.json()["detail"] == "Empty image"
+
+    from app.core.config import settings
+
+    # ~52 bytes; the 66-byte PNG below exceeds it. max_image_upload_bytes is a
+    # computed property, so patch the underlying mb field instead.
+    monkeypatch.setattr(settings, "max_image_upload_mb", 0.00005)
+    oversize = _upload_image(client, create_domain_headers, dataset_id)
+    assert oversize.status_code == 413
+    assert "MB limit" in oversize.json()["detail"]
+
+
+def test_dataset_scoping_across_orgs(create_domains_client, create_domain_headers, monkeypatch, tmp_path):
+    """Datasets are org-scoped: a second organization cannot see or touch them."""
+    _use_tmp_dataset_service(monkeypatch, tmp_path)
+    client = create_domains_client
+
+    dataset_id = client.post("/datasets", json={"name": "A only"}, headers=create_domain_headers).json()["id"]
+    image_id = _upload_image(client, create_domain_headers, dataset_id).json()["id"]
+
+    registered = client.post(
+        "/auth/register",
+        json={
+            "email": "user-b@example.com",
+            "password": "long-password-2",
+            "organization_name": "Org B",
+        },
+    )
+    assert registered.status_code == 201
+    headers_b = {"Authorization": f"Bearer {registered.json()['token']}"}
+
+    listing = client.get("/datasets", headers=headers_b)
+    assert listing.status_code == 200
+    assert dataset_id not in [d["id"] for d in listing.json()["datasets"]]
+
+    assert client.get(f"/datasets/{dataset_id}/images", headers=headers_b).status_code == 404
+    assert _upload_image(client, headers_b, dataset_id).status_code == 404
+    assert (
+        client.put(
+            f"/datasets/{dataset_id}/images/{image_id}/caption",
+            json={"caption": "sneak"},
+            headers=headers_b,
+        ).status_code
+        == 404
+    )
+    # Deleting someone else's dataset is a no-op, not an error.
+    assert client.delete(f"/datasets/{dataset_id}", headers=headers_b).json() == {"deleted": False}
+
+
+def test_validate_reports_missing_captions_and_findings(
+    create_domains_client, create_domain_headers, monkeypatch, tmp_path
+):
+    _use_tmp_dataset_service(monkeypatch, tmp_path)
+    client = create_domains_client
+    dataset_id = client.post("/datasets", json={"name": "V"}, headers=create_domain_headers).json()["id"]
+    image_a = _upload_image(client, create_domain_headers, dataset_id, filename="a.png").json()
+    _upload_image(client, create_domain_headers, dataset_id, filename="b.png")
+
+    report = client.get(f"/datasets/{dataset_id}/validate", headers=create_domain_headers)
+    assert report.status_code == 200
+    body = report.json()
+    assert body["total_images"] == 2
+    assert body["captioned"] == 0
+    assert body["missing_captions"] == 2
+    assert body["issue_count"] >= 2
+    assert body["score"] < 100
+    kinds = {f["kind"] for f in body["findings"]}
+    assert "missing_caption" in kinds
+    assert all(set(f) == {"image_id", "filename", "kind", "detail"} for f in body["findings"])
+
+    # Captioning one image drops the missing-caption count.
+    client.put(
+        f"/datasets/{dataset_id}/images/{image_a['id']}/caption",
+        json={"caption": "a car"},
+        headers=create_domain_headers,
+    )
+    again = client.get(f"/datasets/{dataset_id}/validate", headers=create_domain_headers).json()
+    assert again["missing_captions"] == 1
+    assert again["captioned"] == 1
+
+
+class _VisionProvider:
+    """Minimal stand-in exposing only what generate_captions calls."""
+
+    name = "fake-vision"
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    def is_available(self) -> bool:
+        return True
+
+    def vision_complete(self, prompt: str, image_b64: str) -> str:
+        self.calls.append((prompt, image_b64))
+        return "red car, parked on street"
+
+
+def test_generate_captions_with_vision_provider(
+    create_domains_client, create_domain_headers, monkeypatch, tmp_path
+):
+    """Vision captions are stored with the trigger word prefixed; human captions win."""
+    from app.datasets.service import CAPTION_PROMPT
+
+    _use_tmp_dataset_service(monkeypatch, tmp_path)
+    fake = _VisionProvider()
+    monkeypatch.setattr("app.datasets.service.get_llm_provider", lambda: fake)
+    client = create_domains_client
+
+    dataset_id = client.post(
+        "/datasets", json={"name": "C", "trigger_word": "zephyr"}, headers=create_domain_headers
+    ).json()["id"]
+    image_id = _upload_image(client, create_domain_headers, dataset_id).json()["id"]
+
+    result = client.post(f"/datasets/{dataset_id}/captions", json={}, headers=create_domain_headers)
+    assert result.status_code == 200
+    body = result.json()
+    assert body["captioned"] == 1
+    entry = body["results"][0]
+    assert entry["id"] == image_id and "error" not in entry
+    expected_caption = "zephyr, red car, parked on street"
+    assert entry["caption"] == expected_caption
+
+    # The provider saw the caption prompt and the raw image bytes as base64.
+    assert fake.calls[0][0] == CAPTION_PROMPT
+    assert fake.calls[0][1] == base64.b64encode(_PNG_1X1).decode()
+
+    data_dir = tmp_path / "datasets" / f"dataset_{dataset_id}"
+    assert (data_dir / "img1.txt").read_text(encoding="utf-8") == expected_caption
+    listed = client.get(f"/datasets/{dataset_id}/images", headers=create_domain_headers).json()
+    assert listed["images"][0]["caption"] == expected_caption
+
+    # A human caption is not overwritten unless overwrite=true.
+    client.put(
+        f"/datasets/{dataset_id}/images/{image_id}/caption",
+        json={"caption": "my own words"},
+        headers=create_domain_headers,
+    )
+    skipped = client.post(f"/datasets/{dataset_id}/captions", json={}, headers=create_domain_headers)
+    assert skipped.json() == {"captioned": 0, "results": []}
+
+    forced = client.post(
+        f"/datasets/{dataset_id}/captions", json={"overwrite": True}, headers=create_domain_headers
+    )
+    assert forced.json()["captioned"] == 1
+
+
+def test_generate_captions_llm_error_per_image(
+    create_domains_client, create_domain_headers, monkeypatch, tmp_path
+):
+    """The deterministic test provider has no vision: errors are per-image, not fatal."""
+    _use_tmp_dataset_service(monkeypatch, tmp_path)
+    client = create_domains_client
+    dataset_id = client.post("/datasets", json={"name": "E"}, headers=create_domain_headers).json()["id"]
+    image_id = _upload_image(client, create_domain_headers, dataset_id).json()["id"]
+
+    result = client.post(f"/datasets/{dataset_id}/captions", json={}, headers=create_domain_headers)
+    assert result.status_code == 200
+    body = result.json()
+    assert body["captioned"] == 0
+    entry = body["results"][0]
+    assert entry["id"] == image_id
+    assert "caption" not in entry
+    assert entry["error"] == "test provider does not support vision"
+
+
+def test_dataset_routes_404_for_unknown_ids(create_domains_client, create_domain_headers, monkeypatch, tmp_path):
+    _use_tmp_dataset_service(monkeypatch, tmp_path)
+    client = create_domains_client
+
+    assert client.get("/datasets/999/images", headers=create_domain_headers).status_code == 404
+    assert (
+        client.post("/datasets/999/captions", json={}, headers=create_domain_headers).status_code == 404
+    )
+    validate = client.get("/datasets/999/validate", headers=create_domain_headers)
+    assert validate.status_code == 404
+    assert validate.json()["detail"] == "Dataset not found"
+    # Deleting a missing dataset is a no-op, not an error.
+    assert client.delete("/datasets/999", headers=create_domain_headers).json() == {"deleted": False}

@@ -185,7 +185,11 @@ def validate_dataset(
     """
     from io import BytesIO
 
-    from PIL import Image
+    try:
+        from PIL import Image
+    except ImportError:  # Pillow is an optional extra; degrade to caption-only checks.
+        Image = None
+        logger.info("[DATASET] Pillow not installed; pixel-level validation skipped")
 
     report = DatasetReport(total_images=len(images))
     widths: list[int] = []
@@ -208,6 +212,13 @@ def validate_dataset(
             )
         else:
             report.captioned += 1
+
+        if Image is None:
+            # No decoder available. The file was already accepted at upload, so
+            # count it valid and skip pixel-level checks rather than fabricate
+            # "invalid" findings for every image in a Pillow-less deployment.
+            report.valid_images += 1
+            continue
 
         try:
             content = read_bytes(image_id)
