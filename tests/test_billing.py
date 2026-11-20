@@ -27,6 +27,7 @@ from app.billing.plans import (
     check_crawl_frequency,
     check_shops,
     check_tokens,
+    counts,
     get_plan,
     usage_report,
 )
@@ -182,6 +183,12 @@ class TestEnforcement:
         assert report["plan"]["id"] == FREE
         assert set(report["used"]) == {"shops", "competitors", "daily_tokens"}
         assert report["remaining"]["shops"] == 1
+
+    def test_counts_without_an_organization_are_zero(self, db_session, org_id):
+        """`counts(None)` must not fall back to an unscoped query that would
+        count every shop in the table."""
+        seed_shops(db_session, org_id, 3)
+        assert counts(db_session, None) == {"shops": 0, "competitors": 0, "daily_tokens": 0}
 
 
 # ---------------------------------------------------------------------------
@@ -480,6 +487,31 @@ class TestWebhookEndpoint:
         )
         assert response.status_code == 413
 
+    def test_signed_but_unparseable_body_is_a_400(self, client, stripe_env):
+        """A valid signature does not make a non-JSON body an event."""
+        body = b"<html>not json</html>"
+        response = client.post(
+            "/stripe/webhook", content=body,
+            headers={"stripe-signature": sign(body)},
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Webhook body was not valid JSON"
+
+    def test_a_failed_event_is_a_500_so_stripe_retries(self, client, stripe_env,
+                                                        monkeypatch):
+        """A transient failure must not cost a customer the plan they paid for."""
+        def boom(db, event):
+            raise RuntimeError("database down")
+
+        monkeypatch.setattr("app.api.billing.handle_event", boom)
+        body = json.dumps(subscription_event("evt_fail", 1, "price_pro_123")).encode()
+        response = client.post(
+            "/stripe/webhook", content=body,
+            headers={"stripe-signature": sign(body)},
+        )
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Could not apply the event: database down"
+
 
 # ---------------------------------------------------------------------------
 # Billing API surface
@@ -569,6 +601,200 @@ class TestBillingApi:
                                json={"plan": "pro"})
         assert response.status_code == 200, response.text
         assert [(c["customer_id"], c["price_id"]) for c in calls] == [("cus_1", "price_pro_123")]
+
+    def test_usage_without_an_organization_returns_all_zeros(self, client, monkeypatch):
+        """A principal without an organization must not fall back to
+        `organization_id IS NULL`: that would return every unscoped usage row.
+        No org means no usage."""
+        from app.core.config import settings
+
+        # The machine principal is the only authenticated caller with
+        # organization_id=None; a real User always has one (NOT NULL).
+        monkeypatch.setattr(settings, "api_key", "test-machine-key")
+        response = client.get("/billing/usage", headers={"X-API-Key": "test-machine-key"})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert (body["days"], body["requests"], body["total_tokens"]) == (30, 0, 0)
+        assert body["estimated_cost_usd"] == 0.0
+        assert body["by_task"] == {} and body["by_model"] == {}
+
+    def test_usage_days_is_clamped_to_the_supported_window(self, client, auth_headers, monkeypatch):
+        """The route clamps `days` before querying: 0 becomes 1 and anything
+        above a year is cut to 365. The fake records what it actually got."""
+        from app.api import billing as billing_api
+
+        calls = []
+
+        def fake_usage_summary(db, organization_id, *, days=30):
+            calls.append(days)
+            return {"days": days, "requests": 1, "total_tokens": 2,
+                    "estimated_cost_usd": 0.0, "by_task": {}, "by_model": {}}
+
+        monkeypatch.setattr(billing_api, "usage_summary", fake_usage_summary)
+
+        low = client.get("/billing/usage?days=0", headers=auth_headers)
+        assert low.status_code == 200, low.text
+        high = client.get("/billing/usage?days=1000", headers=auth_headers)
+        assert high.status_code == 200, high.text
+
+        assert calls == [1, 365]
+
+    def test_invoices_without_an_organization_return_empty(self, client, db_session, monkeypatch):
+        """`organization_id IS NULL` would return every unscoped invoice in the
+        table; no organization must mean zero rows."""
+        from app.core.config import settings
+
+        db_session.add(Invoice(
+            organization_id=None, stripe_invoice_id="in_unscoped", status="paid",
+            amount_cents=1000, currency="eur",
+        ))
+        db_session.commit()
+
+        monkeypatch.setattr(settings, "api_key", "test-machine-key")
+        response = client.get("/billing/invoices", headers={"X-API-Key": "test-machine-key"})
+        assert response.status_code == 200, response.text
+        assert response.json() == {"count": 0, "invoices": []}
+
+    def test_invoices_list_the_callers_organization_newest_first(self, client, auth_headers, db_session):
+        from datetime import timedelta
+
+        org_id = db_session.execute(
+            select(User).where(User.email == "admin@example.com")
+        ).scalars().first().organization_id
+        now = utcnow()
+        db_session.add(Invoice(
+            organization_id=org_id, stripe_invoice_id="in_old", status="paid",
+            amount_cents=500, currency="eur", hosted_invoice_url="https://inv/old",
+            invoice_pdf="https://pdf/old", created_at=now - timedelta(days=30),
+        ))
+        db_session.add(Invoice(
+            organization_id=org_id, stripe_invoice_id="in_new", status="open",
+            amount_cents=2900, currency="eur", hosted_invoice_url="https://inv/new",
+            invoice_pdf="https://pdf/new", created_at=now - timedelta(days=1),
+        ))
+        db_session.commit()
+
+        response = client.get("/billing/invoices", headers=auth_headers)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["count"] == 2
+        assert [i["id"] for i in body["invoices"]] == ["in_new", "in_old"]
+        newest = body["invoices"][0]
+        assert (newest["status"], newest["amount_cents"], newest["currency"]) == ("open", 2900, "eur")
+        assert newest["url"] == "https://inv/new"
+        assert newest["pdf"] == "https://pdf/new"
+
+    def test_checkout_without_an_organization_is_rejected(self, client, monkeypatch):
+        """No organization means there is nowhere to attach a subscription."""
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "api_key", "test-machine-key")
+        response = client.post("/billing/checkout", headers={"X-API-Key": "test-machine-key"},
+                               json={"plan": "pro"})
+        assert response.status_code == 400
+        assert "No organization" in response.json()["detail"]
+
+    def test_checkout_is_refused_when_billing_is_disabled(self, client, auth_headers, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "billing_enabled", False)
+        response = client.post("/billing/checkout", headers=auth_headers, json={"plan": "pro"})
+        assert response.status_code == 503
+        assert "Billing is not enabled" in response.json()["detail"]
+
+    def test_checkout_is_refused_when_the_plan_price_is_missing(self, client, auth_headers, monkeypatch):
+        """Stripe configured but the plan's price env var empty: refuse loudly
+        instead of starting a session that cannot charge."""
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "billing_enabled", True)
+        monkeypatch.setattr(settings, "stripe_secret_key", "sk_test_fake")
+        monkeypatch.setattr(settings, "stripe_price_pro", None)
+        response = client.post("/billing/checkout", headers=auth_headers, json={"plan": "pro"})
+        assert response.status_code == 503
+        assert "No Stripe price is configured for the pro plan" in response.json()["detail"]
+
+    def test_checkout_creates_a_stripe_customer_and_subscription_row(
+        self, client, auth_headers, checkout_env, db_session, monkeypatch
+    ):
+        """A first-time buyer gets a Stripe customer made from the caller's
+        email and the org name, and a Subscription row that keeps its id so
+        later checkouts reuse it."""
+        org_id, calls = checkout_env
+        created = []
+
+        def fake_create_customer(self, email, name="", metadata=None):
+            created.append((email, name, metadata))
+            return "cus_new"
+
+        monkeypatch.setattr(StripeClient, "create_customer", fake_create_customer)
+
+        response = client.post("/billing/checkout", headers=auth_headers, json={"plan": "pro"})
+        assert response.status_code == 200, response.text
+        assert response.json() == {"url": "https://checkout.stripe.com/c/pay/cs_1", "plan": "pro"}
+
+        # The customer is built from the caller's email and the org name.
+        assert created == [("admin@example.com", "Test Org", {"organization_id": org_id})]
+        # ...and the checkout session is opened for that new customer.
+        assert [(c["customer_id"], c["price_id"]) for c in calls] == [("cus_new", "price_pro_123")]
+
+        db_session.expire_all()
+        row = db_session.execute(select(Subscription)).scalars().one()
+        # The row keeps the customer id; the plan stays free until the webhook (D-014).
+        assert row.stripe_customer_id == "cus_new"
+        assert row.plan == "free"
+        assert row.stripe_subscription_id is None
+
+    def test_checkout_reuses_an_existing_stripe_customer(
+        self, client, auth_headers, checkout_env, db_session, monkeypatch
+    ):
+        """A second checkout for the same org must not create another Stripe
+        customer: the id on the Subscription row wins."""
+        org_id, calls = checkout_env
+        db_session.add(Subscription(
+            organization_id=org_id, status=SubscriptionStatus.CANCELED,
+            stripe_customer_id="cus_1", stripe_subscription_id=None,
+        ))
+        db_session.commit()
+
+        def refuse(self, *args, **kwargs):
+            raise AssertionError("create_customer must not run for an existing customer")
+
+        monkeypatch.setattr(StripeClient, "create_customer", refuse)
+
+        response = client.post("/billing/checkout", headers=auth_headers, json={"plan": "pro"})
+        assert response.status_code == 200, response.text
+        assert [(c["customer_id"], c["price_id"]) for c in calls] == [("cus_1", "price_pro_123")]
+
+    def test_portal_returns_the_session_url_for_a_subscribed_organization(
+        self, client, auth_headers, db_session, monkeypatch
+    ):
+        """A customer with a Stripe id gets the Customer Portal URL to manage
+        payment and plan."""
+        from app.core.config import settings
+
+        org_id = client.get("/auth/me", headers=auth_headers).json()["organization_id"]
+        db_session.add(Subscription(
+            organization_id=org_id, status=SubscriptionStatus.ACTIVE,
+            stripe_customer_id="cus_1", stripe_subscription_id="sub_1",
+        ))
+        db_session.commit()
+
+        portal_calls = []
+
+        def fake_create_portal_session(self, *, customer_id, return_url):
+            portal_calls.append({"customer_id": customer_id, "return_url": return_url})
+            return "https://billing.stripe.com/p/session/ps_1"
+
+        monkeypatch.setattr(StripeClient, "create_portal_session", fake_create_portal_session)
+
+        response = client.post("/billing/portal", headers=auth_headers)
+        assert response.status_code == 200, response.text
+        assert response.json() == {"url": "https://billing.stripe.com/p/session/ps_1"}
+        assert portal_calls == [{
+            "customer_id": "cus_1",
+            "return_url": f"{settings.app_url.rstrip('/')}/app/?tab=billing",
+        }]
 
 
 # ---------------------------------------------------------------------------
