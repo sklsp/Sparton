@@ -1,0 +1,2 @@
+- [x] R1. tests: ecommerce reports (1272 passed, 16 skipped, 1 xfailed, 2 warnings in 179.79s (0:02:59))
+- [ ] R2. tests: research crawler
