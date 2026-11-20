@@ -487,6 +487,31 @@ class TestWebhookEndpoint:
         )
         assert response.status_code == 413
 
+    def test_signed_but_unparseable_body_is_a_400(self, client, stripe_env):
+        """A valid signature does not make a non-JSON body an event."""
+        body = b"<html>not json</html>"
+        response = client.post(
+            "/stripe/webhook", content=body,
+            headers={"stripe-signature": sign(body)},
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Webhook body was not valid JSON"
+
+    def test_a_failed_event_is_a_500_so_stripe_retries(self, client, stripe_env,
+                                                        monkeypatch):
+        """A transient failure must not cost a customer the plan they paid for."""
+        def boom(db, event):
+            raise RuntimeError("database down")
+
+        monkeypatch.setattr("app.api.billing.handle_event", boom)
+        body = json.dumps(subscription_event("evt_fail", 1, "price_pro_123")).encode()
+        response = client.post(
+            "/stripe/webhook", content=body,
+            headers={"stripe-signature": sign(body)},
+        )
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Could not apply the event: database down"
+
 
 # ---------------------------------------------------------------------------
 # Billing API surface
