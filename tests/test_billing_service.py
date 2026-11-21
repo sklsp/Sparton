@@ -13,6 +13,7 @@ values, so no fake client or HTTP transport is needed (unlike test_billing.py).
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from sqlalchemy import select
@@ -32,6 +33,7 @@ from app.billing.service import (
     mark_processed,
     plan_for_price,
 )
+from app.billing.stripe import StripeClient
 from app.core.database.billing_models import Invoice, StripeEvent, Subscription, SubscriptionStatus
 from app.core.database.ecommerce_models import Shop
 from app.core.database.identity import Organization
@@ -62,18 +64,21 @@ def stripe_prices(monkeypatch):
     return settings
 
 
-class FakeStripeClient:
+class FakeStripeClient(StripeClient):
     """A stand-in for StripeClient; maps subscription ids to canned objects.
 
     An id mapped to an Exception makes ``get_subscription`` raise it, which is
     how the fetch-failure paths are exercised without touching the network.
+    It subclasses the real client so it can be passed anywhere a StripeClient
+    is expected; only ``get_subscription`` is overridden, never any HTTP call.
     """
 
-    def __init__(self, by_id=None):
-        self.by_id = by_id or {}
+    def __init__(self, by_id: dict[str, Exception | dict[str, Any]] | None = None) -> None:
+        super().__init__()
+        self.by_id: dict[str, Exception | dict[str, Any]] = by_id or {}
         self.calls: list[str] = []
 
-    def get_subscription(self, subscription_id):
+    def get_subscription(self, subscription_id: str) -> dict[str, Any]:
         self.calls.append(subscription_id)
         response = self.by_id.get(subscription_id)
         if isinstance(response, Exception):
@@ -81,12 +86,14 @@ class FakeStripeClient:
         return response or {}
 
 
-def make_event(event_id: str, event_type: str, obj: dict) -> dict:
+def make_event(event_id: str, event_type: str, obj: dict[str, Any]) -> dict[str, Any]:
     """The shape of a Stripe webhook payload the service consumes."""
     return {"id": event_id, "type": event_type, "data": {"object": obj}}
 
 
-def sub_object(subscription_id="sub_1", price_id=None, status="active") -> dict:
+def sub_object(
+    subscription_id: str = "sub_1", price_id: str | None = None, status: str = "active"
+) -> dict[str, Any]:
     items = [{"price": {"id": price_id}}] if price_id else []
     return {
         "id": subscription_id,
@@ -285,6 +292,7 @@ class TestHandleEventCheckout:
         assert outcome == "checkout_completed"
         assert client.calls == ["sub_42"]
         row = get_subscription(db_session, org.id)
+        assert row is not None
         assert (row.plan, row.status, row.stripe_subscription_id) == (
             PRO,
             SubscriptionStatus.ACTIVE,
@@ -303,6 +311,7 @@ class TestHandleEventCheckout:
         )
         assert outcome == "checkout_completed"
         row = get_subscription(db_session, org.id)
+        assert row is not None
         assert (row.plan, row.stripe_subscription_id) == (BUSINESS, "sub_43")
 
     def test_a_fetch_failure_falls_back_to_the_event_copy(
@@ -320,6 +329,7 @@ class TestHandleEventCheckout:
         )
         assert outcome == "checkout_completed"
         row = get_subscription(db_session, org.id)
+        assert row is not None
         assert (row.plan, row.status) == (PRO, SubscriptionStatus.ACTIVE)
 
     def test_without_a_subscription_it_is_unmapped(self, db_session, org):
@@ -352,6 +362,7 @@ class TestHandleEventSubscription:
         )
         assert outcome == "created"
         row = get_subscription(db_session, org.id)
+        assert row is not None
         assert (row.plan, row.status) == (BUSINESS, SubscriptionStatus.ACTIVE)
 
     def test_updated_applies_the_live_copy_not_the_stale_event(
@@ -371,6 +382,7 @@ class TestHandleEventSubscription:
         )
         assert outcome == "updated"
         row = get_subscription(db_session, org.id)
+        assert row is not None
         assert row.plan == BUSINESS
 
     def test_deleted_downgrades_to_free(self, db_session, org, stripe_prices):
@@ -384,6 +396,7 @@ class TestHandleEventSubscription:
         )
         assert outcome == "subscription_deleted"
         row = get_subscription(db_session, org.id)
+        assert row is not None
         assert (row.plan, row.status) == (FREE, SubscriptionStatus.CANCELED)
         assert org.plan == FREE
 
@@ -411,6 +424,7 @@ class TestHandleEventSubscription:
         )
         assert outcome == "updated"
         row = get_subscription(db_session, org.id)
+        assert row is not None
         assert (row.plan, row.status) == (FREE, SubscriptionStatus.CANCELED)
 
     def test_an_ended_subscription_cannot_overwrite_a_newer_one(
@@ -436,6 +450,7 @@ class TestHandleEventSubscription:
         )
         assert outcome == "updated"
         row = get_subscription(db_session, org.id)
+        assert row is not None
         assert (row.plan, row.status, row.stripe_subscription_id) == (
             BUSINESS,
             SubscriptionStatus.ACTIVE,
@@ -503,6 +518,7 @@ class TestHandleEventInvoicesAndEdgeCases:
         )
         assert outcome == "duplicate"
         row = get_subscription(db_session, org.id)
+        assert row is not None
         assert (row.plan, row.status) == (PRO, SubscriptionStatus.ACTIVE)
 
     def test_a_failed_event_is_not_marked_processed(
