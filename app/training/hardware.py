@@ -11,6 +11,7 @@ import logging
 import shutil
 import subprocess  # noqa: S404 - only fixed-argv probes of known binaries
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -206,7 +207,7 @@ def _detect_ram() -> tuple[int | None, int | None]:
         pass
 
     try:
-        with open("/proc/meminfo", encoding="ascii") as handle:
+        with Path("/proc/meminfo").open(encoding="ascii") as handle:
             values = {}
             for line in handle:
                 key, _, rest = line.partition(":")
@@ -222,9 +223,7 @@ def _detect_ram() -> tuple[int | None, int | None]:
 
 
 def detect_disk_free_gb(path: str | None = None) -> float | None:
-    import os
-
-    target = path or os.getcwd()
+    target = path or Path.cwd()
     try:
         return round(shutil.disk_usage(target).free / (1024 ** 3), 1)
     except OSError:

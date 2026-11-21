@@ -83,10 +83,10 @@ def _write_json_atomic(path: Path, data: Any) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(data, handle)
-        os.replace(tmp_name, path)
+        Path(tmp_name).replace(path)
     finally:
-        if os.path.exists(tmp_name):
-            os.unlink(tmp_name)
+        if Path(tmp_name).exists():
+            Path(tmp_name).unlink()
 
 
 def validate_graph(graph: Any) -> dict[str, Any]:

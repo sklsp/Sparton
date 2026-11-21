@@ -8,6 +8,7 @@ listing, and a real availability check.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 import requests
@@ -475,7 +476,7 @@ class TestResponseHandling:
 def test_no_api_key_is_hardcoded_in_source():
     """Keys come from the environment, never from the repository."""
     for path in ("app/llm.py", "app/core/config.py"):
-        with open(path, encoding="utf-8") as handle:
+        with Path(path).open(encoding="utf-8") as handle:
             source = handle.read()
         assert "sk-or-" not in source, f"a literal OpenRouter key is in {path}"
         assert "sk-" not in source, f"a literal API key is in {path}"

@@ -17,7 +17,6 @@ why it cannot be a repository path.
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
@@ -60,7 +59,7 @@ def _is_path_candidate(span: str) -> bool:
     # repo root.
     if "/" in span and not re.search(r"\.[A-Za-z0-9]+$", span):
         first = span.split("/", 1)[0]
-        if first not in os.listdir(ROOT):
+        if first not in [p.name for p in ROOT.iterdir()]:
             return False
     return True
 
@@ -70,7 +69,7 @@ def _exists_in_repo(span: str) -> bool:
     target = ROOT / span
     if target.exists():
         return True
-    if "." not in os.path.basename(span):
+    if "." not in Path(span).name:
         return (ROOT / (span + ".py")).exists()
     return False
 
