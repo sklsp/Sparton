@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -27,8 +28,8 @@ ENV_EXAMPLE = ROOT / ".env.example"
 
 
 @pytest.fixture(scope="module")
-def compose() -> dict:
-    return yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+def compose() -> dict[str, Any]:
+    return cast("dict[str, Any]", yaml.safe_load(COMPOSE.read_text(encoding="utf-8")))
 
 
 @pytest.fixture(scope="module")

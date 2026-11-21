@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.auth.service import hash_password
 from app.core.database.identity import AuditLog, Organization, User
@@ -10,13 +11,10 @@ from app.core.database.identity import AuditLog, Organization, User
 ADMIN_EMAIL = "admin@example.com"
 
 
-def _org_id(db_session) -> int:
-    return (
-        db_session.execute(select(User).where(User.email == ADMIN_EMAIL))
-        .scalars()
-        .first()
-        .organization_id
-    )
+def _org_id(db_session: Session) -> int:
+    user = db_session.execute(select(User).where(User.email == ADMIN_EMAIL)).scalars().first()
+    assert user is not None
+    return user.organization_id
 
 
 def _seed_user(
@@ -44,7 +42,7 @@ def _seed_user(
     return user
 
 
-def _login(client, email: str, password: str = "correct-horse-battery") -> dict:
+def _login(client, email: str, password: str = "correct-horse-battery") -> dict[str, str]:
     response = client.post("/auth/login", json={"email": email, "password": password})
     assert response.status_code == 200, response.text
     return {"Authorization": f"Bearer {response.json()['token']}"}
@@ -204,12 +202,10 @@ class TestPatchUser:
         )
         assert response.status_code == 404
 
-    def _user(self, db_session) -> User:
-        return (
-            db_session.execute(select(User).where(User.email == ADMIN_EMAIL))
-            .scalars()
-            .first()
-        )
+    def _user(self, db_session: Session) -> User:
+        user = db_session.execute(select(User).where(User.email == ADMIN_EMAIL)).scalars().first()
+        assert user is not None
+        return user
 
     def test_demoting_the_last_admin_is_409(self, client, db_session, auth_headers):
         admin = self._user(db_session)

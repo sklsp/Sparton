@@ -26,7 +26,7 @@ from app.core.database.identity import Organization, User
 @pytest.fixture()
 def captured_mail(monkeypatch):
     """Record every ``send_rich`` call instead of delivering it."""
-    sent: list[dict] = []
+    sent: list[dict[str, str]] = []
 
     def fake_send_rich(to: str, subject: str, text: str, html: str) -> bool:
         sent.append({"to": to, "subject": subject, "text": text, "html": html})

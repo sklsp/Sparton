@@ -5,12 +5,13 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from app.core.report_email import DOWN, INK, UP, _cells, _date, _money, _pct, render_report_email
 
-REPORT = {
+REPORT: dict[str, Any] = {
     "period_start": "2026-09-24T00:00:00",
     "period_end": "2026-10-01T00:00:00",
     "facts": {
@@ -20,7 +21,7 @@ REPORT = {
         "competitors": [{"id": 1}, {"id": 2}],
     },
 }
-CHANGES = [
+CHANGES: list[dict[str, Any]] = [
     {"kind": "price_decrease", "competitor": "Kade & Co", "product": "Leather belt", "previous_price": 34,
      "new_price": 27.5, "delta_pct": -19.1, "evidence_url": "https://kade.example/products/belt"},
     {"kind": "price_increase", "competitor": "Noord Supply", "product": "Beard oil", "previous_price": 1018.95,

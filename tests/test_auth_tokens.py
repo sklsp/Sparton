@@ -8,9 +8,11 @@ scheduler's purge of used and old rows.
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import cast
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.auth import tokens
 from app.core.auth.service import hash_password
@@ -36,7 +38,7 @@ def _make_user(db_session, email="tok@example.com", is_active=True) -> User:
     return user
 
 
-def _row_for(db_session, token: str) -> AuthToken:
+def _row_for(db_session: Session, token: str) -> AuthToken:
     return db_session.execute(
         select(AuthToken).where(AuthToken.token_hash == tokens.hash_token(token))
     ).scalars().one()
@@ -109,7 +111,8 @@ class TestIsVerified:
         from app.core.config import settings
 
         monkeypatch.setattr(settings, "email_verification_required", True)
-        assert tokens.is_verified(object()) is False
+        # Deliberately not a User: is_verified must refuse principals without the field.
+        assert tokens.is_verified(cast(User, object())) is False
 
 
 class TestPurgeExpired:

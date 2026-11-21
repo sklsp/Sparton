@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 import requests
@@ -55,7 +56,7 @@ def completion(content="hello", usage=None, model="test/model"):
 def make_provider(**overrides):
     """A provider with a recording sleep, so backoff costs no wall time."""
     slept: list[float] = []
-    kwargs = {
+    kwargs: dict[str, Any] = {
         "base_url": "https://openrouter.ai/api/v1",
         "api_key": "sk-or-test-key",
         "model": "strong/model",
@@ -66,7 +67,7 @@ def make_provider(**overrides):
     }
     kwargs.update(overrides)
     provider = OpenAICompatibleProvider(**kwargs)
-    provider.slept = slept
+    provider.slept = slept  # type: ignore[attr-defined]  # test recorder attached to the provider instance
     return provider
 
 
@@ -77,7 +78,7 @@ def provider():
 
 def patch_request(monkeypatch, *responses):
     """Make requests.request return `responses` in order; record the calls."""
-    calls: list[dict] = []
+    calls: list[dict[str, object]] = []
     queue = list(responses)
 
     def fake_request(method, url, **kwargs):
@@ -98,7 +99,7 @@ class TestAttributionHeaders:
     def test_sends_referer_and_title(self, provider, monkeypatch):
         calls = patch_request(monkeypatch, FakeResponse(200, completion()))
         provider.complete([{"role": "user", "content": "hi"}])
-        headers = calls[0]["headers"]
+        headers = cast("dict[str, str]", calls[0]["headers"])
         assert headers["HTTP-Referer"] == "https://sparton.test"
         assert headers["X-Title"] == "Sparton Intelligence"
         assert headers["Authorization"] == "Bearer sk-or-test-key"
@@ -199,7 +200,7 @@ class TestTimeouts:
     def test_passes_connect_and_read_budgets(self, provider, monkeypatch):
         calls = patch_request(monkeypatch, FakeResponse(200, completion()))
         provider.complete([{"role": "user", "content": "x"}])
-        connect, read = calls[0]["timeout"]
+        connect, read = cast("tuple[float, float]", calls[0]["timeout"])
         assert connect <= 10.0, "a black-holed host must fail fast"
         assert read == provider.timeout
 
@@ -305,17 +306,13 @@ class TestUsageAccounting:
         import app.core.database.usage_models as usage_module
 
         patch_request(monkeypatch, FakeResponse(200, completion()))
-        original = usage_module.LLMUsage
 
         class Exploding:
             def __init__(self, **kwargs):
                 raise RuntimeError("database is down")
 
-        usage_module.LLMUsage = Exploding
-        try:
-            assert provider.complete([{"role": "user", "content": "x"}]) == "hello"
-        finally:
-            usage_module.LLMUsage = original
+        monkeypatch.setattr(usage_module, "LLMUsage", Exploding)
+        assert provider.complete([{"role": "user", "content": "x"}]) == "hello"
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +325,7 @@ class TestModelRouting:
     def test_explicit_model_overrides(self, provider, monkeypatch):
         calls = patch_request(monkeypatch, FakeResponse(200, completion()))
         provider.complete([{"role": "user", "content": "x"}], model="cheap/model")
-        assert calls[0]["json"]["model"] == "cheap/model"
+        assert cast("dict[str, object]", calls[0]["json"])["model"] == "cheap/model"
 
     def test_records_the_model_actually_used(self, provider, monkeypatch, db_session):
         from sqlalchemy import select
@@ -344,7 +341,7 @@ class TestModelRouting:
         provider.complete(
             [{"role": "user", "content": "x"}], max_tokens=512, response_format_json=True
         )
-        body = calls[0]["json"]
+        body = cast("dict[str, object]", calls[0]["json"])
         assert body["max_tokens"] == 512
         assert body["response_format"] == {"type": "json_object"}
 

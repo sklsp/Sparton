@@ -39,7 +39,7 @@ def _changed_share(a, b) -> float:
         return 1.0
     diff = ImageChops.difference(a.convert("RGB"), b.convert("RGB")).convert("L")
     noisy = sum(diff.histogram()[24:])  # ignore sub-10% channel differences (anti-aliasing)
-    return noisy / (a.size[0] * a.size[1])
+    return float(noisy) / float(a.size[0] * a.size[1])
 
 
 @pytest.mark.parametrize("name, path, needs", PAGES)

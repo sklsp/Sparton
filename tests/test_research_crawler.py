@@ -16,6 +16,7 @@ throttle being removed).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from decimal import Decimal
 from urllib.parse import urlparse
 
@@ -52,7 +53,7 @@ def resolved_to(monkeypatch: pytest.MonkeyPatch, mapping: dict[str, str]) -> Non
 
 
 def make_crawler(
-    handler,
+    handler: Callable[[str, httpx.Request], httpx.Response],
     *,
     delay_seconds: float = 0.0,
     max_retries: int = 0,
@@ -185,7 +186,7 @@ class TestThePolitenessDelay:
 
     def test_the_second_request_to_a_host_waits_for_the_interval(self, monkeypatch: pytest.MonkeyPatch):
         sleep = RecordingSleep()
-        monkeypatch.setattr(crawler_mod.time, "sleep", sleep)
+        monkeypatch.setattr("app.research.crawler.time.sleep", sleep)
         crawler = make_crawler(handler_200, delay_seconds=5.0)
         try:
             crawler._throttle("https://a.test/one")  # first hit on the host: no wait
@@ -202,7 +203,7 @@ class TestThePolitenessDelay:
         """Robots.txt and the page share a host, so the page request is the second hit."""
         resolved_to(monkeypatch, {"polite.test": "93.184.216.34"})
         sleep = RecordingSleep()
-        monkeypatch.setattr(crawler_mod.time, "sleep", sleep)
+        monkeypatch.setattr("app.research.crawler.time.sleep", sleep)
 
         def handler(url: str, request: httpx.Request) -> httpx.Response:
             if url.endswith("/robots.txt"):
@@ -223,7 +224,7 @@ class TestRetriesAndBackoff:
         resolved_to(monkeypatch, {"flaky.test": "93.184.216.34"})
         page_calls = 0
         sleep = RecordingSleep()
-        monkeypatch.setattr(crawler_mod.time, "sleep", sleep)
+        monkeypatch.setattr("app.research.crawler.time.sleep", sleep)
 
         def handler(url: str, request: httpx.Request) -> httpx.Response:
             nonlocal page_calls
@@ -242,7 +243,7 @@ class TestRetriesAndBackoff:
     def test_a_timeout_is_retried_the_same_way(self, monkeypatch: pytest.MonkeyPatch):
         resolved_to(monkeypatch, {"slow.test": "93.184.216.34"})
         sleep = RecordingSleep()
-        monkeypatch.setattr(crawler_mod.time, "sleep", sleep)
+        monkeypatch.setattr("app.research.crawler.time.sleep", sleep)
 
         def handler(url: str, request: httpx.Request) -> httpx.Response:
             if url.endswith("/robots.txt"):
@@ -258,7 +259,7 @@ class TestRetriesAndBackoff:
     def test_an_error_status_is_retried(self, monkeypatch: pytest.MonkeyPatch):
         resolved_to(monkeypatch, {"down.test": "93.184.216.34"})
         sleep = RecordingSleep()
-        monkeypatch.setattr(crawler_mod.time, "sleep", sleep)
+        monkeypatch.setattr("app.research.crawler.time.sleep", sleep)
 
         def handler(url: str, request: httpx.Request) -> httpx.Response:
             if url.endswith("/robots.txt"):
@@ -275,7 +276,7 @@ class TestRetriesAndBackoff:
         resolved_to(monkeypatch, {"flaky.test": "93.184.216.34"})
         attempts = 0
         sleep = RecordingSleep()
-        monkeypatch.setattr(crawler_mod.time, "sleep", sleep)
+        monkeypatch.setattr("app.research.crawler.time.sleep", sleep)
 
         def handler(url: str, request: httpx.Request) -> httpx.Response:
             nonlocal attempts

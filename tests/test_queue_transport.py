@@ -3,6 +3,7 @@
 import fnmatch
 import json
 import math
+from typing import Any, cast
 
 import pytest
 import redis as redis_module
@@ -14,6 +15,7 @@ from app.core.jobs.transport import (
     DELAYED_KEY,
     PROCESSING_KEY,
     QUEUE_KEY,
+    Handler,
     InlineQueueBackend,
     RedisQueueBackend,
     get_backend,
@@ -137,7 +139,7 @@ class UnreachableFakeRedis(FakeRedis):
 @pytest.fixture()
 def handlers(monkeypatch):
     """A fresh handler registry so registrations never leak between tests."""
-    registry = {}
+    registry: dict[str, Handler] = {}
     monkeypatch.setattr(transport, "_handlers", registry)
     return registry
 
@@ -151,7 +153,7 @@ def clock(monkeypatch):
 
 @pytest.fixture()
 def redis_backend(clock):
-    return RedisQueueBackend(FakeRedis())
+    return RedisQueueBackend(cast(redis_module.Redis, FakeRedis()))
 
 
 @pytest.fixture()
@@ -180,8 +182,11 @@ def test_register_handler_makes_get_handler_return_it(handlers):
 
 
 def test_register_handler_overwrites_an_existing_type(handlers):
-    first = lambda p: 1  # noqa: E731
-    second = lambda p: 2  # noqa: E731
+    def first(payload: dict[str, Any]) -> None:
+        return None
+
+    def second(payload: dict[str, Any]) -> None:
+        return None
 
     register_handler("crawl_shop", first)
     register_handler("crawl_shop", second)
@@ -219,7 +224,10 @@ def test_inline_enqueue_records_entry_without_a_handler(handlers):
 def test_inline_claim_returns_none_and_never_delivers():
     backend = InlineQueueBackend()
 
-    assert backend.claim("worker-1", timeout_seconds=0) is None
+    # claim() is typed -> None, so "returns nothing" is a type-level guarantee;
+    # assert the observable half instead: it delivers no jobs.
+    backend.claim("worker-1", timeout_seconds=0)
+    assert backend.executed == []
 
 
 def test_inline_depth_reports_zero_counters():
@@ -511,7 +519,7 @@ def test_redis_ping_is_true_when_client_reachable(redis_backend):
 
 
 def test_redis_ping_is_false_when_client_raises():
-    backend = RedisQueueBackend(UnreachableFakeRedis())
+    backend = RedisQueueBackend(cast(redis_module.Redis, UnreachableFakeRedis()))
 
     assert backend.ping() is False
 
@@ -530,7 +538,7 @@ def test_get_backend_returns_inline_backend_without_redis_url(process_backend, m
 
 
 def test_get_backend_builds_redis_backend_when_url_configured(process_backend, monkeypatch):
-    fake = FakeRedis()
+    fake = cast(redis_module.Redis, FakeRedis())
     captured = {}
 
     def from_url(url, **kwargs):

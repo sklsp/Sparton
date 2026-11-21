@@ -28,7 +28,7 @@ def test_rag_quarantine_works_with_the_default_directory(monkeypatch, tmp_path):
 
     monkeypatch.setattr(settings, "rag_dir", str(tmp_path))
     (tmp_path / "meta.json").write_text("{}", encoding="utf-8")
-    rag = RAGService(embedding_client=object())
+    rag = RAGService()  # default EmbeddingClient(): cheap to construct, backend resolves lazily
     assert isinstance(rag.persist_dir, Path)
     rag._quarantine_files()
     assert not (tmp_path / "meta.json").exists()

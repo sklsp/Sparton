@@ -7,12 +7,13 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import cast
 
 WEB = Path(__file__).resolve().parent.parent / "app" / "web"
 
 
 def _load(lang: str) -> dict[str, str]:
-    return json.loads((WEB / "i18n" / f"{lang}.json").read_text(encoding="utf-8"))
+    return cast("dict[str, str]", json.loads((WEB / "i18n" / f"{lang}.json").read_text(encoding="utf-8")))
 
 
 def test_every_key_exists_in_both_languages():

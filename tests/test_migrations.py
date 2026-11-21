@@ -21,7 +21,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
-def _alembic(db_path: Path, *args: str) -> subprocess.CompletedProcess:
+def _alembic(db_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env = {
         **os.environ,
         "DATABASE_URL": f"sqlite:///{db_path}",

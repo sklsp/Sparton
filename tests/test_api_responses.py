@@ -85,7 +85,7 @@ def _routes_by_operation(app):
     def walk(entries):
         for route in entries:
             if isinstance(route, APIRoute):
-                for method in route.methods - {"HEAD"}:
+                for method in (route.methods or set()) - {"HEAD"}:
                     routes[(method.upper(), route.path)] = route
             elif hasattr(route, "original_router"):
                 walk(route.original_router.routes)

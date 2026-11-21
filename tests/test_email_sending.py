@@ -5,13 +5,22 @@ from __future__ import annotations
 import re
 import smtplib
 from email import message_from_string
+from email.message import EmailMessage
 from email.policy import default as email_default_policy
 from pathlib import Path
+from typing import TypedDict
 
 import pytest  # kept for future skip/xfail use in this file
 
 import app.core.email as em
 from app.core.config import settings
+
+
+class _SmtpCalls(TypedDict):
+    ctor: list[dict[str, object]]
+    starttls: int
+    login: list[tuple[str, str]]
+    sent: list[EmailMessage]
 
 
 def _outbox_files(tmp_path) -> list[Path]:
@@ -21,7 +30,7 @@ def _outbox_files(tmp_path) -> list[Path]:
 
 def install_fake_smtp(monkeypatch, *, ctor_error=None, send_error=None):
     """Replace smtplib.SMTP with a recorder and return the recorded calls."""
-    calls = {"ctor": [], "starttls": 0, "login": [], "sent": []}
+    calls: _SmtpCalls = {"ctor": [], "starttls": 0, "login": [], "sent": []}
 
     class FakeSMTP:
         def __init__(self, host, port=None, timeout=None):

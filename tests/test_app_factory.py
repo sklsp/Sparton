@@ -40,7 +40,8 @@ def _install_fake_worker(monkeypatch: pytest.MonkeyPatch, log: list[str]) -> Non
     def make() -> _FakeEmbeddedWorker:
         return _FakeEmbeddedWorker(log)
 
-    fake.EmbeddedWorker = make
+    # raising=False: the fake module is fresh, so the attribute does not exist yet.
+    monkeypatch.setattr(fake, "EmbeddedWorker", make, raising=False)
     monkeypatch.setitem(sys.modules, "workers.embedded", fake)
 
 
