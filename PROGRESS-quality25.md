@@ -1,2 +1,2 @@
 - [x] V1. typing: tests join mypy, small files first (1608 passed, 16 skipped, 2 xfailed, 1 warning in 198.74s (0:03:18))
-- [ ] V2. typing: four middle files
+- [x] V2. typing: four middle files (1608 passed, 16 skipped, 2 xfailed, 1 warning in 198.84s (0:03:18))

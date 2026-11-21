@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import tempfile
+from typing import Any
 
 import pytest
 
@@ -29,9 +30,9 @@ class FakeComfyUI:
             {"filename": "img.png", "size_bytes": 9, "created_at": "2026-01-01T00:00:00"},
         ]
         self.image_bytes = b"png-bytes"
-        self.calls: dict[str, object] = {}
+        self.calls: dict[str, Any] = {}
 
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return self.status_result
 
     def list_workflows(self):
@@ -98,7 +99,7 @@ def test_comfyui_status_maps_comfyui_error(create_domains_client, create_domain_
     def status():
         raise ComfyUIError("ComfyUI unreachable", status_code=502)
 
-    fake.status = status
+    fake.status = status  # type: ignore[method-assign]  # tests rebind the fake's method per case
     _use_fake(monkeypatch, fake)
     response = create_domains_client.get("/comfyui/status", headers=create_domain_headers)
     assert response.status_code == 502
@@ -139,7 +140,7 @@ def test_import_workflow_rejects_bad_graph(create_domains_client, create_domain_
     def save_workflow(name, graph, description="", arch="generic", inputs=None):
         raise WorkflowError("Workflow must be a non-empty JSON object")
 
-    fake.save_workflow = save_workflow
+    fake.save_workflow = save_workflow  # type: ignore[method-assign]  # tests rebind the fake's method per case
     _use_fake(monkeypatch, fake)
     response = create_domains_client.post(
         "/comfyui/workflows",
@@ -189,7 +190,7 @@ def test_validate_generation_passes_non_null_params(create_domains_client, creat
 def test_generate_queues_a_job(create_domains_client, create_domain_headers, monkeypatch):
     fake = FakeComfyUI()
     _use_fake(monkeypatch, fake)
-    enqueued: dict[str, object] = {}
+    enqueued: dict[str, Any] = {}
 
     class Job:
         id = 7
@@ -224,7 +225,7 @@ def test_generate_unknown_workflow_404(create_domains_client, create_domain_head
     def build_graph(workflow_id, params):
         raise WorkflowError("Workflow 'nope' not found", status_code=404)
 
-    fake.build_graph = build_graph
+    fake.build_graph = build_graph  # type: ignore[method-assign]  # tests rebind the fake's method per case
     _use_fake(monkeypatch, fake)
     response = create_domains_client.post(
         "/comfyui/generate",
@@ -276,7 +277,7 @@ def test_read_missing_generated_404(create_domains_client, create_domain_headers
     def read_generated(filename):
         raise WorkflowError("Image 'missing.png' not found", status_code=404)
 
-    fake.read_generated = read_generated
+    fake.read_generated = read_generated  # type: ignore[method-assign]  # tests rebind the fake's method per case
     _use_fake(monkeypatch, fake)
     response = create_domains_client.get("/generated/missing.png", headers=create_domain_headers)
     assert response.status_code == 404
@@ -649,7 +650,7 @@ class _FakeAdvise:
     """Stands in for advise(options); records the options it was called with."""
 
     def __init__(self) -> None:
-        self.seen: list[dict] = []
+        self.seen: list[dict[str, object]] = []
 
     def __call__(self, options):
         self.seen.append(dict(options))

@@ -13,10 +13,11 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import Numeric
+from sqlalchemy import Float, Numeric
 
 from app.core.database.ecommerce_models import (
     ChangeEvent,
+    ChangeKind,
     Competitor,
     CompetitorProduct,
 )
@@ -52,15 +53,16 @@ class TestTheColumnsAreFixedPoint:
 
     def test_the_scale_holds_four_decimal_places(self):
         for model, column in MONEY_COLUMNS:
-            assert model.__table__.columns[column].type.scale == 4, (
-                f"{model.__tablename__}.{column} scale"
-            )
+            column_type = model.__table__.columns[column].type
+            assert isinstance(column_type, Numeric)
+            assert column_type.scale == 4, f"{model.__tablename__}.{column} scale"
 
     def test_a_percentage_column_is_still_a_float(self):
         """delta_pct is a ratio, not money. Four decimal places of a percentage
         is precision nobody asked for, and it would be a misleading claim."""
         column_type = ChangeEvent.__table__.columns["delta_pct"].type
         assert type(column_type).__name__ == "Float", type(column_type).__name__
+        assert isinstance(column_type, Float)  # narrows for the asdecimal check below
         assert column_type.asdecimal is not True
 
 
@@ -78,7 +80,9 @@ class TestTheCaptureBoundary:
         from app.ecommerce.crawl import as_money
 
         # 0.1 + 0.2 != 0.3 in binary floating point. This is the whole reason.
-        assert (as_money(0.1) + as_money(0.2)) == as_money(0.3)
+        one, two, three = as_money(0.1), as_money(0.2), as_money(0.3)
+        assert one is not None and two is not None and three is not None
+        assert (one + two) == three
         assert as_money(0.45) == Decimal("0.45")
 
     @pytest.mark.parametrize(
@@ -141,27 +145,14 @@ class TestTheDatabaseRoundTrip:
 
 class TestChangeArithmetic:
     def test_a_price_drop_computes_in_decimal(self):
-        from app.ecommerce.changes import ChangeKind, diff_captures
+        from app.ecommerce.changes import diff_captures
 
-        class Row:
-            def __init__(self, price, **kw):
-                self.price = price
-                self.id = 1
-                self.name = "Kettle"
-                self.source_url = "https://shop.test/k"
-                self.currency = "EUR"
-                self.normalized_name = "kettle"
-                self.available = True
-                self.in_stock = True
-                self.variant_count = 1
-                self.data_source = "feed"
-                self.captured_at = None
-                self.compare_at_price = None
-                for k, v in kw.items():
-                    setattr(self, k, v)
-
+        # Real models, not stand-ins: only the fields diff_captures reads matter,
+        # and unset Mapped columns are None until flush -- exactly what a fresh
+        # capture looks like before it is committed.
         changes = diff_captures(
-            Row(Decimal("24.99"), available=True), Row(Decimal("19.99"), available=True)
+            CompetitorProduct(price=Decimal("24.99")),
+            CompetitorProduct(price=Decimal("19.99")),
         )
         assert len(changes) == 1
         change = changes[0]
@@ -175,7 +166,7 @@ class TestChangeArithmetic:
         coercion at the capture boundary should make it impossible, and if it
         ever regresses the failure should be loud."""
         with pytest.raises(TypeError):
-            Decimal("1.00") + 0.5
+            Decimal("1.00") + 0.5  # type: ignore[operator]  # the TypeError is exactly what this test pins down
 
 
 class TestTheMigration:
