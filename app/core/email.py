@@ -109,7 +109,7 @@ def _write_to_outbox(message: EmailMessage, to: str, subject: str) -> None:
         path = outbox_path(to, subject)
         path.write_text(message.as_string(), encoding="utf-8")
         logger.info("SMTP not configured; wrote %r to %s", subject, path)
-    except OSError as exc:  # noqa: BLE001 - a failed outbox write must not raise
+    except OSError as exc:  # a failed outbox write must not raise
         logger.warning("Could not write to the outbox: %s", exc)
 
 

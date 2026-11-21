@@ -86,12 +86,12 @@ def errors(*codes: int) -> Responses:
 __all__ = [
     "BAD_REQUEST",
     "CONFLICT",
-    "ErrorResponse",
     "FORBIDDEN",
     "NOT_FOUND",
     "PAYMENT_REQUIRED",
     "TOO_LARGE",
     "TOO_MANY_REQUESTS",
     "UNAUTHORIZED",
+    "ErrorResponse",
     "errors",
 ]

@@ -7,7 +7,7 @@ Three modules, deliberately separate:
 * ``service``, the webhook handler, which is the *only* writer of paid plans.
 """
 
-from app.billing.plans import (  # noqa: F401
+from app.billing.plans import (
     BUSINESS,
     DEFAULT_PLAN,
     FREE,

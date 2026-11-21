@@ -173,7 +173,7 @@ class ToolRegistry:
             result = tool.fn(ctx, params)
         except ToolError:
             raise
-        except Exception as exc:  # noqa: BLE001 - deliberate boundary
+        except Exception as exc:  # deliberate boundary
             logger.exception("Tool '%s' raised", name)
             raise ToolError(f"{name} failed: {exc}") from exc
 

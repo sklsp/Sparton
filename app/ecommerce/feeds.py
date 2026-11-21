@@ -88,7 +88,7 @@ def source_label(source: str) -> str:
 def shopfeed_available() -> bool:
     """True when the feed reader can be used. Never raises."""
     try:
-        import shopfeed.catalog  # noqa: F401
+        import shopfeed.catalog
         import shopfeed.jsonld  # noqa: F401
 
         return True
@@ -280,7 +280,7 @@ def read_feed_catalog(
             max_products=max_products,
             sitemap_pages=0,
         )
-    except Exception as exc:  # noqa: BLE001 - a competitor must not fail the week
+    except Exception as exc:  # a competitor must not fail the week
         logger.info("Feed read failed for %s: %s", url, exc)
         return FeedResult([], SOURCE_HTML, error=str(exc)[:200])
     finally:
@@ -333,7 +333,7 @@ def read_jsonld_products(
         return []
     try:
         raw = shopfeed_jsonld.products_from_html(html, url)
-    except Exception as exc:  # noqa: BLE001 - broken JSON-LD is common, not fatal
+    except Exception as exc:  # broken JSON-LD is common, not fatal
         logger.info("JSON-LD read failed for %s: %s", url, exc)
         return []
     return [
@@ -344,11 +344,11 @@ def read_jsonld_products(
 
 
 __all__ = [
-    "FeedResult",
     "SOURCE_FEED",
     "SOURCE_HTML",
     "SOURCE_JSONLD",
     "SOURCE_LABELS",
+    "FeedResult",
     "read_feed_catalog",
     "read_jsonld_products",
     "shopfeed_available",

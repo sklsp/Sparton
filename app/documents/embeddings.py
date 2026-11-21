@@ -92,7 +92,7 @@ class EmbeddingClient:
         for backend, fn in attempts:
             try:
                 vectors = fn(texts)
-            except Exception as exc:  # noqa: BLE001, any failure falls through
+            except Exception as exc:  # any failure falls through
                 logger.warning("Embedding backend %s unavailable (%s).", backend, exc)
                 continue
             self._backend = backend

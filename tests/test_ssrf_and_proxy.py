@@ -451,7 +451,7 @@ class TestConfiguredModelsStillExist:
         retired = ("claude-3.5-sonnet", "gemini-2.0-flash-001", "claude-3.5-haiku")
         assignment = re.compile(r"""^[ \t]*(?:\w+[ \t]*:[^=\n]*)?=[ \t]*["\x27]([^"\x27]+)["\x27]""", re.M)
         offenders = []
-        for path in list((ROOT / "app").rglob("*.py")) + [ROOT / ".env.example"]:
+        for path in [*(ROOT / "app").rglob("*.py"), ROOT / ".env.example"]:
             for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
                 if line.lstrip().startswith("#"):
                     continue  # A comment is allowed to name what it replaced.

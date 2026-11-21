@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from html.parser import HTMLParser
+from typing import ClassVar
 
 import pytest
 
@@ -79,7 +80,7 @@ class TestCanonicalMatchesSitemap:
 class TestSocialCardImage:
     """Link previews can only load an image from the site's full address."""
 
-    PAGES = ["/", "/pricing", "/faq", "/vs/prisync",
+    PAGES: ClassVar[list[str]] = ["/", "/pricing", "/faq", "/vs/prisync",
              "/nl/prisync-alternatief", "/nl/concurrentieprijzen-shopify",
              "/nl/concurrentieprijzen-woocommerce-lightspeed"]
 
@@ -111,7 +112,7 @@ class TestSocialCardImage:
 class TestPageStructure:
     """Every public page: one h1, a title, a description, lang and alt on every img."""
 
-    PAGES = ["/", "/pricing", "/faq", "/vs/prisync",
+    PAGES: ClassVar[list[str]] = ["/", "/pricing", "/faq", "/vs/prisync",
              "/nl/prisync-alternatief", "/nl/concurrentieprijzen-shopify",
              "/nl/concurrentieprijzen-woocommerce-lightspeed",
              "/legal/privacy", "/legal/terms", "/legal/dpa"]

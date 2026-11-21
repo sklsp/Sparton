@@ -166,7 +166,7 @@ class DatasetService:
 
             with Image.open(BytesIO(content)) as img:
                 width, height = img.size
-        except Exception:  # noqa: BLE001, dimensions are advisory
+        except Exception:  # dimensions are advisory
             pass
 
         row = DatasetImage(

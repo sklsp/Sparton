@@ -209,7 +209,7 @@ class RAGService:
         store = self._store
         if store is None:
             return
-        for chunk in store._chunks:  # noqa: SLF001, same-package access
+        for chunk in store._chunks:  # same-package access
             entry = self._versions.setdefault(
                 chunk.doc_id,
                 {"hash": "", "chunks": 0, "filename": chunk.filename},

@@ -267,14 +267,14 @@ class TestLanguageErrors:
 
 
 __all__ = [
-    "TestRegisterErrors",
+    "TestChangePasswordErrors",
+    "TestForgotPasswordErrors",
+    "TestLanguageErrors",
     "TestLoginErrors",
     "TestLogoutErrors",
-    "TestVerificationErrors",
-    "TestForgotPasswordErrors",
-    "TestResetPasswordErrors",
-    "TestChangePasswordErrors",
     "TestMachinePrincipalErrors",
-    "TestLanguageErrors",
+    "TestRegisterErrors",
+    "TestResetPasswordErrors",
+    "TestVerificationErrors",
 ]
 

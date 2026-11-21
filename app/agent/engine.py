@@ -195,7 +195,7 @@ class AgentEngine:
         except LLMError as exc:
             logger.warning("Run %s failed on LLM error: %s", run.id, exc)
             return self._fail(run, str(exc))
-        except Exception as exc:  # noqa: BLE001 - never let a run kill the API
+        except Exception as exc:  # never let a run kill the API
             logger.exception("Run %s crashed", run.id)
             return self._fail(run, f"Unexpected error: {exc}")
 

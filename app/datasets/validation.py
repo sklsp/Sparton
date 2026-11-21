@@ -218,7 +218,7 @@ def validate_dataset(
                 pixel_hash = _pixel_sha256(image)
                 phash = _perceptual_hash(image)
                 color = _mean_color(image)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.info("[DATASET] %s failed to decode: %s", filename, exc)
             report.findings.append(ImageFinding(image_id, filename, "invalid", str(exc)[:120]))
             continue

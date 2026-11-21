@@ -61,7 +61,7 @@ class EmbeddedWorker:
         while not self._stop.is_set():
             try:
                 worked = self._work_once()
-            except Exception:  # noqa: BLE001, the poll loop must outlive any job
+            except Exception:  # the poll loop must outlive any job
                 logger.exception("Embedded worker poll failed")
                 worked = False
             if not worked:
@@ -91,7 +91,7 @@ class EmbeddedWorker:
                 observe("worker_job_duration_seconds", time.monotonic() - started)
                 logger.info("Job %s (%s) finished in %.1fs", job_id, job_type,
                             time.monotonic() - started)
-            except Exception as exc:  # noqa: BLE001, one bad job must not stop the worker
+            except Exception as exc:  # one bad job must not stop the worker
                 inc("worker_jobs_total", outcome="failed")
                 logger.exception("Job %s (%s) failed", job_id, job_type)
                 db.expire_all()

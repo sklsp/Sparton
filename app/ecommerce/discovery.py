@@ -267,7 +267,7 @@ def suggest_competitors(
     owns = search is None
     try:
         urls = provider.search(search_query, limit=cap * 3)
-    except Exception as exc:  # noqa: BLE001, a search outage is not an error
+    except Exception as exc:  # a search outage is not an error
         logger.warning("Competitor search failed for %s: %s", shop.domain, exc)
         return []
     finally:

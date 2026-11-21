@@ -15,7 +15,7 @@ imported inside the feature-flag branches in `app/main.py` instead.
 """
 
 from app.api import (  # noqa: F401
-    admin as admin_api,  # noqa: F401
+    admin as admin_api,
     agent_api,
     auth,
     ecommerce,

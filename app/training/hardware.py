@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import shutil
-import subprocess  # noqa: S404 - only fixed-argv probes of known binaries
+import subprocess  # only fixed-argv probes of known binaries
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -87,7 +87,7 @@ def _detect_via_comfyui(base_url: str, timeout: float = 3.0) -> list[GPUInfo]:
     try:
         response = requests.get(f"{base_url.rstrip('/')}/system_stats", timeout=timeout)
         devices = response.json().get("devices", [])
-    except Exception:  # noqa: BLE001 - ComfyUI simply not running
+    except Exception:  # ComfyUI simply not running
         return []
 
     gpus: list[GPUInfo] = []
@@ -117,7 +117,7 @@ def _detect_via_nvidia_smi() -> list[GPUInfo]:
     if shutil.which("nvidia-smi") is None:
         return []
     try:
-        result = subprocess.run(  # noqa: S603 - fixed argv, no shell
+        result = subprocess.run(  # fixed argv, no shell
             ["nvidia-smi",
              "--query-gpu=name,memory.total,memory.free",
              "--format=csv,noheader,nounits"],
@@ -187,7 +187,7 @@ def _detect_cpu() -> tuple[str | None, int | None]:
 
         name = platform.processor() or None
         cores = os.cpu_count()
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
     return name, cores
 
@@ -203,7 +203,7 @@ def _detect_ram() -> tuple[int | None, int | None]:
         )
     except ImportError:
         pass
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
     try:

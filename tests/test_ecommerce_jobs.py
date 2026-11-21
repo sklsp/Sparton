@@ -171,7 +171,7 @@ def test_fail_never_raises_even_if_the_session_is_broken(job_id):
 
 
 def test_crawl_shop_crawls_every_active_competitor_and_writes_totals(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    shop, a, b, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="crawl_shop", organization_id=7)
     record = _record()
     _stub_crawl(monkeypatch, record, rematch_result=4)
@@ -213,7 +213,7 @@ def test_crawl_shop_crawls_every_active_competitor_and_writes_totals(db_session,
 
 
 def test_crawl_shop_without_changes_does_not_queue_a_report(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    shop, _, _, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="crawl_shop", organization_id=7)
     record = _record()
     _stub_crawl(monkeypatch, record, captures_written=1, changes=0)
@@ -229,7 +229,7 @@ def test_crawl_shop_without_changes_does_not_queue_a_report(db_session, monkeypa
 
 
 def test_crawl_shop_scopes_explicit_competitor_ids_to_the_tenant(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    shop, a, _, other_org = _seed_world(db_session)
     job_id = _make_job(db_session, type="crawl_shop", organization_id=7)
     record = _record()
     _stub_crawl(monkeypatch, record)
@@ -278,7 +278,7 @@ def test_crawl_shop_ignores_a_payload_for_a_missing_job(db_session, monkeypatch)
 
 
 def test_crawl_shop_failure_fails_the_job_and_reraises(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    shop, _, _, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="crawl_shop", organization_id=7)
     record = _record()
     _stub_crawl(monkeypatch, record, crawl_error=RuntimeError("site on fire"))
@@ -296,7 +296,7 @@ def test_crawl_shop_failure_fails_the_job_and_reraises(db_session, monkeypatch):
 
 
 def test_crawl_shop_survives_a_broken_own_catalogue_read(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    shop, _, _, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="crawl_shop", organization_id=7)
     record = _record()
     _stub_crawl(monkeypatch, record, own_error=ValueError("no feed"))
@@ -310,7 +310,7 @@ def test_crawl_shop_survives_a_broken_own_catalogue_read(db_session, monkeypatch
 
 
 def test_crawl_shop_survives_a_broken_rematch(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    shop, _, _, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="crawl_shop", organization_id=7)
     record = _record()
     _stub_crawl(monkeypatch, record, rematch_error=ValueError("no pairs"))
@@ -328,7 +328,7 @@ def test_crawl_shop_survives_a_broken_rematch(db_session, monkeypatch):
 
 
 def test_crawl_one_competitor_completes_with_the_outcome_dict(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    shop, a, _, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="crawl_competitor", organization_id=7)
     record = _record()
     _stub_crawl(monkeypatch, record, rematch_result=3)
@@ -394,7 +394,7 @@ def test_crawl_one_competitor_refuses_a_competitor_without_an_organization(db_se
 
 
 def test_crawl_one_competitor_failure_fails_the_job_and_reraises(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    _, a, _, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="crawl_competitor", organization_id=7)
     record = _record()
     _stub_crawl(monkeypatch, record, crawl_error=RuntimeError("boom"))
@@ -455,7 +455,7 @@ def _stub_reports(monkeypatch, record, *, report=None, error=None):
 
 
 def test_generate_report_job_writes_a_weekly_report_and_emails_the_digest(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    shop, a, b, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="generate_report", organization_id=7)
     record = {"digests": []}
     _stub_reports(monkeypatch, record)
@@ -481,7 +481,7 @@ def test_generate_report_job_writes_a_weekly_report_and_emails_the_digest(db_ses
 
 
 def test_generate_report_job_non_weekly_kind_skips_the_digest(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    shop, _, _, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="generate_report", organization_id=7)
     record = {"digests": []}
     _stub_reports(monkeypatch, record)
@@ -495,7 +495,7 @@ def test_generate_report_job_non_weekly_kind_skips_the_digest(db_session, monkey
 
 
 def test_generate_report_job_without_a_shop_covers_the_whole_tenant(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    _, a, b, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="generate_report", organization_id=7)
     record = {"digests": []}
     _stub_reports(monkeypatch, record)
@@ -513,7 +513,7 @@ def test_generate_report_job_without_a_shop_covers_the_whole_tenant(db_session, 
 
 
 def test_generate_report_job_failure_fails_the_job_and_reraises(db_session, monkeypatch):
-    shop, a, b, other_org = _seed_world(db_session)
+    shop, _, _, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="generate_report", organization_id=7)
     record = {"digests": []}
     _stub_reports(monkeypatch, record, error=RuntimeError("no data"))

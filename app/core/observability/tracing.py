@@ -65,7 +65,7 @@ def configure_tracing() -> bool:
             endpoint or "(none, spans local)",
         )
         return True
-    except Exception as exc:  # noqa: BLE001 - tracing must never break serving
+    except Exception as exc:  # tracing must never break serving
         logger.warning("OpenTelemetry unavailable (%s); continuing without traces", exc)
         return False
 
@@ -75,7 +75,7 @@ def _service_version() -> str:
         from app import __version__
 
         return __version__
-    except Exception:  # noqa: BLE001
+    except Exception:
         return "unknown"
 
 
@@ -121,7 +121,7 @@ def get_tracer() -> Tracer | _NullTracer:
             from opentelemetry import trace
 
             _tracer = trace.get_tracer("sparton")
-        except Exception:  # noqa: BLE001
+        except Exception:
             return _NullTracer()
     return _tracer
 

@@ -351,7 +351,7 @@ class ComfyUIService:
         ``progress(fraction, message)`` and ``cancelled() -> bool`` hooks let
         the shared job runner report status and honor cancellation.
         """
-        graph, seed = self.build_graph(workflow_id, params)
+        graph, _ = self.build_graph(workflow_id, params)
         if progress:
             progress(0.05, "Submitting to ComfyUI")
 

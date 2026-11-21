@@ -288,7 +288,7 @@ async def stripe_webhook(
 
     try:
         outcome = handle_event(db, event)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         # 500 so Stripe retries: a transient failure must not cost a customer
         # the plan they paid for.
         raise HTTPException(

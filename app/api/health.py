@@ -43,7 +43,7 @@ def ready() -> dict[str, Any] | Response:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return {"status": "ready"}
-    except Exception:  # noqa: BLE001
+    except Exception:
         return Response(status_code=503)
 
 
@@ -56,7 +56,7 @@ def health(user: Annotated[object, Depends(current_user)]) -> dict[str, Any]:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         db_ok = True
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
     llm = get_llm_provider()

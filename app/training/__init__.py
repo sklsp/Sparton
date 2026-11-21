@@ -12,10 +12,10 @@ from app.training.service import (
 
 __all__ = [
     "ARCH_DEFAULTS",
+    "TRAINING_PRESETS",
     "AIToolkitProcess",
     "HardwareInfo",
     "PreflightReport",
-    "TRAINING_PRESETS",
     "TrainingError",
     "advise",
     "build_training_config",

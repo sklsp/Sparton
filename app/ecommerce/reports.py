@@ -464,7 +464,7 @@ def generate_report(
         report.completed_at = utcnow()
         report.error = None
         inc("reports_total", outcome="completed")
-    except Exception as exc:  # noqa: BLE001, the deterministic report stands on its own
+    except Exception as exc:  # the deterministic report stands on its own
         logger.warning("Report generation fell back to deterministic text: %s", exc)
         report.status = ReportStatus.COMPLETED
         report.error = f"AI narrative unavailable: {exc}"[:500]
@@ -573,7 +573,7 @@ def send_weekly_digest(db: Session, report: Report) -> bool:
         logger.info("Weekly digest sent for shop %s report %s to %s (%s)",
                     report.shop_id, report.id, recipient.email, lang)
         return True
-    except Exception:  # noqa: BLE001 -- best-effort by contract (D-032)
+    except Exception:  # best-effort by contract (D-032)
         db.rollback()
         logger.exception("Weekly digest failed for shop %s report %s",
                          report.shop_id, getattr(report, "id", "?"))
@@ -614,12 +614,12 @@ __all__ = [
     "WEEK_DAYS",
     "build_facts",
     "build_prompt",
-    "report_language",
-    "system_prompt",
     "collect_changes",
     "generate_report",
     "period_bounds",
     "render_facts",
+    "report_language",
     "report_to_dict",
     "send_weekly_digest",
+    "system_prompt",
 ]

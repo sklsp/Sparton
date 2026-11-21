@@ -551,7 +551,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 db.commit()
             finally:
                 db.close()
-        except Exception as exc:  # noqa: BLE001, never fail a request over accounting
+        except Exception as exc:  # never fail a request over accounting
             logger.warning("Could not record LLM usage: %s", exc)
 
     # ------------------------------------------------------------------

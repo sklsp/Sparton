@@ -441,7 +441,7 @@ def crawl_competitor(
             dedupe_products([p for r in results for p in r.products]),
         )
 
-    except Exception as exc:  # noqa: BLE001, one competitor must not fail the week
+    except Exception as exc:  # one competitor must not fail the week
         logger.exception("Crawl failed for %s", competitor.domain)
         outcome.status = CrawlStatus.FAILED
         outcome.error = str(exc)[:500]
@@ -484,7 +484,7 @@ def _finish(
         competitor.last_crawled_at = utcnow()
         competitor.product_count = max(competitor.product_count, outcome.captures_written)
         db.commit()
-    except Exception:  # noqa: BLE001
+    except Exception:
         db.rollback()
         logger.warning("Could not record crawl outcome for %s", competitor.domain)
     return outcome
