@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from types import SimpleNamespace
+from typing import TypedDict
 
 import pytest
 from sqlalchemy import select
@@ -126,6 +127,7 @@ def test_load_job_skips_finished_jobs(db_session, status):
 def test_load_job_returns_the_open_session_for_a_queued_job(db_session):
     job_id = _make_job(db_session, type="crawl_shop")
     db, job = jobs._load_job({"job_id": str(job_id)})
+    assert db is not None and job is not None  # a queued job returns the session and its row
     try:
         assert job.id == job_id
         assert job.status == JobStatus.QUEUED.value
@@ -164,7 +166,7 @@ def test_fail_never_raises_even_if_the_session_is_broken(job_id):
         def get(self, model, pk):
             raise RuntimeError("db gone")
 
-    jobs._fail(BrokenSession(), SimpleNamespace(id=job_id), ValueError("original"))
+    jobs._fail(BrokenSession(), SimpleNamespace(id=job_id), ValueError("original"))  # type: ignore[arg-type]  # a broken session and a non-Job row are the point of this test
 
 
 # --- crawl_shop -----------------------------------------------------------------
@@ -419,7 +421,7 @@ def test_crawl_one_competitor_ignores_a_payload_for_a_missing_job(db_session, mo
 
 
 def test_generate_report_job_ignores_a_payload_without_a_job_id(db_session, monkeypatch):
-    record = {"digests": []}
+    record: _ReportRecord = {"digests": []}
     _stub_reports(monkeypatch, record)
 
     jobs.generate_report_job({"shop_id": 1})
@@ -431,7 +433,20 @@ def test_generate_report_job_ignores_a_payload_without_a_job_id(db_session, monk
 # --- generate_report_job ----------------------------------------------------------
 
 
-def _stub_reports(monkeypatch, record, *, report=None, error=None):
+class _GenerateCall(TypedDict):
+    organization_id: int
+    shop: int | None
+    competitor_ids: list[int]
+    days: int
+    kind: str
+
+
+class _ReportRecord(TypedDict, total=False):
+    digests: list[int]
+    generate: _GenerateCall
+
+
+def _stub_reports(monkeypatch, record: _ReportRecord, *, report=None, error=None):
     report = report or SimpleNamespace(id=55, status="ready")
 
     def fake_generate(db, *, organization_id, shop=None, competitors=None, days=7, kind="weekly", **kwargs):
@@ -457,7 +472,7 @@ def _stub_reports(monkeypatch, record, *, report=None, error=None):
 def test_generate_report_job_writes_a_weekly_report_and_emails_the_digest(db_session, monkeypatch):
     shop, a, b, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="generate_report", organization_id=7)
-    record = {"digests": []}
+    record: _ReportRecord = {"digests": []}
     _stub_reports(monkeypatch, record)
 
     jobs.generate_report_job({"job_id": str(job_id), "shop_id": shop.id})
@@ -483,7 +498,7 @@ def test_generate_report_job_writes_a_weekly_report_and_emails_the_digest(db_ses
 def test_generate_report_job_non_weekly_kind_skips_the_digest(db_session, monkeypatch):
     shop, _, _, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="generate_report", organization_id=7)
-    record = {"digests": []}
+    record: _ReportRecord = {"digests": []}
     _stub_reports(monkeypatch, record)
 
     jobs.generate_report_job({"job_id": str(job_id), "shop_id": shop.id, "days": 30, "kind": "monthly"})
@@ -497,7 +512,7 @@ def test_generate_report_job_non_weekly_kind_skips_the_digest(db_session, monkey
 def test_generate_report_job_without_a_shop_covers_the_whole_tenant(db_session, monkeypatch):
     _, a, b, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="generate_report", organization_id=7)
-    record = {"digests": []}
+    record: _ReportRecord = {"digests": []}
     _stub_reports(monkeypatch, record)
 
     jobs.generate_report_job({"job_id": str(job_id), "organization_id": 7})
@@ -515,7 +530,7 @@ def test_generate_report_job_without_a_shop_covers_the_whole_tenant(db_session, 
 def test_generate_report_job_failure_fails_the_job_and_reraises(db_session, monkeypatch):
     shop, _, _, _ = _seed_world(db_session)
     job_id = _make_job(db_session, type="generate_report", organization_id=7)
-    record = {"digests": []}
+    record: _ReportRecord = {"digests": []}
     _stub_reports(monkeypatch, record, error=RuntimeError("no data"))
 
     with pytest.raises(RuntimeError, match="no data"):
