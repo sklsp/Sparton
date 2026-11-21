@@ -32,9 +32,7 @@ from app.llm import DeterministicProvider, LLMError
 # --------------------------------------------------------------------------
 # Fakes: a small registry of demo tools and scripted providers
 # --------------------------------------------------------------------------
-# DeterministicProvider.__init__ declares list[str], but chat() documents that
-# script entries may also be dict tool-call decisions; each such entry below
-# carries a type: ignore[list-item] for the declared-type mismatch.
+# Script entries are strings (final answers) or dicts (tool-call decisions), as chat() documents.
 
 class OkInput(BaseModel):
     limit: int = Field(default=5, ge=1, le=10)
@@ -101,7 +99,7 @@ class _WrapUpFailsProvider(DeterministicProvider):
     """First chat returns a tool call; the wrap-up chat (tools=None) raises."""
 
     def __init__(self) -> None:
-        super().__init__([{"tool": "demo.ok", "arguments": {}}])  # type: ignore[list-item]  # tool call
+        super().__init__([{"tool": "demo.ok", "arguments": {}}])
 
     def chat(self, messages, tools=None, **kwargs):
         if tools is None:
@@ -162,7 +160,7 @@ def test_run_finishes_with_final_answer(db_session):
 
 def test_successful_tool_call_is_recorded_and_summarized(db_session):
     provider = DeterministicProvider([
-        {"tool": "demo.ok", "arguments": {"limit": 3}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.ok", "arguments": {"limit": 3}},
         "Verified.",
     ])
     run = _make_run(db_session)
@@ -209,7 +207,7 @@ def test_successful_tool_call_is_recorded_and_summarized(db_session):
 )
 def test_summarize_variants(db_session, tool, expected_prefix):
     provider = DeterministicProvider([
-        {"tool": tool, "arguments": {}},  # type: ignore[list-item]  # tool call
+        {"tool": tool, "arguments": {}},
         "Done.",
     ])
     run = _make_run(db_session)
@@ -235,7 +233,7 @@ def test_empty_final_answer_uses_placeholder(db_session):
 
 def test_tool_error_yields_retryable_result_and_run_recovers(db_session):
     provider = DeterministicProvider([
-        {"tool": "demo.boom", "arguments": {}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.boom", "arguments": {}},
         "Could not verify.",
     ])
     run = _make_run(db_session)
@@ -255,8 +253,8 @@ def test_tool_error_yields_retryable_result_and_run_recovers(db_session):
 
 def test_validation_error_includes_correction(db_session):
     provider = DeterministicProvider([
-        {"tool": "demo.ok", "arguments": {"limit": 99}},  # type: ignore[list-item]  # tool call
-        {"tool": "demo.ok", "arguments": {}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.ok", "arguments": {"limit": 99}},
+        {"tool": "demo.ok", "arguments": {}},
         "Done.",
     ])
     run = _make_run(db_session)
@@ -283,8 +281,8 @@ def test_validation_error_includes_correction(db_session):
 
 def test_type_error_correction_has_no_range(db_session):
     provider = DeterministicProvider([
-        {"tool": "demo.ok", "arguments": {"limit": "abc"}},  # type: ignore[list-item]  # tool call
-        {"tool": "demo.ok", "arguments": {}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.ok", "arguments": {"limit": "abc"}},
+        {"tool": "demo.ok", "arguments": {}},
         "Done.",
     ])
     run = _make_run(db_session)
@@ -300,7 +298,7 @@ def test_type_error_correction_has_no_range(db_session):
 
 def test_unknown_tool_reported_not_found(db_session):
     provider = DeterministicProvider([
-        {"tool": "demo.missing", "arguments": {}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.missing", "arguments": {}},
         "Done.",
     ])
     run = _make_run(db_session)
@@ -316,9 +314,9 @@ def test_unknown_tool_reported_not_found(db_session):
 
 def test_ungrounded_answer_is_rejected_then_tool_recovers(db_session):
     provider = DeterministicProvider([
-        {"tool": "demo.boom", "arguments": {}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.boom", "arguments": {}},
         "There are 5 items.",
-        {"tool": "demo.ok", "arguments": {}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.ok", "arguments": {}},
         "Verified.",
     ])
     run = _make_run(db_session)
@@ -335,9 +333,9 @@ def test_ungrounded_answer_is_rejected_then_tool_recovers(db_session):
 
 def test_retries_exhausted_fails_run(db_session):
     provider = DeterministicProvider([
-        {"tool": "demo.ok", "arguments": {"limit": 99}},  # type: ignore[list-item]  # tool call
-        {"tool": "demo.ok", "arguments": {"limit": 99}},  # type: ignore[list-item]  # tool call
-        {"tool": "demo.ok", "arguments": {"limit": 99}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.ok", "arguments": {"limit": 99}},
+        {"tool": "demo.ok", "arguments": {"limit": 99}},
+        {"tool": "demo.ok", "arguments": {"limit": 99}},
     ])
     run = _make_run(db_session)
     result = _engine(db_session, provider).start(run)
@@ -359,7 +357,7 @@ def test_retries_exhausted_fails_run(db_session):
 def test_iteration_limit_triggers_wrap_up(db_session, monkeypatch):
     monkeypatch.setattr(settings, "agent_max_iterations", 1)
     provider = DeterministicProvider([
-        {"tool": "demo.ok", "arguments": {}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.ok", "arguments": {}},
         "Summary of what I found.",
     ])
     run = _make_run(db_session)
@@ -378,8 +376,8 @@ def test_iteration_limit_triggers_wrap_up(db_session, monkeypatch):
 def test_tool_call_limit_triggers_wrap_up(db_session, monkeypatch):
     monkeypatch.setattr(settings, "agent_max_tool_calls", 2)
     provider = DeterministicProvider([
-        {"tool": "demo.ok", "arguments": {}},  # type: ignore[list-item]  # tool call
-        {"tool": "demo.ok", "arguments": {}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.ok", "arguments": {}},
+        {"tool": "demo.ok", "arguments": {}},
         "Wrapped.",
     ])
     run = _make_run(db_session)
@@ -394,7 +392,7 @@ def test_tool_call_limit_triggers_wrap_up(db_session, monkeypatch):
 def test_wrap_up_with_ungrounded_summary_fails(db_session, monkeypatch):
     monkeypatch.setattr(settings, "agent_max_iterations", 1)
     provider = DeterministicProvider([
-        {"tool": "demo.boom", "arguments": {}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.boom", "arguments": {}},
         "There are 5 items.",
     ])
     run = _make_run(db_session)
@@ -430,7 +428,7 @@ def _approval(db_session: Session, run_id: int) -> ApprovalRequest:
 
 def test_approval_pause_approve_and_resume(db_session):
     provider = DeterministicProvider([
-        {"tool": "demo.write", "arguments": {"sku": "SKU-1", "price": 9.9}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.write", "arguments": {"sku": "SKU-1", "price": 9.9}},
         "Updated.",
     ])
     engine = _engine(db_session, provider)
@@ -475,7 +473,7 @@ def test_approval_pause_approve_and_resume(db_session):
 
 def test_approval_rejection_reports_not_applied(db_session):
     provider = DeterministicProvider([
-        {"tool": "demo.write", "arguments": {"sku": "SKU-2", "price": 5.0}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.write", "arguments": {"sku": "SKU-2", "price": 5.0}},
         "Not applied.",
     ])
     engine = _engine(db_session, provider)
@@ -510,7 +508,7 @@ def test_approval_rejection_reports_not_applied(db_session):
 
 def test_resume_while_approval_still_pending_keeps_waiting(db_session):
     provider = DeterministicProvider([
-        {"tool": "demo.write", "arguments": {"sku": "SKU-3", "price": 1.0}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.write", "arguments": {"sku": "SKU-3", "price": 1.0}},
         "Done.",
     ])
     engine = _engine(db_session, provider)
@@ -569,7 +567,7 @@ def test_timeout_fails_run(db_session, monkeypatch):
 
 def test_large_tool_output_is_truncated(db_session):
     provider = DeterministicProvider([
-        {"tool": "demo.big", "arguments": {}},  # type: ignore[list-item]  # tool call
+        {"tool": "demo.big", "arguments": {}},
         "Done.",
     ])
     run = _make_run(db_session)
