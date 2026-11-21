@@ -8,8 +8,10 @@ loop has finished and every assertion can read the final AgentRun row directly.
 from __future__ import annotations
 
 import json
+from typing import Any, cast
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 import app.api.agent_api as agent_api
 from app.core.database.domain_models import (
@@ -26,7 +28,7 @@ ADMIN_EMAIL = "admin@example.com"
 FOREIGN_ORG = 999_999
 
 
-def _org_id(db_session) -> int:
+def _org_id(db_session: Session) -> int:
     user = db_session.execute(select(User).where(User.email == ADMIN_EMAIL)).scalars().first()
     assert user is not None and user.organization_id is not None
     return user.organization_id
@@ -39,7 +41,7 @@ def _start_run(client, headers, message="What can you do?") -> int:
     # The row is created RUNNING; the inline worker finishes it before the
     # response goes out, but the handler reports the status at creation time.
     assert body["status"] == RunStatus.RUNNING
-    return body["run_id"]
+    return cast("int", body["run_id"])
 
 
 def _foreign_run(db_session) -> AgentRun:
@@ -75,17 +77,20 @@ def _approval(db_session, run: AgentRun, org: int, status=ApprovalStatus.PENDING
     return approval
 
 
-def _parse_sse(text: str) -> list[tuple[str | None, dict]]:
+def _parse_sse(text: str) -> list[tuple[str | None, dict[str, Any]]]:
     """SSE blocks into (event, data) pairs; plain step frames have event=None."""
-    events = []
+    events: list[tuple[str | None, dict[str, Any]]] = []
     for block in text.split("\n\n"):
-        event, data = None, None
+        event: str | None = None
+        data: dict[str, Any] | None = None
         for line in block.splitlines():
             if line.startswith("event: "):
                 event = line[len("event: "):]
             elif line.startswith("data: "):
                 data = json.loads(line[len("data: "):])
         if event is not None or data is not None:
+            # Every frame the server emits carries a JSON payload (see agent_api).
+            assert data is not None
             events.append((event, data))
     return events
 

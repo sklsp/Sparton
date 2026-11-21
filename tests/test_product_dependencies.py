@@ -64,7 +64,7 @@ sys.meta_path.insert(0, Block())
 """
 
 
-def _run(script: str) -> subprocess.CompletedProcess:
+def _run(script: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-c", script],
         cwd=str(ROOT),

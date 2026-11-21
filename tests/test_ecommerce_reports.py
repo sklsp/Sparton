@@ -89,7 +89,7 @@ def _report(db, org: Organization, *, change_ids: list[int] | None = None) -> Re
     return report
 
 
-def _move(i: int) -> dict:
+def _move(i: int) -> dict[str, object]:
     """One price_moves row in the exact shape build_facts produces."""
     return {
         "competitor": f"Competitor {i}",

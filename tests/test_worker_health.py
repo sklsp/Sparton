@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -245,11 +246,14 @@ class TestComposeGivesTheWorkerItsOwnProbe:
     """The original defect: the worker inherited the image's HTTP probe."""
 
     @pytest.fixture(scope="class")
-    def compose(self) -> dict:
+    def compose(self) -> dict[str, Any]:
         yaml = pytest.importorskip("yaml")
-        return yaml.safe_load(
-            (Path(__file__).resolve().parent.parent / "docker-compose.yml")
-            .read_text(encoding="utf-8")
+        return cast(
+            "dict[str, Any]",
+            yaml.safe_load(
+                (Path(__file__).resolve().parent.parent / "docker-compose.yml")
+                .read_text(encoding="utf-8")
+            ),
         )
 
     def test_the_worker_does_not_inherit_the_api_probe(self, compose):

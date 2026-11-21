@@ -17,9 +17,11 @@ from __future__ import annotations
 import socket
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any, cast
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.database.domain_models import Job
 from app.core.database.ecommerce_models import (
@@ -57,7 +59,7 @@ def _public_dns(monkeypatch):
 
 
 @pytest.fixture()
-def org_id(client, auth_headers, db_session) -> int:
+def org_id(client, auth_headers, db_session: Session) -> int:
     from app.core.database.identity import User
 
     user = db_session.execute(
@@ -68,19 +70,19 @@ def org_id(client, auth_headers, db_session) -> int:
 
 
 @pytest.fixture()
-def shop(client, auth_headers) -> dict:
+def shop(client, auth_headers) -> dict[str, Any]:
     response = client.post("/shops", headers=auth_headers, json={
         "url": ORG_URL, "name": "Acme Homeware", "category": "homeware"})
     assert response.status_code == 201, response.text
-    return response.json()
+    return cast("dict[str, Any]", response.json())
 
 
 @pytest.fixture()
-def rival(client, auth_headers, shop) -> dict:
+def rival(client, auth_headers, shop) -> dict[str, Any]:
     response = client.post("/competitors", headers=auth_headers, json={
         "url": RIVAL_URL, "name": "Claybarn Co", "shop_id": shop["id"]})
     assert response.status_code == 201, response.text
-    return response.json()
+    return cast("dict[str, Any]", response.json())
 
 
 def seed_change(db, org_id: int, shop_id: int, competitor_id: int | None = None, **overrides):

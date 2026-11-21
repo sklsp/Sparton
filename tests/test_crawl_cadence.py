@@ -32,7 +32,7 @@ def shop(client, auth_headers):
     return response.json()
 
 
-def subscription(event_id: str, org_id: int, price_id: str, *, kind: str = "updated") -> dict:
+def subscription(event_id: str, org_id: int, price_id: str, *, kind: str = "updated") -> dict[str, object]:
     return {
         "id": event_id,
         "type": f"customer.subscription.{kind}",

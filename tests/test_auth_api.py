@@ -10,6 +10,7 @@ surface of the module under test.
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Any, cast
 
 from sqlalchemy import select
 
@@ -20,14 +21,14 @@ from app.core.database.models import utcnow
 
 
 def _register(client, email: str = "auth@example.com",
-              password: str = "correct-horse-battery") -> dict:
+              password: str = "correct-horse-battery") -> dict[str, Any]:
     response = client.post(
         "/auth/register",
         json={"email": email, "password": password,
               "organization_name": "Auth Test Org"},
     )
     assert response.status_code == 201, response.text
-    return response.json()
+    return cast("dict[str, Any]", response.json())
 
 
 def _headers(token: str) -> dict[str, str]:
@@ -64,12 +65,10 @@ class TestRegisterErrors:
     def test_a_mail_failure_does_not_fail_the_signup(self, client, db_session, monkeypatch):
         """A mail-server outage must not look like 'your account was not created':
         the signup still succeeds and its session works."""
-        from app.api import auth as auth_api
-
         def boom(address: str, token: str) -> None:
             raise RuntimeError("smtp down")
 
-        monkeypatch.setattr(auth_api.email, "send_verification", boom)
+        monkeypatch.setattr("app.api.auth.email.send_verification", boom)
         response = client.post(
             "/auth/register",
             json={"email": "nomail@example.com", "password": "correct-horse-battery",
@@ -134,11 +133,9 @@ class TestVerificationErrors:
     ):
         """An already-verified account gets sent=false without error, and no new
         link is issued to an address that does not need one."""
-        from app.api import auth as auth_api
-
-        sent: list = []
+        sent: list[tuple[str, str]] = []
         monkeypatch.setattr(
-            auth_api.email, "send_verification", lambda a, t: sent.append((a, t))
+            "app.api.auth.email.send_verification", lambda a, t: sent.append((a, t))
         )
         user = db_session.execute(
             select(User).where(User.email == "admin@example.com")
@@ -170,11 +167,9 @@ class TestForgotPasswordErrors:
 
 class TestResetPasswordErrors:
     def _issue_reset_token(self, client, monkeypatch) -> str:
-        from app.api import auth as auth_api
-
-        sent: list = []
+        sent: list[tuple[str, str]] = []
         monkeypatch.setattr(
-            auth_api.email, "send_password_reset", lambda a, t: sent.append((a, t))
+            "app.api.auth.email.send_password_reset", lambda a, t: sent.append((a, t))
         )
         response = client.post(
             "/auth/forgot-password", json={"email": "auth@example.com"}

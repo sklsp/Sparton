@@ -19,6 +19,8 @@ from __future__ import annotations
 import contextvars
 import json
 import time
+from collections.abc import Mapping
+from typing import Any
 
 import pytest
 import requests
@@ -47,30 +49,41 @@ from app.llm import (
 # ---------------------------------------------------------------------------
 # Fakes
 # ---------------------------------------------------------------------------
-class FakeResponse:
+class FakeResponse(requests.Response):
     """Just enough of ``requests.Response`` for the provider code paths."""
 
-    def __init__(self, status_code=200, payload=None, text="", headers=None):
+    def __init__(
+        self,
+        status_code: int = 200,
+        payload: Mapping[str, Any] | list[Any] | None = None,
+        text: str = "",
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__()  # inert defaults; no I/O
         self.status_code = status_code
         self._payload = payload
-        self.text = text or (json.dumps(payload) if payload is not None else "")
-        self.headers = headers or {}
+        self._text = text or (json.dumps(payload) if payload is not None else "")
+        self.headers.update(headers or {})
 
     @property
     def ok(self) -> bool:
         return 200 <= self.status_code < 300
 
-    def json(self):
+    @property
+    def text(self) -> str:
+        return self._text
+
+    def json(self, **kwargs: object) -> Any:
         if self._payload is None:
             raise ValueError("no JSON body")
         return self._payload
 
-    def raise_for_status(self):
+    def raise_for_status(self) -> None:
         if not self.ok:
             raise requests.HTTPError(f"HTTP {self.status_code}")
 
 
-def patch_request(monkeypatch, *outcomes) -> list[dict]:
+def patch_request(monkeypatch, *outcomes) -> list[dict[str, Any]]:
     """Replace ``requests.request``; later calls reuse the last outcome."""
     calls = []
 
@@ -82,7 +95,7 @@ def patch_request(monkeypatch, *outcomes) -> list[dict]:
     return calls
 
 
-def patch_post(monkeypatch, *outcomes) -> list[dict]:
+def patch_post(monkeypatch, *outcomes) -> list[dict[str, Any]]:
     """Replace ``requests.post`` (Ollama's transport)."""
     calls = []
 
@@ -94,7 +107,7 @@ def patch_post(monkeypatch, *outcomes) -> list[dict]:
     return calls
 
 
-def patch_get(monkeypatch, *outcomes) -> list[dict]:
+def patch_get(monkeypatch, *outcomes) -> list[dict[str, Any]]:
     """Replace ``requests.get`` (Ollama's health/model probes)."""
     calls = []
 
@@ -106,7 +119,7 @@ def patch_get(monkeypatch, *outcomes) -> list[dict]:
     return calls
 
 
-def _completion(content="ok") -> dict:
+def _completion(content: str = "ok") -> dict[str, object]:
     return {"choices": [{"message": {"content": content}}]}
 
 
@@ -165,7 +178,7 @@ class TestUsageContext:
 
     def test_clear_accepts_none_and_empty(self):
         clear_usage_context(None)
-        clear_usage_context([])
+        clear_usage_context([])  # type: ignore[arg-type]  # an empty list, not the tuple set_usage_context returns
 
     def test_resetting_an_already_consumed_token_is_swallowed(self):
         org_before = current_usage_org_id()
@@ -175,7 +188,7 @@ class TestUsageContext:
         assert current_usage_org_id() == org_before
 
     def test_resetting_a_token_from_another_context_is_swallowed(self):
-        captured: dict = {}
+        captured: dict[str, tuple[contextvars.Token[int | None], contextvars.Token[int | None]]] = {}
 
         def in_other_context():
             captured["tokens"] = set_usage_context(3, 4)
@@ -267,6 +280,7 @@ class TestMessage:
         msg = Message.tool_result(call, result)
         assert msg.role == "tool"
         assert msg.tool_call_id == "c9" and msg.name == "big.tool"
+        assert msg.content is not None
         assert len(msg.content) == 50_000
 
     def test_tool_result_handles_non_serializable_values(self):
@@ -292,11 +306,11 @@ class _StubProvider(LLMProvider):
 
     name = "stub"
 
-    def __init__(self, text="stub answer"):
+    def __init__(self, text: str = "stub answer") -> None:
         self.text = text
-        self.seen: list[dict] | None = None
+        self.seen: list[dict[str, Any]] | None = None
 
-    def complete(self, messages, **kwargs) -> str:
+    def complete(self, messages: list[dict[str, Any]], **kwargs: object) -> str:
         self.seen = messages
         return self.text
 
@@ -558,7 +572,7 @@ class TestDeterministicProvider:
 
     def test_chat_scripted_tool_call_decision(self):
         provider = DeterministicProvider(
-            scripted_responses=[{"tool": "lookup_sales", "arguments": {"days": 7}}]
+            scripted_responses=[{"tool": "lookup_sales", "arguments": {"days": 7}}]  # type: ignore[list-item]  # chat() documents dict tool-call entries; __init__ declares list[str]
         )
         response = provider.chat([Message(role="user", content="go")])
         assert response.content is None

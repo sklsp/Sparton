@@ -32,14 +32,12 @@ def mark_unverified(db_session, email: str = "admin@example.com") -> None:
     db_session.commit()
 
 
-def capture_emails(monkeypatch, *names: str) -> list:
+def capture_emails(monkeypatch, *names: str) -> list[tuple[str, str]]:
     """Record what would have been sent, so tests never send real mail."""
-    from app.api import auth as auth_api
-
-    sent: list = []
+    sent: list[tuple[str, str]] = []
     for name in names:
         monkeypatch.setattr(
-            auth_api.email, name,
+            f"app.api.auth.email.{name}",
             lambda address, token, _sent=sent: _sent.append((address, token)),
         )
     return sent
@@ -118,7 +116,7 @@ class TestProductStaysShut:
             ("post", "/auth/resend-verification"),
             ("post", "/auth/change-password"),
         ):
-            kwargs = {"json": {}} if method == "post" else {}
+            kwargs: dict[str, object] = {"json": {}} if method == "post" else {}
             assert getattr(client, method)(path, **kwargs).status_code == 401
 
 

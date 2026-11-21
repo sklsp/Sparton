@@ -332,6 +332,7 @@ def test_record_failure_requeues_with_first_backoff_delay(db_session):
     assert failed.stage == "retry 1 scheduled"
     assert failed.error == "boom"
     delay = RETRY_DELAYS_SECONDS[0]
+    assert failed.run_after is not None
     assert before + timedelta(seconds=delay - 5) < as_utc(failed.run_after) <= before + timedelta(
         seconds=delay + 5
     )
@@ -347,6 +348,7 @@ def test_record_failure_uses_longer_delay_on_second_retry(db_session):
     assert failed.status == JobStatus.QUEUED
     assert failed.retry_count == 2
     delay = RETRY_DELAYS_SECONDS[1]
+    assert failed.run_after is not None
     assert before + timedelta(seconds=delay - 5) < as_utc(failed.run_after) <= before + timedelta(
         seconds=delay + 5
     )
@@ -389,6 +391,7 @@ def test_record_failure_truncates_long_errors_to_two_thousand_chars(db_session):
 
     failed = record_failure(db_session, job, "x" * 2500)
 
+    assert failed.error is not None
     assert len(failed.error) == 2000
 
 

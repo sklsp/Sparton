@@ -24,7 +24,7 @@ import threading
 import time
 from contextlib import closing
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pytest
 
@@ -57,7 +57,9 @@ def _find_local_browser() -> str | None:
 def _free_port() -> int:
     with closing(socket.socket()) as s:
         s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+        port = s.getsockname()[1]
+        assert isinstance(port, int)
+        return port
 
 
 @pytest.fixture(scope="module")
@@ -133,8 +135,8 @@ def page(browser, live_server):
     # A JS error in the dashboard must fail the test, not scroll past silently.
     errors: list[str] = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
-    pg.errors = errors  # type: ignore[attr-defined]
-    pg.base = live_server  # type: ignore[attr-defined]
+    pg.errors = errors
+    pg.base = live_server
     try:
         yield pg
     finally:
@@ -338,7 +340,7 @@ class TestTheProductLoopInABrowser:
         page.click("button[type=submit]")
         page.wait_for_timeout(1500)
 
-    def _api(self, page, method: str, path: str, body: dict | None = None):
+    def _api(self, page, method: str, path: str, body: dict[str, Any] | None = None):
         """Call the API from inside the page, as the dashboard's own code does."""
         return page.evaluate(
             """async ({method, path, body}) => {
@@ -429,7 +431,7 @@ class TestTheCompetitorViewShowsItsPriceSource:
         page.click("button[type=submit]")
         page.wait_for_timeout(1500)
 
-    def _api(self, page, method: str, path: str, body: dict | None = None):
+    def _api(self, page, method: str, path: str, body: dict[str, Any] | None = None):
         return page.evaluate(
             """async ({method, path, body}) => {
                 const token = localStorage.getItem("sparton.token");
@@ -523,7 +525,7 @@ class TestTenantIsolationInTheBrowser:
         page.click("button[type=submit]")
         page.wait_for_timeout(1500)
 
-    def _api(self, page, method: str, path: str, body: dict | None = None):
+    def _api(self, page, method: str, path: str, body: dict[str, Any] | None = None):
         return page.evaluate(
             """async ({method, path, body}) => {
                 const token = localStorage.getItem("sparton.token");
@@ -556,8 +558,8 @@ class TestTenantIsolationInTheBrowser:
         def as_tenant(label: str, email: str):
             context = browser.new_context()
             pg = context.new_page()
-            pg.base = live_server  # type: ignore[attr-defined]
-            pg.errors = errors  # type: ignore[attr-defined]
+            pg.base = live_server
+            pg.errors = errors
             pg.on("pageerror", lambda e, lbl=label: errors.append(f"{lbl}: {e}"))
             try:
                 self._session(pg, email)
@@ -605,8 +607,8 @@ class TestLanguageAndShell:
         pg = context.new_page()
         errors: list[str] = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
-        pg.errors = errors  # type: ignore[attr-defined]
-        pg.base = live_server  # type: ignore[attr-defined]
+        pg.errors = errors
+        pg.base = live_server
         return pg, context
 
     def test_a_dutch_browser_gets_dutch_by_default(self, browser, live_server):

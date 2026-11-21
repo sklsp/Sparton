@@ -1,5 +1,7 @@
 """Worker loop (workers.worker): claim/execute/retry/dead-letter and clean shutdown."""
 
+import signal
+
 import pytest
 
 from app.core.jobs import transport
@@ -19,6 +21,7 @@ class FakeBackend:
         self.dead_lettered = []
         self.reclaims = []
         self.reclaimed_count = 0
+        self.client: object | None = None  # set by tests that exercise the heartbeat path
 
     def claim(self, worker_id, timeout_seconds=1.0):
         self.claims.append({"worker_id": worker_id, "timeout_seconds": timeout_seconds})
@@ -51,10 +54,10 @@ def worker():
 @pytest.fixture()
 def run_env(monkeypatch):
     """Neutralise logging config and signal installation for run(); returns installed handlers."""
-    installed = {}
+    installed: dict[signal.Signals, object] = {}
     monkeypatch.setattr(worker_module, "configure_logging", lambda level: None)
     monkeypatch.setattr(
-        worker_module.signal, "signal", lambda signum, handler: installed.__setitem__(signum, handler)
+        "workers.worker.signal.signal", lambda signum, handler: installed.__setitem__(signum, handler)
     )
     return installed
 
@@ -178,10 +181,10 @@ def test_run_returns_zero_when_stop_requested_before_start(worker, monkeypatch, 
 
     # The loop body never ran: no claims, and both signal handlers were installed.
     assert backend.claims == []
-    assert set(run_env) == {worker_module.signal.SIGINT, worker_module.signal.SIGTERM}
+    assert set(run_env) == {signal.SIGINT, signal.SIGTERM}
     # Bound methods are recreated per access, so compare by equality, not identity.
-    assert run_env[worker_module.signal.SIGINT] == worker.request_stop
-    assert run_env[worker_module.signal.SIGTERM] == worker.request_stop
+    assert run_env[signal.SIGINT] == worker.request_stop
+    assert run_env[signal.SIGTERM] == worker.request_stop
 
 
 def test_run_processes_claimed_job_then_stops(worker, monkeypatch, run_env):

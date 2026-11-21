@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 import types
 from collections import defaultdict
+from typing import cast
 
 import pytest
 from fastapi import HTTPException, status
@@ -115,7 +116,7 @@ class TestRedisClient:
     def test_reachable_redis_returns_a_pingable_client(self, monkeypatch):
         import redis as real_redis
 
-        fake = types.SimpleNamespace(ping=lambda: True)
+        fake = cast(real_redis.Redis, types.SimpleNamespace(ping=lambda: True))
         captured = {}
 
         def from_url(url, **kwargs):

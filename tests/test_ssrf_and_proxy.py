@@ -9,6 +9,7 @@ that a function returns a particular value.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 import httpx
@@ -17,7 +18,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def make_crawler(handler, **policy_overrides):
+def make_crawler(handler: Callable[[str, httpx.Request], httpx.Response], **policy_overrides):
     """A crawler over a MockTransport, with no delay and no retries.
 
     `follow_redirects=False` on the client matters: these tests are about what

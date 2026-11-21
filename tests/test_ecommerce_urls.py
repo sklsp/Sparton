@@ -153,7 +153,7 @@ class TestNormalising:
 class TestRefusedUrls:
     def test_none_is_refused(self):
         with pytest.raises(InvalidShopUrl, match="A shop URL is required"):
-            normalize_url(None)
+            normalize_url(None)  # type: ignore[arg-type]  # intentional: verifying None is refused
 
     @pytest.mark.parametrize("raw", ["", "   ", chr(9)])
     def test_empty_input_is_refused(self, raw: str):

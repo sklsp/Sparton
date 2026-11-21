@@ -117,7 +117,7 @@ def test_close_closes_the_client_it_created():
 
 def test_search_provider_is_abstract():
     with pytest.raises(TypeError):
-        SearchProvider()  # abstract: cannot be instantiated directly
+        SearchProvider()  # type: ignore[abstract]  # intentional: asserting instantiation raises TypeError
 
 
 # --- _resolve_result ---------------------------------------------------------------
@@ -166,5 +166,5 @@ def test_domains_from_urls_drops_entries_without_a_netloc():
 
 
 def test_demo_self_check_passes():
-    # _demo asserts the parsing contract end to end; any regression raises here.
-    assert _demo() is None
+    # _demo asserts its own parsing contract end to end; a regression raises inside it.
+    _demo()

@@ -6,6 +6,7 @@ import builtins
 
 import pytest
 from opentelemetry import trace as otel_trace
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 import app
@@ -31,7 +32,7 @@ def otlp_capture(monkeypatch):
     """
     exporters: list[InMemorySpanExporter] = []
     endpoints: list[str | None] = []
-    providers: list = []
+    providers: list[TracerProvider] = []
 
     def fake_otlp_exporter(*_args, **kwargs):
         exporter = InMemorySpanExporter()

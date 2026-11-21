@@ -6,6 +6,7 @@ from datetime import timedelta
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.database.domain_models import (
     ExternalProduct,
@@ -51,7 +52,7 @@ def intelligence_headers(intelligence_client):
     return {"Authorization": f"Bearer {response.json()['token']}"}
 
 
-def _org_id(db_session) -> int:
+def _org_id(db_session: Session) -> int:
     user = db_session.execute(select(User).where(User.email == ADMIN_EMAIL)).scalars().first()
     assert user is not None and user.organization_id is not None
     return user.organization_id

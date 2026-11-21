@@ -11,10 +11,12 @@ import hashlib
 import hmac
 import json
 import time
+from typing import cast
 from urllib.parse import parse_qsl
 
 import pytest
 import requests
+from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.billing.plans import (
@@ -97,7 +99,7 @@ class TestEnforcement:
     def test_free_plan_allows_one_shop(self, db_session, org_id):
         seed_shops(db_session, org_id, 1)
         # The second is refused.
-        with pytest.raises(Exception) as exc:
+        with pytest.raises(HTTPException) as exc:
             check_shops(db_session, org_id, FREE)
         assert exc.value.status_code == 402
         assert "1 shop" in str(exc.value.detail)
@@ -109,10 +111,10 @@ class TestEnforcement:
         "may I add one more?".
         """
         seed_shops(db_session, org_id, 3)
-        with pytest.raises(Exception) as free_error:
+        with pytest.raises(HTTPException) as free_error:
             check_shops(db_session, org_id, FREE)
         assert free_error.value.status_code == 402
-        with pytest.raises(Exception) as pro_error:
+        with pytest.raises(HTTPException) as pro_error:
             check_shops(db_session, org_id, PRO)
         assert pro_error.value.status_code == 402
 
@@ -124,7 +126,7 @@ class TestEnforcement:
                 organization_id=org_id, domain=f"c{i}.example", is_active=True
             ))
         db_session.commit()
-        with pytest.raises(Exception) as exc:
+        with pytest.raises(HTTPException) as exc:
             check_competitors(db_session, org_id, FREE)
         assert exc.value.status_code == 402
 
@@ -134,7 +136,7 @@ class TestEnforcement:
             prompt_tokens=1_900, completion_tokens=200, total_tokens=2_100,
         ))
         db_session.commit()
-        with pytest.raises(Exception) as exc:
+        with pytest.raises(HTTPException) as exc:
             check_tokens(db_session, org_id, FREE)
         assert exc.value.status_code == 402
         check_tokens(db_session, org_id, PRO)  # Pro's allowance is higher
@@ -354,7 +356,8 @@ class TestWebhookHandler:
                 return {**live, "status": "past_due"}
 
         # The event says Business and active; Stripe says it is now Pro and past due.
-        handle_event(db_session, subscription_event("evt_l1", org_id, "price_business_123"), client=LiveStripe())
+        event = subscription_event("evt_l1", org_id, "price_business_123")
+        handle_event(db_session, event, client=cast(StripeClient, LiveStripe()))
         row = db_session.execute(select(Subscription)).scalars().one()
         assert row.stripe_price_id == "price_pro_123"
         assert row.status == "past_due"
@@ -558,10 +561,12 @@ class TestBillingApi:
         monkeypatch.setattr(stripe_env, "billing_enabled", True, raising=False)
         monkeypatch.setattr(stripe_env, "stripe_secret_key", "sk_test_fake", raising=False)
         calls = []
-        monkeypatch.setattr(
-            StripeClient, "create_checkout_session",
-            lambda self, **kw: calls.append(kw) or "https://checkout.stripe.com/c/pay/cs_1",
-        )
+
+        def _record_checkout(self, **kw):
+            calls.append(kw)
+            return "https://checkout.stripe.com/c/pay/cs_1"
+
+        monkeypatch.setattr(StripeClient, "create_checkout_session", _record_checkout)
         monkeypatch.setattr(StripeClient, "create_customer", lambda self, *a, **kw: "cus_new")
         org_id = client.get("/auth/me", headers=auth_headers).json()["organization_id"]
         return org_id, calls
