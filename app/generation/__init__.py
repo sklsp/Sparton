@@ -11,8 +11,8 @@ from app.generation.service import (
 )
 
 __all__ = [
-    "ComfyUIError",
     "ComfyUIClient",
+    "ComfyUIError",
     "ComfyUIService",
     "WorkflowError",
     "WorkflowInfo",

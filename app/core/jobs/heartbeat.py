@@ -65,7 +65,7 @@ def write_heartbeat(
     try:
         client.set(heartbeat_key(hostname), str(now if now is not None else time.time()), ex=int(ttl_seconds))
         return True
-    except Exception:  # noqa: BLE001 - telemetry must never stop the worker
+    except Exception:  # telemetry must never stop the worker
         return False
 
 
@@ -85,7 +85,7 @@ def heartbeat_age(
         return None
     try:
         raw = client.get(heartbeat_key(hostname))
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
     if raw is None:
         return None
@@ -121,7 +121,7 @@ def redis_client() -> Redis | None:
         import redis
 
         return redis.Redis.from_url(settings.redis_url, decode_responses=True)
-    except Exception:  # noqa: BLE001 - including "redis is not installed"
+    except Exception:  # including "redis is not installed"
         return None
 
 

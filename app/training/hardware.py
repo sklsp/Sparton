@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import logging
 import shutil
-import subprocess  # noqa: S404 - only fixed-argv probes of known binaries
+import subprocess  # only fixed-argv probes of known binaries
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ def _detect_via_comfyui(base_url: str, timeout: float = 3.0) -> list[GPUInfo]:
     try:
         response = requests.get(f"{base_url.rstrip('/')}/system_stats", timeout=timeout)
         devices = response.json().get("devices", [])
-    except Exception:  # noqa: BLE001 - ComfyUI simply not running
+    except Exception:  # ComfyUI simply not running
         return []
 
     gpus: list[GPUInfo] = []
@@ -116,7 +117,7 @@ def _detect_via_nvidia_smi() -> list[GPUInfo]:
     if shutil.which("nvidia-smi") is None:
         return []
     try:
-        result = subprocess.run(  # noqa: S603 - fixed argv, no shell
+        result = subprocess.run(  # fixed argv, no shell
             ["nvidia-smi",
              "--query-gpu=name,memory.total,memory.free",
              "--format=csv,noheader,nounits"],
@@ -186,7 +187,7 @@ def _detect_cpu() -> tuple[str | None, int | None]:
 
         name = platform.processor() or None
         cores = os.cpu_count()
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
     return name, cores
 
@@ -202,11 +203,11 @@ def _detect_ram() -> tuple[int | None, int | None]:
         )
     except ImportError:
         pass
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
     try:
-        with open("/proc/meminfo", encoding="ascii") as handle:
+        with Path("/proc/meminfo").open(encoding="ascii") as handle:
             values = {}
             for line in handle:
                 key, _, rest = line.partition(":")
@@ -222,9 +223,7 @@ def _detect_ram() -> tuple[int | None, int | None]:
 
 
 def detect_disk_free_gb(path: str | None = None) -> float | None:
-    import os
-
-    target = path or os.getcwd()
+    target = path or Path.cwd()
     try:
         return round(shutil.disk_usage(target).free / (1024 ** 3), 1)
     except OSError:

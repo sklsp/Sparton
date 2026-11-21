@@ -198,7 +198,7 @@ class ResponsibleCrawler:
         try:
             stream = response.extensions.get("network_stream")
             peer = stream.get_extra_info("server_addr") if stream is not None else None
-        except Exception:  # noqa: BLE001 - transport-specific, never fatal
+        except Exception:  # transport-specific, never fatal
             peer = None
         if not peer:
             return

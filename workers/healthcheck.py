@@ -47,7 +47,7 @@ def check_database() -> tuple[bool, str]:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
         return True, "database ok"
-    except Exception as exc:  # noqa: BLE001 - any failure is a failure
+    except Exception as exc:  # any failure is a failure
         return False, f"database unreachable: {exc}"
 
 
@@ -58,7 +58,7 @@ def check_redis(client: Any | None = None) -> tuple[bool, str]:
         return False, "redis not configured (REDIS_URL is unset)"
     try:
         return (True, "redis ok") if client.ping() else (False, "redis did not answer PING")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return False, f"redis unreachable: {exc}"
 
 
@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     for check in checks:
         try:
             ok, message = check()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             ok, message = False, f"{check.__name__} raised: {exc}"
         if not ok:
             failed = True

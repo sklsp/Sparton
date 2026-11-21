@@ -86,7 +86,7 @@ def patch_post(monkeypatch, *outcomes) -> list[dict]:
     """Replace ``requests.post`` (Ollama's transport)."""
     calls = []
 
-    def fake(url, json=None, timeout=None):  # noqa: A002 - mirrors requests' signature
+    def fake(url, json=None, timeout=None):  # mirrors requests' signature
         calls.append({"url": url, "json": json, "timeout": timeout})
         return outcomes[min(len(calls) - 1, len(outcomes) - 1)]
 

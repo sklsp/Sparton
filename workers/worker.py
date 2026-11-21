@@ -102,7 +102,7 @@ class Worker:
             inc("worker_jobs_total", outcome="completed")
             observe("worker_job_duration_seconds", time.monotonic() - started)
             logger.info("Job %s completed in %.1fs", entry.get("id"), time.monotonic() - started)
-        except Exception as exc:  # noqa: BLE001 - one bad job must not kill the worker
+        except Exception as exc:  # one bad job must not kill the worker
             self.failed += 1
             inc("worker_jobs_total", outcome="failed")
             logger.exception("Job %s failed", entry.get("id"))

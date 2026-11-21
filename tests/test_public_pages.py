@@ -10,6 +10,8 @@ unchanged when root-level routes are added.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 
 
@@ -153,7 +155,7 @@ class TestErrorPages:
 
 
 class TestSearchPages:
-    PAGES = ["/nl/prisync-alternatief", "/nl/concurrentieprijzen-shopify",
+    PAGES: ClassVar[list[str]] = ["/nl/prisync-alternatief", "/nl/concurrentieprijzen-shopify",
              "/nl/concurrentieprijzen-woocommerce-lightspeed"]
 
     @pytest.mark.parametrize("path", PAGES)

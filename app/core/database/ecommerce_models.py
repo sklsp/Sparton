@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, ClassVar
 
 from sqlalchemy import (
     Boolean,
@@ -93,7 +93,7 @@ class ChangeSeverity:
     HIGH = "high"
 
     #: Sort weight, biggest first.
-    ORDER = {HIGH: 2, MEDIUM: 1, LOW: 0}
+    ORDER: ClassVar[dict[str, int]] = {HIGH: 2, MEDIUM: 1, LOW: 0}
 
 
 class ReportStatus:

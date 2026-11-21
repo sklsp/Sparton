@@ -43,7 +43,7 @@ def _redis_client() -> Redis | None:
         return client
     except ImportError:
         return None
-    except Exception:  # noqa: BLE001 - unreachable Redis must not break requests
+    except Exception:  # unreachable Redis must not break requests
         return None
 
 
@@ -69,7 +69,7 @@ def _hit_distributed(client: Redis, key: str, limit: int, window_seconds: float)
         current = client.incr(redis_key)
         if current == 1:
             client.expire(redis_key, int(window_seconds) + 1)
-    except Exception:  # noqa: BLE001 - Redis failure falls back, never blocks
+    except Exception:  # Redis failure falls back, never blocks
         _hit_local(key, limit, window_seconds)
         return
     if current > limit:

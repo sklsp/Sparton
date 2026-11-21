@@ -402,7 +402,7 @@ def test_redis_requeue_preserves_retry_count(redis_backend):
 
     redis_backend.requeue(entry, delay_seconds=15)
 
-    data = json.loads(list(fake.zsets[DELAYED_KEY])[0])
+    data = json.loads(next(iter(fake.zsets[DELAYED_KEY])))
     assert data["id"] == job_id
     assert data["retry_count"] == 2
 

@@ -161,7 +161,7 @@ def _live_subscription(obj: dict[str, Any], client: StripeClient | None) -> dict
         return obj
     try:
         return (client or StripeClient()).get_subscription(str(subscription_id))
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("Could not fetch subscription %s, using the event's copy: %s", subscription_id, exc)
         return obj
 
@@ -315,7 +315,7 @@ def handle_event(db: Session, event: dict[str, Any], client: StripeClient | None
                 stripe = client or StripeClient()
                 try:
                     subscription = stripe.get_subscription(str(subscription_id))
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     logger.warning("Could not fetch subscription: %s", exc)
                     subscription = obj
                 apply_subscription(db, org, subscription)

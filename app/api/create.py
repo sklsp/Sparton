@@ -143,11 +143,11 @@ def generate(
     service = _get_comfyui()
     params = {k: v for k, v in payload.model_dump().items() if v is not None}
     try:
-        graph, seed = service.build_graph(payload.workflow_id, params)
+        _, seed = service.build_graph(payload.workflow_id, params)
     except WorkflowError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
-    job, created = enqueue(
+    job, _ = enqueue(
         db,
         type="comfy_generation",
         payload={

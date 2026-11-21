@@ -209,7 +209,7 @@ class RedisQueueBackend(QueueBackend):
     def ping(self) -> bool:
         try:
             return bool(self.client.ping())
-        except Exception:  # noqa: BLE001
+        except Exception:
             return False
 
 
@@ -293,9 +293,9 @@ def set_backend(backend: QueueBackend | None) -> None:
 __all__ = [
     "DEAD_LETTER_KEY",
     "DELAYED_KEY",
-    "InlineQueueBackend",
     "PROCESSING_KEY",
     "QUEUE_KEY",
+    "InlineQueueBackend",
     "QueueBackend",
     "RedisQueueBackend",
     "get_backend",

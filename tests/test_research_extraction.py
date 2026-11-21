@@ -50,7 +50,7 @@ def test_json_ld_product_keeps_every_field():
 }
 </script>""",
     )
-    products, links, meta = extract_page(html, BASE)
+    products, _, meta = extract_page(html, BASE)
 
     assert len(products) == 1
     p = products[0]

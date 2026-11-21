@@ -160,7 +160,7 @@ def test_the_email_fits_600px_in_light_and_dark(lang, scheme):
     with playwright_api.sync_playwright() as p:
         try:
             browser = p.chromium.launch(executable_path=CHROME if Path(CHROME).exists() else None)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             pytest.skip(f"no usable browser: {exc}")
         try:
             # Images off, like many mail clients by default.

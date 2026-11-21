@@ -11,7 +11,6 @@ docstrings of sanitize_filename and safe_join with literal values.
 from __future__ import annotations
 
 import json
-import os
 
 import pytest
 
@@ -150,7 +149,7 @@ class TestSafeJoin:
         root = tmp_path / "root"
         root.mkdir()
         try:
-            os.symlink(outside, root / "link.txt")
+            (root / "link.txt").symlink_to(outside)
         except OSError as exc:
             pytest.skip(f"this OS refuses to create symlinks here: {exc}")
         with pytest.raises(UnsafePathError):

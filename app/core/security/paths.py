@@ -63,7 +63,7 @@ def safe_join(root: str | Path, *parts: str) -> Path:
     for part in parts:
         if part is None or part == "":
             raise UnsafePathError("Empty path component")
-        if os.path.isabs(part) or re.match(r"^[A-Za-z]:", part) or part.startswith("\\\\"):
+        if Path(part).is_absolute() or re.match(r"^[A-Za-z]:", part) or part.startswith("\\\\"):
             raise UnsafePathError(f"Absolute paths are not allowed: {part!r}")
 
     candidate = base.joinpath(*parts)
@@ -102,7 +102,7 @@ def is_safetensors(path: Path) -> bool:
     Format: 8-byte little-endian header length, then that many bytes of JSON.
     """
     try:
-        with open(path, "rb") as handle:
+        with path.open("rb") as handle:
             raw_length = handle.read(8)
             if len(raw_length) < 8:
                 return False
@@ -120,15 +120,15 @@ def write_json_atomic(path: str | Path, payload: object) -> None:
     """Write JSON via a temp file + replace, so a crash cannot truncate state."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    # The handle must close before os.replace: Windows refuses to replace a
+    # The handle must close before Path.replace: Windows refuses to replace a
     # file that is still open (WinError 32), so no context manager here.
-    handle = tempfile.NamedTemporaryFile(  # noqa: SIM115 - close before os.replace; Windows cannot replace an open file
+    handle = tempfile.NamedTemporaryFile(  # noqa: SIM115 - close before Path.replace; Windows cannot replace an open file
         "w", encoding="utf-8", dir=target.parent, delete=False, suffix=".tmp"
     )
     try:
         with handle:
             json.dump(payload, handle, indent=2, default=str)
-        os.replace(handle.name, target)
+        Path(handle.name).replace(target)
     except BaseException:
         Path(handle.name).unlink(missing_ok=True)
         raise
@@ -137,7 +137,7 @@ def write_json_atomic(path: str | Path, payload: object) -> None:
 def read_json(path: str | Path, default: object = None) -> object:
     """Read JSON, returning ``default`` when the file is missing or corrupt."""
     try:
-        with open(path, encoding="utf-8") as handle:
+        with Path(path).open(encoding="utf-8") as handle:
             return json.load(handle)
     except (OSError, json.JSONDecodeError):
         return default

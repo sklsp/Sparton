@@ -11,7 +11,7 @@ import atexit
 import contextlib
 import logging
 import re
-import subprocess  # noqa: S404 - fixed argv, no shell
+import subprocess  # fixed argv, no shell
 import threading
 from pathlib import Path
 from typing import Any
@@ -164,7 +164,7 @@ class AIToolkitProcess:
 
     def start(self) -> None:
         creationflags = 0x00000200 if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP") else 0
-        self.process = subprocess.Popen(  # noqa: S603 - fixed argv
+        self.process = subprocess.Popen(  # fixed argv
             [self.python_exe, "run.py", str(self.config_path)],
             cwd=str(self.toolkit_path),
             stdout=subprocess.PIPE,
@@ -217,7 +217,7 @@ class AIToolkitProcess:
             import os
 
             if os.name == "nt":
-                subprocess.run(  # noqa: S603
+                subprocess.run(
                     ["taskkill", "/F", "/T", "/PID", str(self.process.pid)],
                     capture_output=True, check=False, timeout=timeout,
                 )
@@ -313,10 +313,10 @@ def _toolkit_check() -> PreflightCheck:
 
 __all__ = [
     "ARCH_DEFAULTS",
-    "AIToolkitProcess",
     "DEFAULT_ARCH",
-    "LoRATrainingService",
     "TRAINING_PRESETS",
+    "AIToolkitProcess",
+    "LoRATrainingService",
     "TrainingError",
     "build_training_config",
 ]

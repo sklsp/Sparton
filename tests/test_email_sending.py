@@ -8,7 +8,7 @@ from email import message_from_string
 from email.policy import default as email_default_policy
 from pathlib import Path
 
-import pytest  # noqa: F401 - kept for future skip/xfail use in this file
+import pytest  # kept for future skip/xfail use in this file
 
 import app.core.email as em
 from app.core.config import settings

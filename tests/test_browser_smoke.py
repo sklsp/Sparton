@@ -24,6 +24,7 @@ import threading
 import time
 from contextlib import closing
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -98,7 +99,7 @@ def live_server():
         try:
             if httpx.get(f"{base}/live", timeout=2).status_code == 200:
                 break
-        except Exception:  # noqa: BLE001 - not up yet
+        except Exception:  # not up yet
             time.sleep(0.2)
     else:
         raise RuntimeError("the browser test server did not start")
@@ -117,7 +118,7 @@ def browser():
             instance = p.chromium.launch(
                 executable_path=_find_local_browser(), args=LAUNCH_ARGS
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             pytest.skip(f"no usable browser: {exc}")
         try:
             yield instance
@@ -323,7 +324,7 @@ class TestTheProductLoopInABrowser:
     exercises it: same origin, same CORS, same token handling.
     """
 
-    SHOP = {"url": "https://www.example.com", "name": "Acme Homeware",
+    SHOP: ClassVar[dict[str, str]] = {"url": "https://www.example.com", "name": "Acme Homeware",
             "category": "homeware"}
 
     def _authenticated(self, page, email: str) -> None:
@@ -508,7 +509,7 @@ class TestTenantIsolationInTheBrowser:
     first browser's data.
     """
 
-    SHOP = {"url": "https://www.example.com", "name": "Tenant A Shop",
+    SHOP: ClassVar[dict[str, str]] = {"url": "https://www.example.com", "name": "Tenant A Shop",
             "category": "homeware"}
 
     def _session(self, page, email: str) -> None:

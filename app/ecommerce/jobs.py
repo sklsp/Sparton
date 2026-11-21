@@ -56,7 +56,7 @@ def _fail(db: Session, job: Job, exc: Exception) -> None:
             current.error = str(exc)[:2000]
             current.completed_at = utcnow()
             db.commit()
-    except Exception:  # noqa: BLE001, the original failure is what matters
+    except Exception:  # the original failure is what matters
         db.rollback()
 
 
@@ -153,7 +153,7 @@ def crawl_shop(payload: dict[str, Any]) -> None:
                 organization_id=shop.organization_id,
                 idempotency_key=f"auto-report:{shop_id}:{utcnow():%Y-%m-%d}",
             )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _fail(db, job, exc)
         inc("crawl_jobs_total", outcome="failed")
         raise
@@ -167,7 +167,7 @@ def _read_own(db: Session, shop: Shop) -> dict[str, Any]:
 
     try:
         return read_own_catalog(db, shop)
-    except Exception as exc:  # noqa: BLE001 - competitors still get crawled
+    except Exception as exc:  # competitors still get crawled
         db.rollback()
         logger.warning("Own catalogue read failed for shop %s: %s", shop.id, exc)
         return {"products": 0, "data_source": "", "error": str(exc)[:200]}
@@ -181,7 +181,7 @@ def _rematch(db: Session, shop: Shop | None) -> int:
         return 0
     try:
         return rematch(db, shop)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         db.rollback()
         logger.warning("Matching failed for shop %s: %s", shop.id, exc)
         return 0
@@ -224,7 +224,7 @@ def crawl_one_competitor(payload: dict[str, Any]) -> None:
         job.result = outcome.to_dict()
         job.completed_at = utcnow()
         db.commit()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _fail(db, job, exc)
         raise
     finally:
@@ -274,7 +274,7 @@ def generate_report_job(payload: dict[str, Any]) -> None:
         job.progress = 1.0
         job.completed_at = utcnow()
         db.commit()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _fail(db, job, exc)
         raise
     finally:
@@ -328,7 +328,7 @@ def schedule_due_crawls(payload: dict[str, Any]) -> None:
         if enqueued:
             logger.info("Scheduler enqueued %d crawl(s)", enqueued)
             inc("scheduled_crawls_total", value=enqueued)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("Scheduler tick failed")
         db.rollback()
     finally:

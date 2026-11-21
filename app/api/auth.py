@@ -103,7 +103,7 @@ def register(
     try:
         verification_token = tokens.issue(db, user, AuthTokenPurpose.VERIFY_EMAIL)
         email.send_verification(user.email, verification_token)
-    except Exception:  # noqa: BLE001 - never lose a successful signup to mail
+    except Exception:  # never lose a successful signup to mail
         import logging
 
         logging.getLogger(__name__).warning(

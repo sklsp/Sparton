@@ -5,9 +5,10 @@ target-version = "py312"
 extend-exclude = ["Apollo", "Ares", "migrations/versions"]
 
 [lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "PIE", "C4", "PERF"]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "PIE", "C4", "PERF", "PTH", "RUF"]
 # B008: FastAPI declares dependencies as call defaults (Depends(...), File(...)); that is the framework's idiom.
-ignore = ["B008"]
+# RUF001: text in strings uses typographic characters on purpose.
+ignore = ["B008", "RUF001"]
 
 [lint.isort]
 # Keep `from x import (a as b, c)` in one statement instead of splitting aliased names out.

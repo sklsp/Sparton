@@ -117,7 +117,7 @@ def _with_run(run_id: int, action: Callable[[Session, AgentRun], None]) -> None:
         if run is None or run.status in RunStatus.terminal():
             return
         action(db, run)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("Agent worker failed for run %s", run_id)
     finally:
         db.close()
