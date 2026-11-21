@@ -5,7 +5,7 @@ target-version = "py312"
 extend-exclude = ["Apollo", "Ares", "migrations/versions"]
 
 [lint]
-select = ["E", "F", "W", "I", "UP", "B"]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "PIE", "C4", "PERF"]
 # B008: FastAPI declares dependencies as call defaults (Depends(...), File(...)); that is the framework's idiom.
 ignore = ["B008"]
 

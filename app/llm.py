@@ -7,6 +7,7 @@ runtime, RAG chat, and vision captioning all go through this one layer.
 
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import json
 import logging
@@ -52,10 +53,9 @@ def clear_usage_context(
     tokens: tuple[contextvars.Token[int | None], contextvars.Token[int | None]] | None,
 ) -> None:
     for token in tokens or ():
-        try:
+        # RuntimeError: a token reset twice
+        with contextlib.suppress(ValueError, LookupError, RuntimeError):
             (_usage_org if token.var.name == "sparton_usage_org" else _usage_user).reset(token)
-        except (ValueError, LookupError, RuntimeError):  # RuntimeError: a token reset twice
-            pass
 
 
 def current_usage_org_id() -> int | None:

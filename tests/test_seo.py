@@ -178,6 +178,7 @@ class TestPageStructure:
                 failures.append(f"{path}: missing or empty meta description")
             if not parser.html_lang:
                 failures.append(f"{path}: <html> has no lang attribute")
-            for src in parser.imgs_without_alt:
-                failures.append(f"{path}: img {src} has no alt text")
+            failures.extend(
+                f"{path}: img {src} has no alt text" for src in parser.imgs_without_alt
+            )
         assert not failures, "pages failing the structure check:\n" + "\n".join(failures)

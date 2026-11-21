@@ -88,7 +88,7 @@ class TestTheInventoryItself:
     def test_the_public_surface_has_not_grown_silently(self):
         """A route becoming public is a security change and should be visible in
         a diff. This pins the set so an addition cannot slip through review."""
-        assert PUBLIC == {
+        assert {
             "/live",
             "/ready",
             "/billing/plans",
@@ -97,7 +97,7 @@ class TestTheInventoryItself:
             "/auth/verify-email",
             "/auth/forgot-password",
             "/auth/reset-password",
-        }, (
+        } == PUBLIC, (
             "the public surface changed. Each entry must be justifiable in one "
             "line, and this list is what makes that reviewable."
         )

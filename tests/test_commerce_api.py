@@ -84,13 +84,13 @@ def rival(client, auth_headers, shop) -> dict:
 
 
 def seed_change(db, org_id: int, shop_id: int, competitor_id: int | None = None, **overrides):
-    base = dict(
-        organization_id=org_id, shop_id=shop_id, competitor_id=competitor_id,
-        kind=ChangeKind.PRICE_DECREASE, severity=ChangeSeverity.HIGH,
-        product_name="Matte Ceramic Mug", competitor_name="Claybarn Co",
-        previous_price=24.0, new_price=19.9, delta=-4.1, delta_pct=-17.1,
-        currency="EUR", title="Claybarn Co cut the price", evidence_url=MUG_URL,
-    )
+    base = {
+        "organization_id": org_id, "shop_id": shop_id, "competitor_id": competitor_id,
+        "kind": ChangeKind.PRICE_DECREASE, "severity": ChangeSeverity.HIGH,
+        "product_name": "Matte Ceramic Mug", "competitor_name": "Claybarn Co",
+        "previous_price": 24.0, "new_price": 19.9, "delta": -4.1, "delta_pct": -17.1,
+        "currency": "EUR", "title": "Claybarn Co cut the price", "evidence_url": MUG_URL,
+    }
     base.update(overrides)
     row = ChangeEvent(**base)
     db.add(row)

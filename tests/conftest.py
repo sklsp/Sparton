@@ -28,6 +28,7 @@ os.environ.setdefault("EMBEDDING_BACKEND", "hash")
 os.environ.setdefault("RAG_DIR", "./.pytest-data/rag")
 
 import atexit  # noqa: E402
+import contextlib  # noqa: E402
 import pathlib  # noqa: E402
 
 # SQLite files are not in .gitignore patterns that cover every PID, and a
@@ -38,10 +39,8 @@ _DB_FILE = pathlib.Path(_DATABASE_URL.split("sqlite:///")[-1])
 def _remove_db() -> None:
     for suffix in ("", "-journal", "-wal", "-shm"):
         path = pathlib.Path(str(_DB_FILE) + suffix)
-        try:
+        with contextlib.suppress(OSError):
             path.unlink(missing_ok=True)
-        except OSError:
-            pass
 
 
 atexit.register(_remove_db)

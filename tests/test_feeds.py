@@ -176,7 +176,7 @@ def jsonld_only_transport() -> httpx.MockTransport:
         path = _page(str(request.url))
         if path.startswith("/robots.txt"):
             return httpx.Response(200, text="User-agent: *\nAllow: /", request=request)
-        if path.startswith("/products.json") or path.startswith("/wp-json"):
+        if path.startswith(("/products.json", "/wp-json")):
             return httpx.Response(404, request=request)
         if path in ("/", ""):
             return httpx.Response(200, text=JSONLD_PAGE, request=request)
@@ -197,7 +197,7 @@ def no_feed_html_transport() -> httpx.MockTransport:
         path = _page(str(request.url))
         if path.startswith("/robots.txt"):
             return httpx.Response(200, text="User-agent: *\nAllow: /", request=request)
-        if path.startswith("/products.json") or path.startswith("/wp-json"):
+        if path.startswith(("/products.json", "/wp-json")):
             return httpx.Response(404, request=request)
         if path in ("/", ""):
             return httpx.Response(
@@ -875,21 +875,21 @@ class TestTheExtractionOfOneProduct:
 
         from shopfeed.catalog import Product
 
-        base = dict(
-            platform="shopify",
-            id="101",
-            title="Cast Iron Skillet",
-            url=f"{SHOP}/products/cast-iron-skillet",
-            price=Decimal("24.99"),
-            compare_at=None,
-            currency="eur",
-            available=True,
-            sku="SKU-101",
-            variants=3,
-            vendor="Acme Foundry",
-            image=f"{SHOP}/img/skillet.jpg",
-            gtin="5012345678900",
-        )
+        base = {
+            "platform": "shopify",
+            "id": "101",
+            "title": "Cast Iron Skillet",
+            "url": f"{SHOP}/products/cast-iron-skillet",
+            "price": Decimal("24.99"),
+            "compare_at": None,
+            "currency": "eur",
+            "available": True,
+            "sku": "SKU-101",
+            "variants": 3,
+            "vendor": "Acme Foundry",
+            "image": f"{SHOP}/img/skillet.jpg",
+            "gtin": "5012345678900",
+        }
         base.update(overrides)
         return Product(**base)
 
