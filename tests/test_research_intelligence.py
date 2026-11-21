@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.database.domain_models import (
     ExternalProduct,
@@ -14,7 +15,8 @@ from app.core.database.domain_models import (
     Product,
     ProductSnapshot,
 )
-from app.research.crawler import CrawlResult
+from app.research.crawler import CrawlResult, ResponsibleCrawler
+from app.research.discovery import SearchProvider
 from app.research.extraction import ExtractedProduct
 from app.research.intelligence import (
     get_opportunity,
@@ -24,56 +26,59 @@ from app.research.intelligence import (
 )
 
 
-class FakeSearch:
+class FakeSearch(SearchProvider):
     """Stands in for DuckDuckGoProvider; records calls and close()."""
 
-    def __init__(self, urls):
+    def __init__(self, urls: list[str]) -> None:
         self.urls = list(urls)
-        self.calls = []
+        self.calls: list[tuple[str, int]] = []
         self.closed = False
 
-    def search(self, query, limit=10):
+    def search(self, query: str, *, limit: int = 10) -> list[str]:
         self.calls.append((query, limit))
         return list(self.urls)
 
-    def close(self):
+    def close(self) -> None:
         self.closed = True
 
 
-class FakeCrawler:
+class FakeCrawler(ResponsibleCrawler):
     """Stands in for ResponsibleCrawler; returns canned CrawlResults."""
 
-    def __init__(self, results=None, error=None):
+    def __init__(self, results: list[CrawlResult] | None = None, error: Exception | None = None) -> None:
+        super().__init__()  # inert defaults; no I/O
         self.results = list(results or [])
         self.error = error
-        self.crawled_urls = None
+        self.crawled_urls: list[str] | None = None
         self.closed = False
 
-    def crawl(self, urls):
-        self.crawled_urls = list(urls)
+    def crawl(self, start_urls: list[str]) -> list[CrawlResult]:
+        self.crawled_urls = list(start_urls)
         if self.error is not None:
             raise self.error
         return self.results
 
-    def close(self):
+    def close(self) -> None:
         self.closed = True
 
 
-def _job(db_session, query="ceramic mugs", organization_id=None):
+def _job(db_session: Session, query: str = "ceramic mugs", organization_id: int | None = None) -> Job:
     job = Job(organization_id=organization_id, type="research", payload={"query": query})
     db_session.add(job)
     db_session.commit()
     return job
 
 
-def _product(name, url, price, currency="USD", confidence=0.9, availability="in stock"):
+def _product(name: str, url: str, price: float, currency: str = "USD",
+             confidence: float = 0.9, availability: str = "in stock") -> ExtractedProduct:
     return ExtractedProduct(
         name=name, url=url, price=price, currency=currency,
         availability=availability, method="json-ld", confidence=confidence,
     )
 
 
-def _result(url, products=None, title="", error=None):
+def _result(url: str, products: list[ExtractedProduct] | None = None, title: str = "",
+            error: str | None = None) -> CrawlResult:
     metadata = {"title": title} if title else {}
     return CrawlResult(
         url=url, status_code=None if error else 200,
@@ -358,7 +363,9 @@ def test_get_opportunity_returns_row_or_none(db_session):
     db_session.add(opp)
     db_session.commit()
 
-    assert get_opportunity(db_session, opp.id).id == opp.id
+    fetched = get_opportunity(db_session, opp.id)
+    assert fetched is not None
+    assert fetched.id == opp.id
     assert get_opportunity(db_session, 424242) is None
 
 
