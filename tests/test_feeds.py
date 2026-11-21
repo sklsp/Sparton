@@ -16,9 +16,11 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
+from sqlalchemy.orm import Session
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -37,6 +39,7 @@ from app.ecommerce.feeds import (  # noqa: E402 - must come after ROOT
     shopfeed_available,
     source_label,
 )
+from app.llm import DeterministicProvider  # noqa: E402 - must come after ROOT
 
 pytestmark = pytest.mark.skipif(
     not shopfeed_available(), reason="shopfeed is not installed"
@@ -54,7 +57,7 @@ JSONLD_PAGE = (
     "</script></head><body><h1>Enamel Mug</h1><p>8.50</p></body></html>"
 )
 
-SHOPIFY_PRODUCTS = [
+SHOPIFY_PRODUCTS: list[dict[str, Any]] = [
     {
         "id": 101,
         "title": "Cast Iron Skillet",
@@ -405,20 +408,20 @@ class TestTheSourceLabel:
         assert source_label("something-new") == source_label(SOURCE_HTML)
 
 
-def _usage_count(db) -> int:
+def _usage_count(db: Session) -> int:
     from app.core.database.usage_models import LLMUsage
 
     return db.query(LLMUsage).count()
 
 
-def _llm_calls(provider) -> list:
+def _llm_calls(provider: DeterministicProvider) -> list[list[dict[str, Any]]]:
     """Every conversation the provider was asked to complete.
 
     The `llm` fixture records each call, so "did this crawl use the model?" is
     answerable directly rather than inferred from a counter that might not be
     the one that matters.
     """
-    return list(getattr(provider, "calls", []))
+    return list(provider.calls)
 
 
 class TestTheCrawlPrefersTheShopFeed:
@@ -832,7 +835,7 @@ class TestTheMoneyCoercion:
 
         from app.ecommerce.feeds import _money
 
-        assert _money("12.34") == Decimal("12.3400")
+        assert _money("12.34") == Decimal("12.3400")  # type: ignore[arg-type]  # a feed may stringify its numbers
 
     def test_a_float_round_trips_without_binary_error(self):
         # 0.45 has no exact binary form; going through str() keeps it clean.
@@ -840,7 +843,7 @@ class TestTheMoneyCoercion:
 
         from app.ecommerce.feeds import _money
 
-        assert _money(0.45) == Decimal("0.4500")
+        assert _money(0.45) == Decimal("0.4500")  # type: ignore[arg-type]  # a feed may send floats
 
     def test_nan_and_infinity_are_refused(self):
         # A NaN compares unequal to itself and would poison every price diff.
@@ -848,14 +851,14 @@ class TestTheMoneyCoercion:
 
         from app.ecommerce.feeds import _money
 
-        assert _money(float("nan")) is None
-        assert _money(float("inf")) is None
+        assert _money(float("nan")) is None  # type: ignore[arg-type]  # a feed may send non-finite floats
+        assert _money(float("inf")) is None  # type: ignore[arg-type]  # a feed may send non-finite floats
         assert _money(Decimal("NaN")) is None
 
     def test_garbage_is_refused(self):
         from app.ecommerce.feeds import _money
 
-        assert _money("not a price") is None
+        assert _money("not a price") is None  # type: ignore[arg-type]  # garbage must be refused, not crash
 
     def test_a_value_that_cannot_be_stringified_is_refused(self):
         from app.ecommerce.feeds import _money
@@ -864,7 +867,7 @@ class TestTheMoneyCoercion:
             def __str__(self):
                 raise TypeError("no string form")
 
-        assert _money(Broken()) is None
+        assert _money(Broken()) is None  # type: ignore[arg-type]  # __str__ may raise; the value must be refused
 
 
 class TestTheExtractionOfOneProduct:
@@ -907,6 +910,7 @@ class TestTheExtractionOfOneProduct:
         from app.ecommerce.feeds import _to_extracted
 
         row = _to_extracted(self._product(price=None), source=SOURCE_FEED)
+        assert row is not None
         assert row.name == "Cast Iron Skillet"
         assert row.price is None
 
@@ -916,21 +920,20 @@ class TestTheExtractionOfOneProduct:
         from app.ecommerce.feeds import _to_extracted
 
         row = _to_extracted(self._product(title=""), source=SOURCE_FEED)
+        assert row is not None
         assert row.name == "Untitled product"
         assert row.price == Decimal("24.99")
 
     def test_the_currency_is_normalised_and_given_a_default(self):
         from app.ecommerce.feeds import _to_extracted
 
-        assert (
-            _to_extracted(self._product(currency="gbp"), source=SOURCE_FEED).currency
-            == "GBP"
-        )
+        row = _to_extracted(self._product(currency="gbp"), source=SOURCE_FEED)
+        assert row is not None
+        assert row.currency == "GBP"
         # A feed that omits the currency is assumed to be in EUR, not left blank.
-        assert (
-            _to_extracted(self._product(currency=None), source=SOURCE_FEED).currency
-            == "EUR"
-        )
+        missing = _to_extracted(self._product(currency=None), source=SOURCE_FEED)
+        assert missing is not None
+        assert missing.currency == "EUR"
 
     def test_availability_and_the_markdown_are_carried_through(self):
         from decimal import Decimal
@@ -941,6 +944,7 @@ class TestTheExtractionOfOneProduct:
             self._product(available=False, compare_at=Decimal("29.99")),
             source=SOURCE_FEED,
         )
+        assert row is not None
         assert row.availability == "out_of_stock"
         assert row.attributes["compare_at"] == Decimal("29.99")
 
@@ -950,6 +954,8 @@ class TestTheExtractionOfOneProduct:
 
         feed = _to_extracted(self._product(), source=SOURCE_FEED)
         ld = _to_extracted(self._product(), source=SOURCE_JSONLD)
+        assert feed is not None
+        assert ld is not None
         # The row records the tier that produced it, not the shop's platform:
         # the UI shows the customer which kind of number they are looking at.
         assert (feed.method, feed.confidence) == ("feed", 1.0)
@@ -959,6 +965,7 @@ class TestTheExtractionOfOneProduct:
         from app.ecommerce.feeds import _to_extracted
 
         row = _to_extracted(self._product(variants=0), source=SOURCE_FEED)
+        assert row is not None
         assert row.attributes["external_id"] == "101"
         assert row.attributes["sku"] == "SKU-101"
         assert row.attributes["gtin"] == "5012345678900"

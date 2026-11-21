@@ -1,2 +1,2 @@
 - [x] W1. typing: test_research_intelligence (1608 passed, 16 skipped, 2 xfailed, 1 warning in 199.34s (0:03:19))
-- [ ] W2. typing: test_feeds
+- [x] W2. typing: test_feeds (1608 passed, 16 skipped, 2 xfailed, 1 warning in 202.01s (0:03:22))
