@@ -71,13 +71,12 @@ def list_stores(db: DbSession, user: Annotated[object, Depends(current_user)], l
     if org is not None:
         query = query.where(ExternalStore.organization_id == org)
     rows = db.execute(query).scalars().all()
-    counts = {
-        store_id: count
-        for store_id, count in db.execute(
+    counts = dict(
+        db.execute(
             select(ExternalProduct.store_id, func.count(ExternalProduct.id))
             .group_by(ExternalProduct.store_id)
         ).all()
-    }
+    )
     return {
         "count": len(rows),
         "stores": [

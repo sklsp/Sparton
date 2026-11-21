@@ -166,7 +166,6 @@ class TestTracedHelper:
             span.set_attribute("k", "v")  # must not raise without a real tracer
 
     def test_exception_propagates_and_span_closes(self):
-        with pytest.raises(ValueError, match="boom"):
-            with tracing.traced("failing.op"):
-                raise ValueError("boom")
+        with pytest.raises(ValueError, match="boom"), tracing.traced("failing.op"):
+            raise ValueError("boom")
 

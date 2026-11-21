@@ -8,6 +8,7 @@ management, and progress parsing are kept; run history now lives in SQL
 from __future__ import annotations
 
 import atexit
+import contextlib
 import logging
 import re
 import subprocess  # noqa: S404 - fixed argv, no shell
@@ -194,10 +195,8 @@ class AIToolkitProcess:
                 self.total_steps = int(match.group(2))
             loss_match = self._LOSS_RE.search(line)
             if loss_match:
-                try:
+                with contextlib.suppress(ValueError):
                     self.loss = float(loss_match.group(1))
-                except ValueError:
-                    pass
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:

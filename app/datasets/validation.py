@@ -147,9 +147,11 @@ def classify_pair(
     distance = _hamming(hash_a, hash_b)
 
     if distance == 0:
-        if _is_low_entropy(hash_a) and color_a is not None and color_b is not None:
-            if _color_distance(color_a, color_b) > FLAT_COLOR_DISTANCE:
-                return "unique"
+        if (
+            _is_low_entropy(hash_a) and color_a is not None and color_b is not None
+            and _color_distance(color_a, color_b) > FLAT_COLOR_DISTANCE
+        ):
+            return "unique"
         return "near_duplicate_high"
 
     if distance > NEAR_HASH_CLOSE:
@@ -163,11 +165,10 @@ def classify_pair(
         if _same_aspect_ratio(*dims_a, *dims_b):
             corroboration += 1
 
-    if _is_low_entropy(hash_a) or _is_low_entropy(hash_b):
-        if color_a is not None and color_b is not None:
-            required += 1
-            if _color_distance(color_a, color_b) <= FLAT_COLOR_DISTANCE:
-                corroboration += 1
+    if (_is_low_entropy(hash_a) or _is_low_entropy(hash_b)) and color_a is not None and color_b is not None:
+        required += 1
+        if _color_distance(color_a, color_b) <= FLAT_COLOR_DISTANCE:
+            corroboration += 1
 
     if required and corroboration < required:
         return "near_duplicate_possible"

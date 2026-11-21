@@ -248,14 +248,13 @@ def list_shops(
     rows = db.execute(
         select(Shop).where(Shop.organization_id == org).order_by(Shop.created_at.desc())
     ).scalars().all()
-    counts = {
-        shop_id: count
-        for shop_id, count in db.execute(
+    counts: dict[int | None, int] = dict(
+        db.execute(
             select(Competitor.shop_id, __import__("sqlalchemy").func.count(Competitor.id))
             .where(Competitor.organization_id == org)
             .group_by(Competitor.shop_id)
         ).all()
-    }
+    )
     return {
         "count": len(rows),
         "shops": [_shop_dict(s, competitor_count=counts.get(s.id, 0)) for s in rows],

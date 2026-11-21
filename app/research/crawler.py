@@ -364,9 +364,11 @@ class ResponsibleCrawler:
             if result.error or depth >= self.policy.max_depth:
                 continue
             origin = urlparse(url).netloc
-            for link in result.links:
-                if urlparse(link).netloc == origin and self.canonical(link) not in visited:
-                    queue.append((self.canonical(link), depth + 1))
+            queue.extend(
+                (self.canonical(link), depth + 1)
+                for link in result.links
+                if urlparse(link).netloc == origin and self.canonical(link) not in visited
+            )
         return results
 
     def close(self) -> None:

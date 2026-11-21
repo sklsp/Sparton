@@ -120,7 +120,9 @@ def write_json_atomic(path: str | Path, payload: object) -> None:
     """Write JSON via a temp file + replace, so a crash cannot truncate state."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    handle = tempfile.NamedTemporaryFile(
+    # The handle must close before os.replace: Windows refuses to replace a
+    # file that is still open (WinError 32), so no context manager here.
+    handle = tempfile.NamedTemporaryFile(  # noqa: SIM115 - close before os.replace; Windows cannot replace an open file
         "w", encoding="utf-8", dir=target.parent, delete=False, suffix=".tmp"
     )
     try:

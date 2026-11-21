@@ -190,10 +190,10 @@ class RedisQueueBackend(QueueBackend):
                     entry = json.loads(raw)
                 except (ValueError, TypeError):
                     continue
-                if time.time() - entry.get("enqueued_at", 0) > older_than_seconds:
-                    if self.client.lrem(worker_key, 1, cast(str, raw)):
-                        self.client.lpush(QUEUE_KEY, raw)
-                        reclaimed += 1
+                stale = time.time() - entry.get("enqueued_at", 0) > older_than_seconds
+                if stale and self.client.lrem(worker_key, 1, cast(str, raw)):
+                    self.client.lpush(QUEUE_KEY, raw)
+                    reclaimed += 1
         return reclaimed
 
     def depth(self) -> dict[str, int]:

@@ -144,7 +144,7 @@ class TestCompose:
         for name in ("api", "worker"):
             for key in compose["services"][name].get("environment", {}):
                 # Read by the container's own CMD, not by the app.
-                if key.startswith("SPARTON_HOST") or key.startswith("SPARTON_PORT"):
+                if key.startswith(("SPARTON_HOST", "SPARTON_PORT")):
                     continue
                 assert key in known, f"{name}: {key} is not a Settings field"
 
