@@ -12,6 +12,7 @@ import json
 import pytest
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.agent.engine import AgentEngine
 from app.agent.registry import ToolAccess, ToolRegistry
@@ -31,6 +32,7 @@ from app.llm import DeterministicProvider, LLMError
 # --------------------------------------------------------------------------
 # Fakes: a small registry of demo tools and scripted providers
 # --------------------------------------------------------------------------
+# Script entries are strings (final answers) or dicts (tool-call decisions), as chat() documents.
 
 class OkInput(BaseModel):
     limit: int = Field(default=5, ge=1, le=10)
@@ -184,6 +186,7 @@ def test_successful_tool_call_is_recorded_and_summarized(db_session):
 
     tool_result = _steps_of_type(steps, StepType.TOOL_RESULT)[0]
     assert tool_result.status == StepStatus.OK
+    assert tool_result.output is not None
     assert tool_result.output["count"] == 2
     # count + items shape gets the "Retrieved N rows" summary line.
     assert tool_result.message.startswith("Retrieved 2 rows")
@@ -203,7 +206,10 @@ def test_successful_tool_call_is_recorded_and_summarized(db_session):
     ],
 )
 def test_summarize_variants(db_session, tool, expected_prefix):
-    provider = DeterministicProvider([{"tool": tool, "arguments": {}}, "Done."])
+    provider = DeterministicProvider([
+        {"tool": tool, "arguments": {}},
+        "Done.",
+    ])
     run = _make_run(db_session)
     result = _engine(db_session, provider).start(run)
 
@@ -239,6 +245,7 @@ def test_tool_error_yields_retryable_result_and_run_recovers(db_session):
 
     tool_result = _steps_of_type(_steps(db_session, run.id), StepType.TOOL_RESULT)[0]
     assert tool_result.status == StepStatus.ERROR
+    assert tool_result.output is not None
     assert tool_result.output["category"] == "INTERNAL_ERROR"
     assert tool_result.output["retryable"] is True
     assert "kaboom" in tool_result.output["error"]
@@ -259,6 +266,7 @@ def test_validation_error_includes_correction(db_session):
     tool_results = _steps_of_type(_steps(db_session, run.id), StepType.TOOL_RESULT)
     bad = tool_results[0]
     assert bad.status == StepStatus.ERROR
+    assert bad.output is not None
     assert bad.output["category"] == "VALIDATION_ERROR"
     assert bad.output["retryable"] is True
     correction = bad.output["correction"]
@@ -282,6 +290,7 @@ def test_type_error_correction_has_no_range(db_session):
 
     assert result.status == RunStatus.COMPLETED
     bad = _steps_of_type(_steps(db_session, run.id), StepType.TOOL_RESULT)[0]
+    assert bad.output is not None
     assert bad.output["category"] == "VALIDATION_ERROR"
     # No numeric bounds in the error detail -> generic range hint.
     assert "Allowed: see the tool schema" in bad.output["correction"]
@@ -298,6 +307,7 @@ def test_unknown_tool_reported_not_found(db_session):
     assert result.status == RunStatus.COMPLETED
     tool_result = _steps_of_type(_steps(db_session, run.id), StepType.TOOL_RESULT)[0]
     assert tool_result.status == StepStatus.ERROR
+    assert tool_result.output is not None
     assert tool_result.output["category"] == "NOT_FOUND"
     assert tool_result.output["retryable"] is False
 
@@ -331,6 +341,7 @@ def test_retries_exhausted_fails_run(db_session):
     result = _engine(db_session, provider).start(run)
 
     assert result.status == RunStatus.FAILED
+    assert result.error is not None and result.final_response is not None
     assert "repeatedly generated invalid tool arguments" in result.error
     assert result.final_response.startswith("The run could not be completed:")
     # The loop failed before a fourth LLM call.
@@ -353,6 +364,7 @@ def test_iteration_limit_triggers_wrap_up(db_session, monkeypatch):
     result = _engine(db_session, provider).start(run)
 
     assert result.status == RunStatus.COMPLETED
+    assert result.final_response is not None
     assert "Stopped early: iteration limit reached" in result.final_response
 
     decision = [s for s in _steps_of_type(_steps(db_session, run.id), StepType.DECISION)
@@ -373,6 +385,7 @@ def test_tool_call_limit_triggers_wrap_up(db_session, monkeypatch):
 
     assert result.status == RunStatus.COMPLETED
     assert result.tool_calls_made == 2
+    assert result.final_response is not None
     assert "Stopped early: tool call limit reached" in result.final_response
 
 
@@ -387,6 +400,7 @@ def test_wrap_up_with_ungrounded_summary_fails(db_session, monkeypatch):
 
     # The wrap-up answer states a number without any successful data: blocked.
     assert result.status == RunStatus.FAILED
+    assert result.final_response is not None
     assert "No verified result is available" in result.final_response
 
 
@@ -397,6 +411,7 @@ def test_wrap_up_llm_error_still_completes(db_session, monkeypatch):
     result = _engine(db_session, provider).start(run)
 
     assert result.status == RunStatus.COMPLETED
+    assert result.final_response is not None
     assert "could not summarise (summariser down)" in result.final_response
     assert "(Stopped early: iteration limit reached)" in result.final_response
 
@@ -405,7 +420,7 @@ def test_wrap_up_llm_error_still_completes(db_session, monkeypatch):
 # Approvals
 # --------------------------------------------------------------------------
 
-def _approval(db_session, run_id: int) -> ApprovalRequest:
+def _approval(db_session: Session, run_id: int) -> ApprovalRequest:
     return db_session.execute(
         select(ApprovalRequest).where(ApprovalRequest.agent_run_id == run_id)
     ).scalars().one()
@@ -485,6 +500,7 @@ def test_approval_rejection_reports_not_applied(db_session):
     resolved = _steps_of_type(steps, StepType.APPROVAL_RESOLVED)[0]
     assert resolved.status == StepStatus.ERROR
     tool_result = _steps_of_type(steps, StepType.TOOL_RESULT)[0]
+    assert tool_result.output is not None
     assert tool_result.output["executed"] is False
     assert tool_result.output["note"] == "too expensive"
     assert _steps_of_type(steps, StepType.TOOL_CALL) == []
@@ -524,6 +540,7 @@ def test_llm_error_fails_run(db_session):
 
     assert result.status == RunStatus.FAILED
     assert result.error == "upstream down"
+    assert result.final_response is not None
     assert result.final_response.startswith("The run could not be completed: upstream down")
 
 
@@ -549,12 +566,16 @@ def test_timeout_fails_run(db_session, monkeypatch):
 
 
 def test_large_tool_output_is_truncated(db_session):
-    provider = DeterministicProvider([{"tool": "demo.big", "arguments": {}}, "Done."])
+    provider = DeterministicProvider([
+        {"tool": "demo.big", "arguments": {}},
+        "Done.",
+    ])
     run = _make_run(db_session)
     result = _engine(db_session, provider).start(run)
 
     assert result.status == RunStatus.COMPLETED
     tool_result = _steps_of_type(_steps(db_session, run.id), StepType.TOOL_RESULT)[0]
+    assert tool_result.output is not None
     assert tool_result.output["truncated"] is True
     assert len(tool_result.output["preview"]) == 20_000
 

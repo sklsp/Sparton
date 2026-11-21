@@ -572,7 +572,7 @@ class TestDeterministicProvider:
 
     def test_chat_scripted_tool_call_decision(self):
         provider = DeterministicProvider(
-            scripted_responses=[{"tool": "lookup_sales", "arguments": {"days": 7}}]  # type: ignore[list-item]  # chat() documents dict tool-call entries; __init__ declares list[str]
+            scripted_responses=[{"tool": "lookup_sales", "arguments": {"days": 7}}]
         )
         response = provider.chat([Message(role="user", content="go")])
         assert response.content is None

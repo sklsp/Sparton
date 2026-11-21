@@ -15,7 +15,7 @@ import sys
 import uuid
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import ConsoleMessage, Error as PageError, sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "qa_shots"
@@ -32,15 +32,23 @@ def main(base: str, paths: list[str], full: bool = True) -> int:
     problems = 0
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=CHROME if Path(CHROME).exists() else None)
-        session_token = None
+        session_token: str | None = None
         for lang in ("nl", "en"):
             for name, (w, h) in VIEWPORTS.items():
                 ctx = browser.new_context(viewport={"width": w, "height": h}, locale="en-US",
                                           reduced_motion="reduce")
                 page = ctx.new_page()
                 errors: list[str] = []
-                page.on("console", lambda m, errors=errors: errors.append(m.text) if m.type == "error" else None)
-                page.on("pageerror", lambda e, errors=errors: errors.append(str(e)))
+
+                def on_console(message: ConsoleMessage, _errors: list[str] = errors) -> None:
+                    if message.type == "error":
+                        _errors.append(message.text)
+
+                def on_page_error(error: PageError, _errors: list[str] = errors) -> None:
+                    _errors.append(str(error))
+
+                page.on("console", on_console)
+                page.on("pageerror", on_page_error)
                 page.goto(f"{base}/", wait_until="domcontentloaded")
                 page.evaluate("l => localStorage.setItem('sparton.lang', l)", lang)
                 for path in paths:

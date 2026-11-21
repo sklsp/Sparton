@@ -720,8 +720,9 @@ class DeterministicProvider(LLMProvider):
 
     name = "test"
 
-    def __init__(self, scripted_responses: list[str] | None = None) -> None:
-        self.scripted_responses = list(scripted_responses or [])
+    def __init__(self, scripted_responses: list[str | dict[str, Any]] | None = None) -> None:
+        # Strings are final answers; dicts shaped like {"tool": name, "arguments": {...}} are tool calls (see chat()).
+        self.scripted_responses: list[str | dict[str, Any]] = list(scripted_responses or [])
         self.calls: list[list[dict[str, Any]]] = []
 
     def complete(
@@ -736,7 +737,8 @@ class DeterministicProvider(LLMProvider):
     ) -> str:
         self.calls.append(messages)
         if self.scripted_responses:
-            return self.scripted_responses.pop(0)
+            entry = self.scripted_responses.pop(0)
+            return entry if isinstance(entry, str) else json.dumps(entry)
         if response_format_json:
             return json.dumps({"action": "respond", "answer": "ok"})
         return "Deterministic response."
