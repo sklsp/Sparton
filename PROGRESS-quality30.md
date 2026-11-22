@@ -1,0 +1,3 @@
+- [x] G1. tests: the ComfyUI client (1765 passed, 16 skipped, 2 xfailed, 1 warning in 198.55s (0:03:18))
+- [ ] G2. tests: the generation service
+- [ ] G3. tests: dataset validation, then count both folders in coverage
