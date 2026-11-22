@@ -1,0 +1,3 @@
+- [x] T1. tests: training hardware detection (1654 passed, 16 skipped, 2 xfailed, 1 warning in 198.42s (0:03:18))
+- [ ] T2. tests: the training preflight
+- [ ] T3. tests: the training service, then count it in coverage
