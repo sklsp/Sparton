@@ -5,7 +5,6 @@ omit =
     app/documents/*
     app/generation/*
     app/datasets/*
-    app/training/*
 
 [report]
 fail_under = 85
