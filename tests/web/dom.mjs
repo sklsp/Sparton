@@ -214,6 +214,9 @@ class Element {
 
   click() { return this.dispatchEvent(new Event("click")); }
 
+  /** HTMLFormElement surface for agent.js's Ctrl+Enter submit; fires the form's submit event. */
+  requestSubmit() { return this.dispatchEvent(new Event("submit")); }
+
   /** HTMLDialogElement surface for ui.js's dialog(): open flag, returnValue and the close event. */
   showModal() { this.open = true; }
   close(returnValue) { if (returnValue !== undefined) this.returnValue = returnValue; this.open = false; this.dispatchEvent(new Event("close")); }

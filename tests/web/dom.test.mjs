@@ -333,3 +333,11 @@ test("replaceWith takes the node's place in its parent, in order (agent.js tab s
   assert.equal(parent.textContent, "text");
   assert.ok(![...parent.childNodes].includes(placeholder)); // the replaced node is out of the tree
 });
+
+test("requestSubmit dispatches the form's submit event (agent.js Ctrl+Enter)", () => {
+  const form = document.createElement("form");
+  let submitted = 0;
+  form.addEventListener("submit", (event) => { event.preventDefault(); submitted += 1; });
+  assert.equal(form.requestSubmit(), false); // preventDefault makes dispatchEvent return false, as in the browser
+  assert.equal(submitted, 1);
+});
