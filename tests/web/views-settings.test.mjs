@@ -35,11 +35,11 @@ const proPlan = {
 };
 
 // Render the settings view against scripted routes; record every call and posted body.
-function renderSettings({ plan = freePlan, changePassword = null, updateSettings = null } = {}) {
+function renderSettings({ plan = freePlan, changePassword = null, updateSettings = null, logout = null, user = who } = {}) {
   resetEnv();
   resetDom();
   resetToasts(); // ui.js caches its toasts host; a fresh document needs a fresh one.
-  const state = { user: { ...who }, lang: "en" };
+  const state = { user: user ? { ...user } : null, lang: "en" }; // user: null renders an unauthenticated account
   const host = document.createElement("main");
   document.body.appendChild(host);
   const calls = [];
@@ -49,7 +49,7 @@ function renderSettings({ plan = freePlan, changePassword = null, updateSettings
   setFetch((href, init) => {
     const method = init?.method ?? "GET";
     calls.push([method, href]);
-    if (method === "GET" && href === "/billing/plan") return json(plan);
+    if (method === "GET" && href === "/billing/plan") return typeof plan === "function" ? plan() : json(plan); // a function scripts the answer per request, like renderCatalog's routes
     if (method === "POST" && href === "/auth/change-password") {
       pwBodies.push(JSON.parse(init.body));
       return changePassword ? Promise.resolve(changePassword()) : json({ changed: true });
@@ -63,7 +63,7 @@ function renderSettings({ plan = freePlan, changePassword = null, updateSettings
       langBodies.push(JSON.parse(init.body));
       return json({ language: JSON.parse(init.body).language });
     }
-    if (method === "POST" && href === "/auth/logout") return json({ revoked: true });
+    if (method === "POST" && href === "/auth/logout") return logout ? Promise.resolve(logout()) : json({ revoked: true });
     throw new Error(`unexpected fetch ${method} ${href}`);
   });
   settingsView(host, { state });
@@ -170,4 +170,62 @@ test("a failed digest save reverts the switch and toasts the error", async () =>
   const toast = document.querySelector(".toast");
   assert.equal(toast.dataset.tone, "danger");
   assert.equal(toast.querySelector("div").textContent, "The server hiccuped.");
+});
+
+test("an unauthenticated account shows a dash, unverified and the toggle on", () => {
+  const { host } = renderSettings({ user: null }); // state.user is null: the view falls back to {}
+  const [emailRow, verifiedRow] = [...host.querySelector(".kv-list").children].map((row) => row.querySelector("dd"));
+  assert.equal(emailRow.textContent, "—"); // no email on an empty account
+  assert.equal(verifiedRow.textContent, t("st.no"));
+  assert.ok(host.querySelector("#st-digest-toggle").checked); // undefined is not false: the toggle defaults on
+});
+
+test("a failed plan fetch leaves the digest toggle in place", async () => {
+  const { host, calls } = renderSettings({ plan: () => json({ detail: "The plan service is down." }, 503) });
+  await waitFor(() => calls.some(([m, h]) => m === "GET" && h === "/billing/plan"), "the plan fetch");
+  await new Promise((r) => setTimeout(r, 0)); // let the rejection settle into the empty catch
+  assert.ok(host.querySelector("#st-digest-toggle")); // no hint swap: an unknown plan keeps the toggle
+  assert.ok(!digestSection(host).textContent.includes(t("st.digestPlan")));
+});
+
+test("a malformed plan answer without features swaps in the upgrade hint", async () => {
+  const { host } = renderSettings({ plan: {} }); // nothing down the plan?.plan?.features chain
+  await waitFor(() => digestSection(host).querySelector("#st-digest-toggle") === null, "the gate to swap in the hint");
+  assert.ok(digestSection(host).textContent.includes(t("st.digestPlan")));
+});
+
+test("a 401 maps to the friendly message and other statuses show the API's text", async () => {
+  let attempts = 0;
+  const scripted = () => (++attempts === 1 ? json({ detail: "Session expired." }, 401) : json({ detail: "The server hiccuped." }, 500));
+  const { host } = renderSettings({ changePassword: scripted });
+  const form = host.querySelector("form.st-form");
+
+  form.querySelector("#st-cur").value = "wrong";
+  form.querySelector("#st-new").value = "new-password-123";
+  form.dispatchEvent(new Event("submit"));
+  await waitFor(() => form.querySelector(".form-error").textContent !== "", "the first refusal");
+  assert.equal(form.querySelector(".form-error").textContent, t("st.wrongPassword")); // a 401 is also a wrong password
+
+  form.dispatchEvent(new Event("submit"));
+  await waitFor(() => form.querySelector(".form-error").textContent === "The server hiccuped.", "the raw message");
+  assert.equal(attempts, 2);
+});
+
+test("signing out lands on login even when /auth/logout fails", async () => {
+  const { host } = renderSettings({ logout: () => json({ detail: "The token was already dead." }, 401) });
+  localStorage.setItem("sparton.token", "test-token");
+  host.querySelector('section[aria-labelledby="st-out"]').querySelector('button[data-variant="danger"]').click();
+  await waitFor(() => localStorage.getItem("sparton.token") === null && location.hash === "#/login", "sign-out to finish");
+  assert.equal(reloadCalls(), 1); // the catch swallows the failure; the local cleanup still runs
+});
+
+test("toggling the digest without an account builds a fresh state copy", async () => {
+  const { host, state } = renderSettings({ plan: proPlan, user: null }); // state.user is null until the first save
+  assert.equal(state.user, null);
+  const box = host.querySelector("#st-digest-toggle");
+  assert.ok(box.checked); // undefined !== false
+  box.checked = false;
+  box.dispatchEvent(new Event("change"));
+  await waitFor(() => document.querySelector(".toast"), "the saved toast");
+  assert.deepEqual(state.user, { weekly_digest_enabled: false }); // the fallback {} seeds the new copy
 });

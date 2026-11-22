@@ -107,12 +107,19 @@ class Element {
     return on;
   }
 
+  // h() writes boolean props as attributes and settings.js reads box.checked back; reflect the
+  // pair like the browser does so a checked attribute shows up as a true property.
+  get checked() { return this.hasAttribute("checked"); }
+  set checked(value) { if (value) this.setAttribute("checked", ""); else this.removeAttribute("checked"); }
+
   get childNodes() { return [...this._childNodes]; }
   // children holds elements only, so text nodes never count against a tile row's length.
   get children() { return this._childNodes.filter((node) => node.nodeType === 1); }
   get lastChild() { return this._childNodes.at(-1) ?? null; }
   // agent.js scrolls the newest timeline row into view; elements only, like the browser.
   get lastElementChild() { return this.children.at(-1) ?? null; }
+  // catalog.js walks a header row from one cell: nearest element ancestor or null, as in the browser.
+  get parentElement() { let p = this._parent; while (p && p.nodeType !== 1) p = p._parent; return p ?? null; }
 
   append(...nodes) { for (const node of nodes) this.appendChild(node); }
 
