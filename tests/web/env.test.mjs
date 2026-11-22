@@ -1,7 +1,7 @@
 // The fakes in env.mjs behave like the browser bits the app modules touch at import.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setFetch, resetEnv, reloadCalls } from "./env.mjs";
+import { setFetch, setFileFetchFailure, resetEnv, reloadCalls } from "./env.mjs";
 
 test("localStorage round trip", () => {
   localStorage.setItem("sparton.lang", "nl");
@@ -34,6 +34,17 @@ test("fetch hands other URLs to the setFetch handler", async () => {
   const res = await fetch("/auth/login", { method: "POST" });
   assert.deepEqual(seen, ["/auth/login", { method: "POST" }]);
   assert.equal((await res.json()).ok, true);
+});
+
+test("setFileFetchFailure makes file: fetches fail in the chosen mode", async () => {
+  resetEnv();
+  const url = new URL("../../app/web/i18n/en.json", import.meta.url).href;
+  setFileFetchFailure("http");
+  assert.equal((await fetch(url)).status, 500); // an HTTP error, not a rejection
+  setFileFetchFailure("network");
+  await assert.rejects(() => fetch(url), /network/); // a network-style failure rejects
+  resetEnv(); // clears the failure too
+  assert.ok((await fetch(url)).ok);
 });
 
 test("fetch without a handler throws for non-file URLs", async () => {
