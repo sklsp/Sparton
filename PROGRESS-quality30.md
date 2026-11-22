@@ -1,3 +1,0 @@
-- [x] G1. tests: the ComfyUI client (1765 passed, 16 skipped, 2 xfailed, 1 warning in 198.55s (0:03:18))
-- [x] G2. tests: the generation service (1830 passed, 16 skipped, 2 xfailed, 1 warning in 202.44s (0:03:22))
-- [x] G3. tests: dataset validation, then count both folders in coverage (TOTAL 7737 stmts, 97.14% overall; validation.py at 100% without Pillow)
