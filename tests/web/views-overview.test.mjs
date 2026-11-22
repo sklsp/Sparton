@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import "./env.mjs"; // browser fakes first...
 import "./dom.mjs"; // ...then the DOM fake; both install on globalThis at import time.
 import * as ov from "../../app/web/views/overview.js";
-import { changeRow, isoWeek, weekLabel, boardLegend } from "../../app/web/views/board-view.js";
-import { t, fmtDate, fmtMoney } from "../../app/web/i18n.js";
+import { changeCells, changeRow, isoWeek, vsYou, weekLabel, boardLegend } from "../../app/web/views/board-view.js";
+import { t, fmtDate, fmtMoney, fmtNumber } from "../../app/web/i18n.js";
 import { resetEnv, setFetch } from "./env.mjs";
 import { resetDom } from "./dom.mjs";
 
@@ -132,6 +132,46 @@ test("changeRow links the row to its product history and keeps evidence separate
   assert.ok(plain.classList.contains("mark-row-exact"));
   assert.equal(plain.getAttribute("data-unread"), null);
   assert.ok(plain.children.at(-1).classList.contains("board-cells")); // cells stay last without a link
+});
+
+test("vsYou states the gap with its confidence and stays quiet without one", () => {
+  assert.equal(vsYou(null), ""); // no comparison at all
+  assert.equal(vsYou({}), ""); // a match without a gap figure
+  const cheaper = vsYou({ gap_pct: 12.4, confidence: "certain" });
+  assert.equal(cheaper, t("gap.cheaper", { pct: `${fmtNumber(12.4, { maximumFractionDigits: 1 })}%` })); // certain says it flat
+  const dearer = vsYou({ gap_pct: -8, confidence: "likely" });
+  assert.equal(dearer, `${t("gap.dearer", { pct: `${fmtNumber(8, { maximumFractionDigits: 1 })}%` })} (${t("gap.likely")})`);
+  const same = vsYou({ gap_pct: 0, confidence: "possible" });
+  assert.equal(same, `${t("gap.same")} (${t("gap.possible")})`); // a zero gap is the same price, not cheaper
+});
+
+test("changeCells renders every kind and falls back for missing names", () => {
+  const back = changeCells({ id: 2, kind: "back_in_stock", competitor: "Rival", product: "Loaf", new_price: 5 }, "api");
+  assert.equal(back.c, fmtMoney(5));
+  assert.equal(back.span, t("ch.back"));
+  assert.equal(back.tone, "new");
+  assert.equal(back.say, t("ch.say.back", { who: "Rival", what: "Loaf" }));
+
+  const gone = changeCells({ id: 3, kind: "removed_product", competitor_domain: "oldrival.nl", title: "Old loaf", previous_price: 4.5 }, "html");
+  assert.equal(gone.a, "oldrival.nl"); // no competitor name: the domain stands in
+  assert.equal(gone.b, "Old loaf"); // no product name: the title stands in
+  assert.equal(gone.c, fmtMoney(4.5));
+  assert.equal(gone.span, t("ch.removed"));
+  assert.equal(gone.struck, true);
+  assert.equal(gone.mark, "extracted");
+
+  const odd = changeCells({ id: 4, kind: "mystery" }, "api"); // unknown kind, no names or prices at all
+  assert.equal(odd.a, "\u2014");
+  assert.equal(odd.b, "\u2014");
+  assert.equal(odd.c, "");
+  assert.equal(odd.span, t("ch.other"));
+  assert.equal(odd.say, "\u2014: \u2014");
+
+  const cut = changeCells({ id: 5, kind: "price_decrease", competitor: "R", product: "P", new_price: 3.95, delta_pct: -12 }, "api");
+  assert.equal(cut.e, "\u221212%"); // an explicit delta wins over recomputing it
+
+  const noPrev = changeCells({ id: 6, kind: "price_increase", competitor: "R", product: "P", new_price: 5 }, "api");
+  assert.equal(noPrev.e, "\u22120%"); // no previous price to recompute from: the delta falls back to zero
 });
 
 test("the week's changes render as board rows with counts, legend and the report teaser", async () => {
