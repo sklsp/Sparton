@@ -42,6 +42,9 @@ function renderCreate({
   datasetValidateReport = { valid: true, issues: [] },
   generateResponse = json({ job_id: 42, seed: 1234567890 }),
   failStatusEndpoints = false,
+  failDryRun = false,
+  createDatasetResponse = null,
+  datasetValidateError = null,
 } = {}) {
   resetEnv();
   resetDom();
@@ -61,15 +64,15 @@ function renderCreate({
       case "GET /training/hardware": return json(hardware);
       case "GET /training/status": return json(trainingStatus);
       case "GET /comfyui/workflows": return json(workflows);
-      case "POST /comfyui/validate-generation": { const body = JSON.parse(init.body); posts.push([href, body]); return json(validateReport); }
+      case "POST /comfyui/validate-generation": { if (failDryRun) throw new Error("validation service down"); const body = JSON.parse(init.body); posts.push([href, body]); return json(validateReport); }
       case "POST /comfyui/generate": { const body = JSON.parse(init.body); posts.push([href, body]); return generateResponse; }
       case "GET /generated?limit=24": return json(generated);
       case "GET /datasets": return json(datasets);
-      case "POST /datasets": { const body = JSON.parse(init.body); posts.push([href, body]); return json(body, 201); }
+      case "POST /datasets": { const body = JSON.parse(init.body); posts.push([href, body]); return createDatasetResponse ?? json(body, 201); }
       case "GET /training/presets": return json(presets);
       case "GET /training/projects": return json(projects);
     }
-    if (method === "GET" && /^\/datasets\/\d+\/validate$/.test(href)) return json(datasetValidateReport);
+    if (method === "GET" && /^\/datasets\/\d+\/validate$/.test(href)) { if (datasetValidateError) throw new Error(datasetValidateError); return json(datasetValidateReport); }
     throw new Error(`unexpected fetch ${method} ${href}`);
   });
   createView(host);

@@ -341,3 +341,21 @@ test("requestSubmit dispatches the form's submit event (agent.js Ctrl+Enter)", (
   assert.equal(form.requestSubmit(), false); // preventDefault makes dispatchEvent return false, as in the browser
   assert.equal(submitted, 1);
 });
+
+test("checked reflects the checked attribute both ways (settings.js reads box.checked)", () => {
+  const box = document.createElement("input");
+  assert.equal(box.checked, false); // no attribute yet
+  box.checked = true;
+  assert.ok(box.hasAttribute("checked")); // h() writes boolean props as attributes; reading back must agree
+  assert.equal(box.checked, true);
+  box.checked = false;
+  assert.equal(box.hasAttribute("checked"), false);
+});
+
+test("parentElement is the nearest element ancestor or null (catalog.js clears sibling aria-sort)", () => {
+  const row = document.createElement("tr");
+  const cell = document.createElement("th");
+  row.append(cell);
+  assert.equal(cell.parentElement, row);
+  assert.equal(row.parentElement, null); // detached: nothing above it
+});

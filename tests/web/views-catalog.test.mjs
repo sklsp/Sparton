@@ -24,7 +24,11 @@ const searchedBody = { count: 1, products: [productSourdough] };
 const analyticsBody = { catalog: { product_count: 3 }, inventory: { low_stock_count: 2 }, sales: { order_count_total: 8, total_revenue: 1250.75, orders_last_30_days: 3 } };
 
 // Render the catalog view; record every call as [method, href].
-function renderCatalog({ product = null, list = productsBody } = {}) {
+// A scripted answer may be a plain body, a ready Response or a function of the request count.
+const asResponse = (value) => (value instanceof Response ? value : json(value));
+const resolveAnswer = (answer) => asResponse(typeof answer === "function" ? answer() : answer);
+
+function renderCatalog({ product = null, list = productsBody, analytics = analyticsBody } = {}) {
   resetEnv();
   resetDom();
   const host = document.createElement("main");
@@ -33,7 +37,7 @@ function renderCatalog({ product = null, list = productsBody } = {}) {
   setFetch((href, init) => {
     const method = init?.method ?? "GET";
     calls.push([method, href]);
-    if (method === "GET" && href.startsWith("/analytics/summary")) return json(analyticsBody);
+    if (method === "GET" && href.startsWith("/analytics/summary")) return resolveAnswer(analytics);
     const one = /^\/products\/(\d+)$/.exec(href);
     if (method === "GET" && one) {
       if (product) return Promise.resolve(product(Number(one[1])));
@@ -42,12 +46,12 @@ function renderCatalog({ product = null, list = productsBody } = {}) {
     }
     if (method === "GET" && /^\/products(\?.*)?$/.test(href)) {
       const q = new URLSearchParams(href.split("?")[1] ?? "");
-      return json(q.get("search") ? searchedBody : list);
+      return resolveAnswer(q.get("search") ? searchedBody : list);
     }
     throw new Error(`unexpected fetch ${method} ${href}`);
   });
-  catalogView(host);
-  return { host, calls };
+  const cleanup = catalogView(host); // the view hands back its unmount hook; expose it for the debounce test
+  return { host, calls, cleanup };
 }
 
 // Poll one macrotask at a time until the view has settled; never a fixed sleep.
@@ -67,6 +71,24 @@ async function flush() {
 const settled = (host) => host.querySelectorAll("article.metric").length === 4 && host.querySelector("table") !== null && !host.querySelector("[aria-busy]");
 const listCalls = (calls) => calls.filter(([m, href]) => m === "GET" && /^\/products(\?|$)/.test(href));
 const queryOf = (call) => new URLSearchParams(call[1].split("?")[1] ?? ""); // call = [method, href]
+
+// Two products with the optional fields left out: no category and no inventory on the first.
+const sparseProductsBody = { count: 2, products: [
+  { id: 10, sku: "MYS-001", title: "Mystery Item", price: 9.5, status: "active" },
+  { id: 11, sku: "BRD-003", title: "Wholegrain Loaf", description: null, price: 7.2, category: "bread", status: "draft", inventory: 4 },
+] };
+
+// Three rows with the gap in the middle, so a sort comparison meets a missing field on both
+// sides (the ?? fallbacks for av and bv) instead of only at one end of the list.
+const gappyProductsBody = { count: 3, products: [
+  { id: 20, sku: "GRN-101", title: "Green Loaf", price: 5.5, category: "bread", status: "active", inventory: 9 },
+  { id: 21, sku: "MYS-102", title: "Mystery Two", price: 8.25, status: "draft" }, // no category, no inventory
+  { id: 22, sku: "GRN-103", title: "Grain Roll", price: 6.75, category: "bread", status: "active", inventory: 2 },
+] };
+
+const statsPanel = (host) => host.children[1]; // page-head, then the metrics grid, then the products card
+const tablePanel = (host) => host.querySelector("div.card-body.flush");
+const skus = (host) => [...host.querySelectorAll("tbody tr")].map((r) => r.querySelector("td.mono").textContent);
 
 test("the catalog renders its header and loads both panels from the API", async () => {
   const { host, calls } = renderCatalog();
@@ -198,4 +220,186 @@ test("a missing product shows the API's 404 message inside the dialog", async ()
   const err = dlg.querySelector(".error-state");
   assert.equal(err.getAttribute("role"), "alert");
   assert.equal(err.querySelector("p").textContent, "Product not found"); // api.js lifts detail into the message
+});
+
+test("an analytics API error shows an error state and retry recovers the metrics", async () => {
+  let attempts = 0;
+  const failing = () => (++attempts === 1 ? json({ detail: "The warehouse is down." }, 503) : analyticsBody);
+  const { host } = renderCatalog({ analytics: failing });
+  await waitFor(() => statsPanel(host).querySelector(".error-state") !== null, "the stats error");
+
+  const err = statsPanel(host).querySelector(".error-state");
+  assert.equal(err.getAttribute("role"), "alert");
+  assert.equal(err.querySelector("h3").textContent, t("ui.error"));
+  assert.equal(err.querySelector("p").textContent, "The warehouse is down."); // api.js lifts detail into the message
+
+  err.querySelector(".btn").click(); // retry re-runs the analytics load
+  await waitFor(() => host.querySelectorAll("article.metric").length === 4, "the metrics after retry");
+  assert.equal(attempts, 2);
+});
+
+test("a failed product list shows an error state and retry recovers the table", async () => {
+  let attempts = 0;
+  const failing = () => (++attempts === 1 ? json({ detail: "The shelf fell over." }, 500) : productsBody);
+  const { host } = renderCatalog({ list: failing });
+  await waitFor(() => tablePanel(host).querySelector(".error-state") !== null, "the products error");
+
+  const err = tablePanel(host).querySelector(".error-state");
+  assert.equal(err.querySelector("p").textContent, "The shelf fell over.");
+  err.querySelector(".btn").click(); // retry re-runs the list load
+  await waitFor(() => host.querySelector("tbody") !== null, "the table after retry");
+  assert.deepEqual(skus(host), ["BRD-001", "BRD-002", "JAM-014"]);
+});
+
+test("analytics without optional sections renders zeros and no warning tone", async () => {
+  const { host } = renderCatalog({ analytics: {} });
+  await waitFor(() => settled(host), "the catalog to settle");
+
+  const cards = [...host.querySelectorAll("article.metric")];
+  assert.deepEqual(cards.map((c) => c.querySelector(".metric-value").textContent), ["0", "$0", "0", "0"]);
+  assert.equal(cards[1].querySelector(".metric-sub").textContent, "$0 average order"); // no orders: AOV falls back to zero
+  assert.equal(cards[3].querySelector(".metric-value").style.color, undefined); // no low stock: no warning tint
+  assert.equal(cards[3].querySelector(".metric-sub").textContent, "every SKU is above its reorder point");
+});
+
+test("products without a category or stock render a dash and zero in danger", async () => {
+  const { host } = renderCatalog({ list: sparseProductsBody });
+  await waitFor(() => settled(host), "the catalog to settle");
+
+  const rows = [...host.querySelector("tbody").querySelectorAll("tr")];
+  assert.equal(rows[0].children[2].textContent, "—"); // no category badge, just the dash
+  assert.equal(rows[0].children[5].textContent, "0"); // missing inventory counts as zero
+  assert.equal(rows[0].children[5].style.color, "var(--danger)");
+
+  const foot = host.querySelector(".card-foot");
+  assert.equal(foot.textContent, "2 productsuncategorised 1bread 1"); // the dash bucket joins the breakdown
+});
+
+test("the product dialog falls back for a missing description and category", async () => {
+  const mystery = (id) => json({ id: 10, sku: "MYS-001", title: "Mystery Item", price: 9.5, status: "active", inventory: 3 });
+  const { host } = renderCatalog({ list: sparseProductsBody, product: mystery });
+  await waitFor(() => settled(host), "the catalog to settle");
+
+  host.querySelector("tbody tr").click(); // the first row is the category-less item
+  const dlg = document.querySelector("dialog");
+  await waitFor(() => dlg.querySelector(".dialog-body h3") !== null, "the product in the dialog");
+
+  const body = dlg.querySelector(".dialog-body");
+  assert.deepEqual([...body.querySelectorAll(".chip")].map((c) => c.textContent), ["MYS-001"]); // no category chip
+  const badges = [...body.querySelectorAll("span.badge")];
+  assert.equal(badges.length, 1); // the status badge only
+  assert.equal(body.querySelector("p").textContent, "No description yet. A good candidate for the agent to rewrite.");
+
+  const kv = body.querySelector(".kv");
+  assert.deepEqual([...kv.querySelectorAll("dd")].map((d) => d.textContent), ["$10", "3", "Uncategorised", "#10"]);
+});
+
+test("clicking a sortable header sorts ascending, then descending on the second click", async () => {
+  const { host } = renderCatalog();
+  await waitFor(() => settled(host), "the catalog to settle");
+
+  const ths = [...host.querySelectorAll("thead th")];
+  const titleTh = ths[1]; // Title
+  assert.equal(titleTh.getAttribute("aria-sort"), "none"); // the default order is by id, no header owns it
+
+  titleTh.click();
+  assert.deepEqual(skus(host), ["BRD-002", "BRD-001", "JAM-014"]); // Rye < Sourdough < Strawberry
+  assert.equal(titleTh.getAttribute("aria-sort"), "ascending");
+  assert.ok(ths.filter((th) => th !== titleTh).every((th) => th.getAttribute("aria-sort") === "none"));
+
+  titleTh.click();
+  assert.deepEqual(skus(host), ["JAM-014", "BRD-001", "BRD-002"]); // the second click flips the direction
+  assert.equal(titleTh.getAttribute("aria-sort"), "descending");
+});
+
+test("numeric and sparse headers sort by value, missing fields as zero or empty", async () => {
+  const { host } = renderCatalog({ list: sparseProductsBody });
+  await waitFor(() => settled(host), "the catalog to settle");
+
+  const ths = [...host.querySelectorAll("thead th")];
+  ths[5].click(); // Stock, numeric: the missing inventory sorts as zero
+  assert.deepEqual(skus(host), ["MYS-001", "BRD-003"]);
+  assert.equal(ths[5].getAttribute("aria-sort"), "ascending");
+
+  ths[2].click(); // Category, string: the missing category sorts before "bread"
+  assert.deepEqual(skus(host), ["MYS-001", "BRD-003"]);
+});
+
+test("keyboard: Enter and space toggle a header sort, Enter opens a row", async () => {
+  const { host } = renderCatalog();
+  await waitFor(() => settled(host), "the catalog to settle");
+
+  const keydown = (el, key) => { const e = new Event("keydown"); e.key = key; el.dispatchEvent(e); };
+  const titleTh = [...host.querySelectorAll("thead th")][1]; // Title
+
+  keydown(titleTh, "a"); // an unrelated key does nothing
+  assert.deepEqual(skus(host), ["BRD-001", "BRD-002", "JAM-014"]); // still the id order
+
+  keydown(titleTh, " "); // space toggles like a click and prevents the default scroll
+  assert.equal(titleTh.getAttribute("aria-sort"), "ascending");
+  assert.deepEqual(skus(host), ["BRD-002", "BRD-001", "JAM-014"]);
+
+  keydown(titleTh, "Enter"); // Enter toggles a header too, flipping back to descending
+  assert.equal(titleTh.getAttribute("aria-sort"), "descending");
+  assert.deepEqual(skus(host), ["JAM-014", "BRD-001", "BRD-002"]);
+
+  const row = host.querySelector("tbody tr"); // now Strawberry Jam, id 3
+  keydown(row, "Tab"); // not Enter: no dialog opens
+  assert.equal(document.querySelector("dialog"), null);
+  keydown(row, "Enter");
+  assert.ok(document.querySelector("dialog")?.open);
+});
+
+test("a list answer without a products key also shows the empty plate", async () => {
+  const { host } = renderCatalog({ list: {} }); // no .products anywhere in the answer
+  await waitFor(() => host.querySelector(".empty") !== null, "the empty plate");
+  assert.equal(host.querySelector("table"), null);
+});
+
+test("sorting a gappy column meets missing fields on both sides of a comparison", async () => {
+  const { host } = renderCatalog({ list: gappyProductsBody });
+  await waitFor(() => settled(host), "the catalog to settle");
+
+  const ths = [...host.querySelectorAll("thead th")];
+  ths[5].click(); // Stock, numeric: the missing inventory sorts as zero between two stocked rows
+  assert.deepEqual(skus(host), ["MYS-102", "GRN-103", "GRN-101"]);
+
+  ths[2].click(); // Category, string: the missing category sorts before "bread" on both sides
+  assert.deepEqual(skus(host), ["MYS-102", "GRN-101", "GRN-103"]);
+});
+
+test("unmounting clears a pending debounced search", async (t) => {
+  const { host, calls, cleanup } = renderCatalog();
+  await waitFor(() => settled(host), "the catalog to settle");
+  t.mock.timers.enable({ apis: ["setTimeout"] }); // clearTimeout is mocked alongside it
+  try {
+    const search = host.querySelector("input.input");
+    search.value = "Jam";
+    search.dispatchEvent(new Event("input")); // schedules a reload 280ms out
+    cleanup(); // the route changes before it fires
+    t.mock.timers.tick(280);
+    await flush();
+    assert.equal(listCalls(calls).length, 1); // only the initial list: the pending reload was cancelled
+  } finally {
+    t.mock.timers.reset();
+  }
+});
+
+test("clearing the search to blanks reloads without a search param", async (t) => {
+  const { host, calls } = renderCatalog();
+  await waitFor(() => settled(host), "the catalog to settle");
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const search = host.querySelector("input.input");
+    search.value = "   "; // only spaces: trims to an empty term
+    search.dispatchEvent(new Event("input"));
+    t.mock.timers.tick(280);
+    await flush();
+
+    const q = queryOf(listCalls(calls).at(-1));
+    assert.equal(q.has("search"), false); // term || undefined drops the param
+    assert.deepEqual(skus(host), ["BRD-001", "BRD-002", "JAM-014"]); // back to the full list
+  } finally {
+    t.mock.timers.reset();
+  }
 });

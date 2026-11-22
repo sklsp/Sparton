@@ -25,7 +25,8 @@ const compNew = { id: 9, shop_id: 1, domain: "deeg.nl", name: "Deeg", url: "http
 const competitorsBody = { count: 3, competitors: [compFeed, compHtml, compNew] };
 
 // Render the shops view against scripted /shops and /competitors routes; record every call.
-function renderShops({ crawl = null, createCompetitor = null } = {}) {
+// `failShopsOnce` makes the first /shops load throw so the error state (and its retry) can be tested.
+function renderShops({ crawl = null, createCompetitor = null, shopsBody = { shops: [shop, shopNoRivals] }, failShopsOnce = false } = {}) {
   resetEnv();
   resetDom();
   resetToasts(); // ui.js caches its toasts host; a fresh document needs a fresh one.
@@ -33,10 +34,14 @@ function renderShops({ crawl = null, createCompetitor = null } = {}) {
   document.body.appendChild(host);
   const calls = [];
   const created = [];
+  let shopsFailsLeft = failShopsOnce ? 1 : 0;
   setFetch((href, init) => {
     const method = init?.method ?? "GET";
     calls.push([method, href]);
-    if (method === "GET" && href === "/shops") return json({ shops: [shop, shopNoRivals] });
+    if (method === "GET" && href === "/shops") {
+      if (shopsFailsLeft > 0) { shopsFailsLeft -= 1; throw new Error("api down"); }
+      return json(shopsBody);
+    }
     if (method === "GET" && href === "/competitors") return json(competitorsBody);
     if (method === "POST" && /^\/shops\/\d+\/crawl$/.test(href)) {
       return crawl ? Promise.resolve(crawl()) : json({ job_id: "job-1", status: "queued" }, 202);
