@@ -44,6 +44,15 @@ export function setFetch(fn) {
   fetchHandler = fn;
 }
 
+// i18n.js loads its dictionary over fetch at import time; tests that want to see what happens
+// when that load fails flip this on before importing. "http" answers 500, "network" rejects.
+let fileFetchFailure = null;
+
+/** Make file: fetches fail ("http" -> a 500 response, "network" -> a rejected promise); null restores serving. */
+export function setFileFetchFailure(failure) {
+  fileFetchFailure = failure || null;
+}
+
 // file: URLs are served from disk so `new URL("./i18n/en.json", import.meta.url)` works as in the browser.
 async function serveFile(href) {
   const text = await readFile(fileURLToPath(href), "utf8");
@@ -52,7 +61,11 @@ async function serveFile(href) {
 
 const fetchFake = async (input, init) => {
   const href = input instanceof URL ? input.href : String(input);
-  if (href.startsWith("file:")) return serveFile(href);
+  if (href.startsWith("file:")) {
+    if (fileFetchFailure === "http") return new Response("unavailable", { status: 500 });
+    if (fileFetchFailure === "network") throw new Error(`fetch(${href}) network down`);
+    return serveFile(href);
+  }
   if (!fetchHandler) throw new Error(`fetch(${href}) has no handler; call setFetch(fn)`);
   return fetchHandler(href, init);
 };
@@ -84,6 +97,7 @@ export function resetEnv() {
   locationState.hash = "";
   locationState.href = DEFAULT_HREF;
   fetchHandler = null;
+  fileFetchFailure = null;
   reloadCount = 0;
   win = new EventTarget(); // drop listeners a view forgot to detach
 }

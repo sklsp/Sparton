@@ -39,9 +39,27 @@ const approvalPending = { id: 41, run_id: 6, tool: "update_product", summary: "R
 const approvalApproved = { id: 40, run_id: 5, tool: "update_product", summary: "Rewrite the hero description on product 8841", status: "APPROVED", preview: null, created_at: iso(60 * 60e3) };
 const approvalsBody = { count: 2, approvals: [approvalPending, approvalApproved] };
 
+// A run that failed with a message; the detail endpoint carries it in `error` like agent_api.py does.
+const runFailed = { id: 8, request: "Sync the competitor price sheet", status: "FAILED", iterations: 1, tool_calls_made: 0, started_at: iso(5 * 60e3), error: "The worker crashed mid-step" };
+
+// A run that vanished server-side; the detail endpoint answers 404 like agent_api.py does.
+const runsGone = { count: 1, runs: [{ id: 9, request: "Ghost run", status: "FAILED", iterations: 1, tool_calls_made: 0, started_at: iso(2 * 60e3) }] };
+
+// The live run's trace as it finishes; the poll sequence hands these out in order.
+const liveDone = { ...runLive, status: "COMPLETED", iterations: 3, tool_calls_made: 2, final_response: "Hero images refreshed." };
+
+// An approval whose preview has no changes table; showPreview falls back to raw JSON.
+const approvalNote = { id: 42, run_id: 6, tool: "update_product", summary: "Bulk price update for the winter range", status: "PENDING", preview: { note: "12 products repriced" }, created_at: iso(10e3) };
+
+// The tool registry mirrors health.py's /tools: to_info() fields from app/agent/registry.py.
+const toolsBody = { count: 2, tools: [
+  { name: "list_products", description: "List the organisation's products.", category: "catalogue", access: "read", requires_approval: false },
+  { name: "update_product", description: "Update a product's fields.", category: "catalogue", access: "write", requires_approval: true },
+] };
+
 
 // Render the agent view; record every call as [method, href] and every POST as [href, body].
-function renderAgent({ runs = runsBody, approvals = approvalsBody, failRunsOnce = false, startResponse = null } = {}) {
+function renderAgent({ runs = runsBody, approvals = approvalsBody, failRunsOnce = false, startResponse = null, liveRunStates = [liveDetail], tools = toolsBody, failToolsOnce = false, failResolveOnce = false } = {}) {
   resetEnv();
   resetDom();
   resetToasts(); // ui.js caches its toasts host; a fresh document needs a fresh one.
@@ -50,6 +68,9 @@ function renderAgent({ runs = runsBody, approvals = approvalsBody, failRunsOnce 
   const calls = [];
   const posts = [];
   let runsFailuresLeft = failRunsOnce ? 1 : 0;
+  let resolveFailuresLeft = failResolveOnce ? 1 : 0;
+  let toolFailuresLeft = failToolsOnce ? 1 : 0;
+  let liveStateIndex = 0; // the open run's detail answers in sequence, like a run progressing
   setFetch((href, init) => {
     const method = init?.method ?? "GET";
     calls.push([method, href]);
@@ -61,17 +82,24 @@ function renderAgent({ runs = runsBody, approvals = approvalsBody, failRunsOnce 
     if (method === "POST" && resolveMatch) {
       const body = JSON.parse(init.body);
       posts.push([href, body]);
+      if (resolveFailuresLeft > 0) { resolveFailuresLeft -= 1; return json({ detail: "Approval already resolved" }, 409); }
       return json({ ok: true, status: body.approved ? "APPROVED" : "REJECTED" });
     }
     if (href === "/agent/runs?limit=25") {
       if (runsFailuresLeft > 0) { runsFailuresLeft -= 1; return json({ detail: "Agent runs unavailable" }, 503); }
       return json(runs);
     }
+    if (href === "/tools") {
+      if (toolFailuresLeft > 0) { toolFailuresLeft -= 1; return json({ detail: "Tool registry unavailable" }, 503); }
+      return json(tools);
+    }
     const runMatch = href.match(/^\/agent\/runs\/(\d+)$/);
     if (runMatch) {
       const id = Number(runMatch[1]);
+      if (id === 9) return json({ detail: "Run not found" }, 404); // the run vanished server-side
+      if (id === 8) return json({ ...runFailed, steps: [] });
       if (id === 7) return json({ ...runQueued, steps: [] }); // a queued run has no trace yet
-      if (id === 6) return json(liveDetail);
+      if (id === 6) { const state = liveRunStates[Math.min(liveStateIndex, liveRunStates.length - 1)]; liveStateIndex += 1; return typeof state === "string" ? json({ detail: state }, 503) : json(state); } // string entries are outages
       if (id === 5) return json(doneDetail);
     }
     if (href.startsWith("/approvals")) {
@@ -354,5 +382,212 @@ test("a failed runs load shows an error state whose retry recovers", async () =>
   } finally {
     stop();
   }
+});
+
+test("opening a vanished run shows the error card; Try again refetches", async () => {
+  const { host, calls, stop } = renderAgent({ runs: runsGone });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    runRows(host)[0].click(); // row click opens the run (renderRuns wires onclick)
+
+    const panel = () => sectionWith(host, "Run #9");
+    await waitFor(() => panel()?.querySelector(".error-state"), "the error card");
+    assert.equal(panel().querySelector(".error-state h3").textContent, t("ui.error"));
+    assert.equal(panel().querySelector(".error-state p").textContent, "Run not found");
+
+    const detailCalls = () => calls.filter(([m, href]) => m === "GET" && href === "/agent/runs/9").length;
+    assert.equal(detailCalls(), 1);
+    panel().querySelector(".error-state .btn").click(); // the retry button refetches
+    await waitFor(() => detailCalls() >= 2, "the refetch");
+    await waitFor(() => panel()?.querySelector(".error-state"), "the error card to come back");
+    assert.equal(detailCalls(), 2);
+  } finally { stop(); }
+});
+
+test("a live run keeps polling until it finishes; the summary fills in", async () => {
+  const { host, calls, badgeCalls, stop } = renderAgent({ liveRunStates: [liveDetail, liveDone] });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    runRows(host)[1].click(); // the RUNNING row
+
+    const panel = () => sectionWith(host, "Run #6");
+    await waitFor(() => panel()?.querySelectorAll(".tl-item").length === 3, "the first steps");
+    assert.equal(panel().querySelector(".badge").textContent, "RUNNING");
+    assert.ok(panel().querySelector(".dot-live"), "the live dot while running");
+
+    // The 2s poll sees the finished state; finish() refetches and fires onDone.
+    await waitFor(() => panel()?.querySelector(".msg-text")?.textContent === liveDone.final_response, "the final response");
+    assert.equal(panel().querySelector(".badge").textContent, "COMPLETED");
+    assert.equal(panel().querySelector(".dot-live"), null); // the dot is gone once finished
+    const foot = [...panel().querySelectorAll("footer span")].map((s) => s.textContent);
+    assert.ok(foot.includes("3 iterations"));
+    assert.ok(foot.includes("2 tool calls"));
+
+    const detailCalls = () => calls.filter(([m, href]) => m === "GET" && href === "/agent/runs/6").length;
+    assert.equal(detailCalls(), 3); // open, poll, finish refetch
+    const listCalls = () => calls.filter(([m, href]) => m === "GET" && href === "/agent/runs?limit=25").length;
+    assert.equal(listCalls(), 2); // mount plus onDone's reloadRuns
+    assert.equal(badgeCalls.length, 1); // onDone refreshed the approval badge
+  } finally { stop(); }
+});
+
+test("a failed poll stops following the run; the last known state stays", async () => {
+  const { host, calls, stop } = renderAgent({ liveRunStates: [liveDetail, "Agent runs unavailable"] });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    runRows(host)[1].click(); // the RUNNING row
+
+    const panel = () => sectionWith(host, "Run #6");
+    await waitFor(() => panel()?.querySelectorAll(".tl-item").length === 3, "the first steps");
+
+    const detailCalls = () => calls.filter(([m, href]) => m === "GET" && href === "/agent/runs/6").length;
+    await waitFor(() => detailCalls() >= 2, "the failed poll");
+    await new Promise((resolve) => setImmediate(resolve)); // let the catch clear the interval
+    assert.equal(detailCalls(), 2); // no further polls after the outage
+    assert.equal(panel().querySelector(".badge").textContent, "RUNNING"); // last known state stays
+    assert.ok(panel().querySelector(".dot-live"), "the live dot stays until a real terminal state");
+  } finally { stop(); }
+});
+
+test("if the finishing fetch fails the view keeps its last known state", async () => {
+  const { host, calls, badgeCalls, stop } = renderAgent({ liveRunStates: [liveDetail, liveDone, "Agent runs unavailable"] });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    runRows(host)[1].click(); // the RUNNING row
+
+    const panel = () => sectionWith(host, "Run #6");
+    // The poll sees COMPLETED; finish() refetches and that fetch fails. onDone still runs.
+    await waitFor(() => badgeCalls.length === 1, "onDone after the failed refetch");
+    assert.equal(panel().querySelector(".badge").textContent, "COMPLETED"); // set by the poll tick before finish
+    const detailCalls = () => calls.filter(([m, href]) => m === "GET" && href === "/agent/runs/6").length;
+    assert.equal(detailCalls(), 3);
+    assert.ok(panel().querySelectorAll(".tl-item").length >= 3, "the steps stay");
+    assert.equal(panel().querySelector(".msg-text"), null); // the summary was never refilled
+  } finally { stop(); }
+});
+
+test("a failed run shows its error in a danger banner", async () => {
+  const { host, stop } = renderAgent({ runs: { count: 1, runs: [runFailed] } });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    runRows(host)[0].click();
+
+    const panel = () => sectionWith(host, "Run #8");
+    await waitFor(() => panel()?.querySelector(".banner"), "the error banner");
+    assert.equal(panel().querySelector(".badge").textContent, "FAILED");
+    const banner = panel().querySelector('.banner[data-tone="danger"]');
+    assert.ok(banner);
+    assert.equal(banner.querySelector("div").textContent, runFailed.error);
+  } finally { stop(); }
+});
+
+test("a failed resolve shows a danger toast and re-enables the row's buttons", async () => {
+  const { host, posts, stop } = renderAgent({ failResolveOnce: true });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    const row = approvalRows(host)[0]; // the pending one
+    const reject = [...row.querySelectorAll("button")].find((b) => b.textContent === "Reject");
+    const approve = [...row.querySelectorAll("button")].find((b) => b.textContent === "Approve");
+
+    approve.click();
+    await waitFor(() => document.querySelector('.toast[data-tone="danger"]'), "the danger toast");
+    assert.equal(document.querySelector('.toast[data-tone="danger"]').querySelector("div").textContent, "Approval already resolved");
+    assert.deepEqual(posts, [["/approvals/41/resolve", { approved: true, note: null }]]); // decide() always sends a note field
+    assert.equal(reject.disabled, false); // the catch re-enables both buttons
+    assert.equal(approve.disabled, false);
+  } finally { stop(); }
+});
+
+test("the preview dialog shows the proposed changes as a table", async () => {
+  const { host, stop } = renderAgent();
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    const row = approvalRows(host)[0]; // pending with a changes preview
+    [...row.querySelectorAll("button")].find((b) => b.textContent === "Preview").click();
+
+    const dlg = document.querySelector("dialog");
+    assert.equal(dlg.querySelector("#dlg-title").textContent, "update_product: proposed change");
+    assert.equal(dlg.querySelector(".dialog-body p").textContent, approvalPending.summary);
+    assert.deepEqual([...dlg.querySelectorAll("thead th")].map((th) => th.textContent), ["Field", "Current", "Proposed"]);
+    const cells = [...dlg.querySelectorAll("tbody td")].map((td) => td.textContent);
+    assert.deepEqual(cells, ["description", "Nice shoes.", "Hand-finished leather sneakers with a matte sole."]);
+
+    dlg.querySelector(".dialog-foot .btn").click(); // Close
+    await waitFor(() => dlg.open === false, "the dialog to close");
+  } finally { stop(); }
+});
+
+test("a preview without a changes table falls back to raw JSON", async () => {
+  const { host, stop } = renderAgent({ approvals: { count: 1, approvals: [approvalNote] } });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    const row = approvalRows(host)[0];
+    [...row.querySelectorAll("button")].find((b) => b.textContent === "Preview").click();
+
+    const dlg = document.querySelector("dialog");
+    assert.equal(dlg.querySelector("#dlg-title").textContent, "update_product: proposed change");
+    assert.equal(dlg.querySelector(".dialog-body p").textContent, approvalNote.summary);
+    assert.equal(dlg.querySelector("pre.pre").textContent, JSON.stringify(approvalNote.preview, null, 2));
+  } finally { stop(); }
+});
+
+test("the tool registry dialog lists the tools; write tools are flagged for approval", async () => {
+  const { host, stop } = renderAgent();
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    host.querySelector(".page-head-actions .btn").click(); // Tool registry
+
+    const dlg = document.querySelector("dialog");
+    assert.equal(dlg.querySelector("#dlg-title").textContent, "Agent tool registry");
+    await waitFor(() => dlg.querySelector(".dialog-body p"), "the tools to load");
+    assert.equal(dlg.querySelector(".dialog-body p").textContent, "2 tools available to the agent.");
+    const rows = [...dlg.querySelectorAll(".row")];
+    assert.deepEqual(rows.map((r) => r.querySelector(".row-title.mono").textContent), ["list_products", "update_product"]);
+    assert.deepEqual(rows.map((r) => r.querySelector(".row-sub").textContent), [toolsBody.tools[0].description, toolsBody.tools[1].description]);
+    // Only the write tool needs approval.
+    assert.equal(rows[0].querySelector(".badge"), null);
+    assert.equal(rows[1].querySelector('.badge[data-tone="warning"]').textContent, "Approval");
+
+    const close = dlg.querySelector(".dialog-foot .btn");
+    assert.equal(close.textContent, "Close"); // the foot is filled once the body settles
+  } finally { stop(); }
+});
+
+test("a failed tool registry load shows the error state in the dialog", async () => {
+  const { host, stop } = renderAgent({ failToolsOnce: true });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    host.querySelector(".page-head-actions .btn").click(); // Tool registry
+
+    const dlg = document.querySelector("dialog");
+    await waitFor(() => dlg.querySelector(".error-state"), "the error state");
+    assert.equal(dlg.querySelector(".error-state p").textContent, "Tool registry unavailable");
+  } finally { stop(); }
+});
+
+test("Ctrl+Enter submits the composer like the Run agent button", async () => {
+  const { host, posts, stop } = renderAgent();
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    const input = host.querySelector('textarea[aria-label="Agent request"]');
+
+    input.value = "Audit the pricing page copy";
+    const enter = new Event("keydown"); // plain Enter: no modifier, nothing happens
+    enter.key = "Enter";
+    input.dispatchEvent(enter);
+    assert.equal(posts.length, 0);
+
+    const ctrlEnter = new Event("keydown");
+    ctrlEnter.key = "Enter";
+    ctrlEnter.ctrlKey = true;
+    input.dispatchEvent(ctrlEnter);
+    await waitFor(() => posts.length === 1, "the start-run POST");
+    assert.deepEqual(posts[0], ["/agent/run", { message: "Audit the pricing page copy", session_id: "dashboard" }]);
+
+    await waitFor(() => document.querySelector('.toast[data-tone="success"]'), "the queued toast");
+    assert.equal(document.querySelector('.toast[data-tone="success"]').querySelector("div").textContent, "Run #7 queued");
+    assert.equal(input.value, ""); // the composer clears on success
+    await waitFor(() => sectionWith(host, "Run #7"), "the new run panel");
+  } finally { stop(); }
 });
 

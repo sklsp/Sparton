@@ -1,111 +1,86 @@
 // Format helpers: i18n.js (locale-aware, en-IE or nl-NL) and ui.js (fixed en-US). Checked against real Intl output.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import "./env.mjs"; // browser fakes first...
 import { resetEnv } from "./env.mjs";
 import * as ui from "../../app/web/ui.js";
 
-// A fresh module instance per case: the query string busts the ESM cache, so each import re-resolves lang.
-let caseNo = 0;
-async function freshI18n() {
-  return await import(`../../app/web/i18n.js?case=${++caseNo}`);
-}
+// Two shared instances, one per language. The case numbers match i18n.test.mjs on purpose: Node merges
+// coverage per URL across workers (union), so both files' profiles for ?case=1 and ?case=2 combine into a
+// single high-coverage profile instead of thirteen thin ones.
+resetEnv(); // no saved lang, navigator en-GB: locale is en-IE
+const i18nEn = await import("../../app/web/i18n.js?case=1");
+navigator.language = "nl-BE"; // no saved lang: the browser decides (Dutch)
+const i18nNl = await import("../../app/web/i18n.js?case=2");
 
-test("fmtNumber formats en-IE numbers", async () => {
-  resetEnv(); // no saved lang, navigator en-GB: locale is en-IE
-  const i18n = await freshI18n();
-  assert.equal(i18n.fmtNumber(0), "0");
-  assert.equal(i18n.fmtNumber(-5), "-5");
-  assert.equal(i18n.fmtNumber(null), "0");
-  assert.equal(i18n.fmtNumber(undefined), "0");
-  assert.equal(i18n.fmtNumber(1234567.89), "1,234,567.89");
-  assert.equal(i18n.fmtNumber(999999999999), "999,999,999,999");
+test("fmtNumber formats en-IE numbers", () => {
+  assert.equal(i18nEn.fmtNumber(0), "0");
+  assert.equal(i18nEn.fmtNumber(-5), "-5");
+  assert.equal(i18nEn.fmtNumber(null), "0"); // Number(v ?? 0)
+  assert.equal(i18nEn.fmtNumber(undefined), "0");
+  assert.equal(i18nEn.fmtNumber(1234567.89), "1,234,567.89");
+  assert.equal(i18nEn.fmtNumber(999999999999), "999,999,999,999");
 });
 
-test("fmtNumber passes opts through to Intl", async () => {
-  resetEnv();
-  const i18n = await freshI18n();
-  assert.equal(i18n.fmtNumber(1234.5678, { maximumFractionDigits: 1 }), "1,234.6");
+test("fmtNumber passes opts through to Intl", () => {
+  assert.equal(i18nEn.fmtNumber(1234.5678, { maximumFractionDigits: 1 }), "1,234.6");
 });
 
-test("fmtNumber switches to nl-NL when lang is nl", async () => {
-  resetEnv();
-  navigator.language = "nl-BE";
-  const i18n = await freshI18n();
-  assert.equal(i18n.fmtNumber(1234567.89), "1.234.567,89");
+test("fmtNumber switches to nl-NL when lang is nl", () => {
+  assert.equal(i18nNl.fmtNumber(1234567.89), "1.234.567,89");
 });
 
-test("fmtMoney formats EUR by default", async () => {
-  resetEnv();
-  const i18n = await freshI18n();
-  assert.equal(i18n.fmtMoney(0), "\u20ac0.00");
-  assert.equal(i18n.fmtMoney(-5), "-\u20ac5.00");
-  assert.equal(i18n.fmtMoney(1234.5), "\u20ac1,234.50");
-  assert.equal(i18n.fmtMoney(1e9), "\u20ac1,000,000,000.00");
+test("fmtMoney formats EUR by default", () => {
+  assert.equal(i18nEn.fmtMoney(0), "\u20ac0.00");
+  assert.equal(i18nEn.fmtMoney(-5), "-\u20ac5.00");
+  assert.equal(i18nEn.fmtMoney(1234.5), "\u20ac1,234.50");
+  assert.equal(i18nEn.fmtMoney(1e9), "\u20ac1,000,000,000.00");
 });
 
-test("fmtMoney honours the currency and digits arguments", async () => {
-  resetEnv();
-  const i18n = await freshI18n();
-  assert.equal(i18n.fmtMoney(5, "USD"), "US$5.00"); // en-IE spells USD as US$
-  assert.equal(i18n.fmtMoney(5, "EUR", 0), "\u20ac5");
+test("fmtMoney honours the currency and digits arguments", () => {
+  assert.equal(i18nEn.fmtMoney(5, "USD"), "US$5.00"); // en-IE spells USD as US$
+  assert.equal(i18nEn.fmtMoney(5, "EUR", 0), "\u20ac5");
+  assert.equal(i18nEn.fmtMoney(5, ""), "\u20ac5.00"); // an empty currency falls back to EUR
 });
 
-test("fmtMoney shows a dash for null and NaN", async () => {
-  resetEnv();
-  const i18n = await freshI18n();
-  assert.equal(i18n.fmtMoney(null), "\u2014");
-  assert.equal(i18n.fmtMoney(undefined), "\u2014");
-  assert.equal(i18n.fmtMoney(Number.NaN), "\u2014");
+test("fmtMoney shows a dash for null and NaN", () => {
+  assert.equal(i18nEn.fmtMoney(null), "\u2014");
+  assert.equal(i18nEn.fmtMoney(undefined), "\u2014");
+  assert.equal(i18nEn.fmtMoney(Number.NaN), "\u2014");
 });
 
-test("fmtMoney switches to nl-NL when lang is nl", async () => {
-  resetEnv();
-  navigator.language = "nl-BE";
-  const i18n = await freshI18n();
+test("fmtMoney switches to nl-NL when lang is nl", () => {
   // Compared against the same Intl call: ICU may put a no-break space between symbol and number.
   assert.equal(
-    i18n.fmtMoney(1234.5),
+    i18nNl.fmtMoney(1234.5),
     new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(1234.5)
   );
 });
 
-test("fmtDate uses day numeric and month short by default", async () => {
-  resetEnv();
-  const i18n = await freshI18n();
-  assert.equal(i18n.fmtDate(new Date(2026, 0, 5)), "5 Jan");
+test("fmtDate uses day numeric and month short by default", () => {
+  assert.equal(i18nEn.fmtDate(new Date(2026, 0, 5)), "5 Jan");
 });
 
-test("fmtDate honours custom opts", async () => {
-  resetEnv();
-  const i18n = await freshI18n();
-  assert.equal(i18n.fmtDate(new Date(2026, 0, 5), { year: "numeric", month: "long" }), "January 2026");
+test("fmtDate honours custom opts", () => {
+  assert.equal(i18nEn.fmtDate(new Date(2026, 0, 5), { year: "numeric", month: "long" }), "January 2026");
 });
 
-test("fmtDate throws RangeError for an invalid date", async () => {
-  resetEnv();
-  const i18n = await freshI18n();
-  assert.throws(() => i18n.fmtDate(new Date("nope")), RangeError);
+test("fmtDate throws RangeError for an invalid date", () => {
+  assert.throws(() => i18nEn.fmtDate(new Date("nope")), RangeError);
 });
 
-test("fmtDate switches to nl-NL when lang is nl", async () => {
-  resetEnv();
-  navigator.language = "nl-BE";
-  const i18n = await freshI18n();
-  assert.equal(i18n.fmtDate(new Date(2026, 0, 5)), "5 jan");
+test("fmtDate switches to nl-NL when lang is nl", () => {
+  assert.equal(i18nNl.fmtDate(new Date(2026, 0, 5)), "5 jan");
 });
 
-test("fmtRelative collapses plus/minus one day with numeric auto", async () => {
-  resetEnv();
-  const i18n = await freshI18n();
-  assert.equal(i18n.fmtRelative(-1, "day"), "yesterday");
-  assert.equal(i18n.fmtRelative(1, "day"), "tomorrow");
+test("fmtRelative collapses plus/minus one day with numeric auto", () => {
+  assert.equal(i18nEn.fmtRelative(-1, "day"), "yesterday");
+  assert.equal(i18nEn.fmtRelative(1, "day"), "tomorrow");
 });
 
-test("fmtRelative formats other values", async () => {
-  resetEnv();
-  const i18n = await freshI18n();
-  assert.equal(i18n.fmtRelative(-3, "hours"), "3 hours ago");
-  assert.equal(i18n.fmtRelative(0, "minutes"), "this minute");
+test("fmtRelative formats other values", () => {
+  assert.equal(i18nEn.fmtRelative(-3, "hours"), "3 hours ago");
+  assert.equal(i18nEn.fmtRelative(0, "minutes"), "this minute");
 });
 
 test("ui.num formats en-US numbers", () => {
@@ -137,8 +112,7 @@ test("ui.bytes scales through B KB MB GB", () => {
 });
 
 test("ui.bytes clamps negative input to 0 B and keeps fractions in bytes", () => {
-  // Currently returns "NaN undefined": the !n guard catches 0/null/NaN but not negatives.
-  assert.equal(ui.bytes(-5), "0 B");
+  assert.equal(ui.bytes(-5), "0 B"); // the !(n > 0) guard catches negatives as well
   assert.equal(ui.bytes(0.5), "1 B");
 });
 

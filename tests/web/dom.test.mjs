@@ -111,6 +111,14 @@ test("addEventListener and dispatchEvent call listeners in order; click() drives
   assert.deepEqual(seen, [1, 2]);
 });
 
+test("a directly assigned on<type> property fires on dispatch, as in the browser", () => {
+  const btn = document.createElement("button"); // system.js assigns refresh.onclick after h() built it
+  let currentTarget;
+  btn.onclick = (event) => { currentTarget = event.currentTarget; };
+  btn.click();
+  assert.equal(currentTarget, btn);
+});
+
 test("the once option removes the listener after one dispatch (toast pattern)", () => {
   const el = document.createElement("div");
   let calls = 0;
@@ -324,4 +332,12 @@ test("replaceWith takes the node's place in its parent, in order (agent.js tab s
   assert.deepEqual([...parent.children].map((el) => el.tagName), ["SPAN", "EM", "STRONG", "B"]); // in order, at its place
   assert.equal(parent.textContent, "text");
   assert.ok(![...parent.childNodes].includes(placeholder)); // the replaced node is out of the tree
+});
+
+test("requestSubmit dispatches the form's submit event (agent.js Ctrl+Enter)", () => {
+  const form = document.createElement("form");
+  let submitted = 0;
+  form.addEventListener("submit", (event) => { event.preventDefault(); submitted += 1; });
+  assert.equal(form.requestSubmit(), false); // preventDefault makes dispatchEvent return false, as in the browser
+  assert.equal(submitted, 1);
 });

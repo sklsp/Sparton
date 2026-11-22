@@ -203,10 +203,19 @@ class Element {
         if (i >= 0) list.splice(i, 1);
       }
     }
+    // A directly assigned on<type> property fires too, as in the browser (system.js sets refresh.onclick).
+    const handlerProp = "on" + type;
+    if (event && typeof this[handlerProp] === "function") {
+      event.currentTarget = this;
+      this[handlerProp].call(this, event);
+    }
     return !(event && event.defaultPrevented);
   }
 
   click() { return this.dispatchEvent(new Event("click")); }
+
+  /** HTMLFormElement surface for agent.js's Ctrl+Enter submit; fires the form's submit event. */
+  requestSubmit() { return this.dispatchEvent(new Event("submit")); }
 
   /** HTMLDialogElement surface for ui.js's dialog(): open flag, returnValue and the close event. */
   showModal() { this.open = true; }
