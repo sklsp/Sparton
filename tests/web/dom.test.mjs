@@ -111,6 +111,14 @@ test("addEventListener and dispatchEvent call listeners in order; click() drives
   assert.deepEqual(seen, [1, 2]);
 });
 
+test("a directly assigned on<type> property fires on dispatch, as in the browser", () => {
+  const btn = document.createElement("button"); // system.js assigns refresh.onclick after h() built it
+  let currentTarget;
+  btn.onclick = (event) => { currentTarget = event.currentTarget; };
+  btn.click();
+  assert.equal(currentTarget, btn);
+});
+
 test("the once option removes the listener after one dispatch (toast pattern)", () => {
   const el = document.createElement("div");
   let calls = 0;

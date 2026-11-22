@@ -203,6 +203,12 @@ class Element {
         if (i >= 0) list.splice(i, 1);
       }
     }
+    // A directly assigned on<type> property fires too, as in the browser (system.js sets refresh.onclick).
+    const handlerProp = "on" + type;
+    if (event && typeof this[handlerProp] === "function") {
+      event.currentTarget = this;
+      this[handlerProp].call(this, event);
+    }
     return !(event && event.defaultPrevented);
   }
 

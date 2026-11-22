@@ -1,14 +1,18 @@
 // system.js on the DOM fake: the four health tiles from /health, how a failing dependency is
 // reported (warning banner plus red tiles), the agent tool registry grouped by category with its
 // access and approval badges, the Prometheus exposition parsed into name/value rows, the empty
-// counters plate and each panel's error state. Fixtures mirror GET /health, GET /tools and
-// GET /metrics from app/api/health.py (tool entries as Tool.to_info() in app/agent/registry.py).
+// counters plate, each panel's error state, the Counters refresh button and the admin-only user
+// roster: you chip, role and status badges, the Disable/Enable toggle (success toast plus reload,
+// refused-toggle danger toast) and its empty plate. Fixtures mirror GET /health, GET /tools and
+// GET /metrics from app/api/health.py (tool entries as Tool.to_info() in app/agent/registry.py)
+// and GET/PATCH /admin/users from app/api/admin.py.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./env.mjs"; // browser fakes first...
 import "./dom.mjs"; // ...then the DOM fake; both install on globalThis at import time.
 import systemView from "../../app/web/views/system.js";
 import { t } from "../../app/web/i18n.js";
+import { resetToasts } from "../../app/web/ui.js";
 import { resetEnv, setFetch } from "./env.mjs";
 import { resetDom } from "./dom.mjs";
 
@@ -52,8 +56,20 @@ const metricsText = [
   "sparton_llm_tokens_used 1234567",
 ].join("\n");
 
-// Render the system view for a signed-in non-admin; record every call as [method, href].
-function renderSystem({ user = null, health = healthOk, metricsText: exposition = "", healthError, toolsError, metricsError } = {}) {
+// The shapes exactly as admin.py builds them: GET /admin/users returns { count, users } sorted by
+// id; PATCH /admin/users/{id} flips is_active and 409s when it would leave an org without an active admin.
+const usersBody = {
+  count: 3,
+  users: [
+    { id: 3, email: "jane@acme.test", role: "admin", is_active: true, organization_id: 1 },
+    { id: 4, email: "bob@acme.test", role: "member", is_active: false, organization_id: 1 },
+    { id: 7, email: "admin@acme.test", role: "admin", is_active: true, organization_id: 1 },
+  ],
+};
+const adminUser = { id: 7, role: "admin" }; // state.user as /auth/me returns it; the view reads .role and .id only
+
+// Render the system view for a signed-in non-admin; record every call as [method, href, body].
+function renderSystem({ user = null, health = healthOk, metricsText: exposition = "", users = structuredClone(usersBody), patchError, healthError, toolsError, metricsError } = {}) {
   resetEnv();
   resetDom();
   const host = document.createElement("main");
@@ -61,10 +77,19 @@ function renderSystem({ user = null, health = healthOk, metricsText: exposition 
   const calls = [];
   setFetch((href, init) => {
     const method = init?.method ?? "GET";
-    calls.push([method, href]);
+    calls.push([method, href, init?.body]);
     if (href === "/health") return healthError ? json({ detail: healthError }, 503) : json(health);
     if (href === "/tools") return toolsError ? json({ detail: toolsError }, 500) : json(toolsBody);
     if (href === "/metrics") return metricsError ? json({ detail: metricsError }, 502) : prometheus(exposition);
+    if (method === "PATCH" && href.startsWith("/admin/users/")) {
+      const id = Number(href.split("/").pop());
+      const target = users.users.find((u) => u.id === id);
+      if (!target) throw new Error(`unexpected fetch ${method} ${href}`);
+      if (patchError) return json({ detail: patchError }, 409);
+      target.is_active = !target.is_active; // the real endpoint flips and persists it, so a later GET reflects it
+      return json(target);
+    }
+    if (href === "/admin/users") return json(users);
     throw new Error(`unexpected fetch ${method} ${href}`);
   });
   // The view polls every 30s; the returned cleanup clears that interval, so tests must call stop().
@@ -86,7 +111,7 @@ const settled = (host) => host.querySelector("[aria-busy]") === null;
 const sectionWith = (host, title) => [...host.querySelectorAll("section")].find((s) => s.querySelector("h2")?.textContent === title);
 
 test("a healthy platform shows its four metric tiles with no banner", async () => {
-  const { host, stop } = renderSystem({ metricsText });
+  const { host, calls, stop } = renderSystem({ metricsText });
   try {
     await waitFor(() => settled(host), "the system view to settle");
 
@@ -106,8 +131,9 @@ test("a healthy platform shows its four metric tiles with no banner", async () =
     for (const c of cards.slice(0, 3)) assert.equal(c.querySelector(".metric-value").style.color, "var(--success)");
     assert.equal(cards[3].querySelector(".metric-value").style?.color, undefined);
 
-    // The admin user table is only offered to admins.
-    assert.equal(host.querySelector(".admin-users"), null);
+    // The admin user table is only offered to admins... and never fetched either.
+    assert.equal(sectionWith(host, "Users"), undefined);
+    assert.ok(!calls.some(([, href]) => href === "/admin/users"));
   } finally {
     stop();
   }
@@ -237,6 +263,139 @@ test("a failing /metrics degrades only its own panel", async () => {
     const err = sectionWith(host, "Counters").querySelector(".error-state");
     assert.equal(err.getAttribute("role"), "alert");
     assert.equal(err.querySelector("p").textContent, "scrape failed");
+  } finally {
+    stop();
+  }
+});
+
+test("the Counters refresh button re-fetches /metrics and shows its busy state", async () => {
+  const { host, calls, stop } = renderSystem({ metricsText });
+  try {
+    await waitFor(() => settled(host), "the system view to settle");
+    assert.equal(calls.filter(([, href]) => href === "/metrics").length, 1); // the mount fetch
+
+    const refresh = host.querySelector('button.icon-btn[aria-label="Refresh metrics"]');
+    assert.ok(refresh, "a refresh button sits in the Counters head");
+    refresh.click();
+    assert.equal(refresh.dataset.busy, "true"); // busy until the 600ms guard clears it
+
+    await waitFor(() => calls.filter(([, href]) => href === "/metrics").length === 2, "the refresh fetch to land");
+    await waitFor(() => settled(host), "the view to settle after the refresh");
+    assert.equal([...host.querySelectorAll(".table-wrap tbody tr")].length, 3); // re-rendered from the same exposition
+  } finally {
+    stop();
+  }
+});
+
+test("an admin sees the user roster with you chip, role and status badges", async () => {
+  const { host, calls, stop } = renderSystem({ user: adminUser });
+  try {
+    await waitFor(() => settled(host), "the system view to settle");
+    assert.ok(calls.some(([, href]) => href === "/admin/users"), "the roster is fetched for admins");
+
+    const section = sectionWith(host, "Users");
+    assert.equal(section.querySelector(".sub").textContent, "Members of this organization");
+    assert.deepEqual([...section.querySelectorAll("th")].map((c) => c.textContent), ["Email", "Role", "Status", ""]);
+
+    const rows = [...section.querySelectorAll("tbody tr")];
+    assert.equal(rows.length, 3); // sorted by id: 3, 4, 7
+    assert.deepEqual(
+      rows.map((r) => r.querySelector("td").textContent),
+      ["jane@acme.test", "bob@acme.test", "admin@acme.testyou"], // the signed-in admin (id 7) gets the chip
+    );
+    const you = section.querySelector(".chip");
+    assert.equal(you.textContent, "you");
+
+    const roleBadges = rows.map((r) => r.querySelectorAll("td")[1].querySelector(".badge"));
+    assert.deepEqual(
+      roleBadges.map((b) => [b.textContent, b.getAttribute("data-tone")]),
+      [["Admin", "primary"], ["Member", "neutral"], ["Admin", "primary"]],
+    );
+    const statusBadges = rows.map((r) => r.querySelectorAll("td")[2].querySelector(".badge"));
+    assert.deepEqual(
+      statusBadges.map((b) => [b.textContent, b.getAttribute("data-tone")]),
+      [["Active", "success"], ["Disabled", "neutral"], ["Active", "success"]],
+    );
+
+    // Only the other users get a toggle; the signed-in admin's row has none.
+    const buttons = [...section.querySelectorAll("button.btn")];
+    assert.deepEqual(buttons.map((b) => b.textContent), ["Disable", "Enable"]);
+    assert.equal(buttons[0].getAttribute("data-variant"), "danger"); // disabling is destructive
+    assert.equal(buttons[1].getAttribute("data-size"), "sm");
+  } finally {
+    stop();
+  }
+});
+
+test("disabling a user PATCHes the endpoint, toasts and reloads the roster", async () => {
+  const { host, calls, stop } = renderSystem({ user: adminUser });
+  resetToasts();
+  try {
+    await waitFor(() => settled(host), "the system view to settle");
+
+    const section = sectionWith(host, "Users");
+    const disable = [...section.querySelectorAll("button.btn")].find((b) => b.textContent === "Disable"); // jane (id 3)
+    disable.click();
+    assert.equal(disable.dataset.loading, "true"); // the button shows its in-flight state
+
+    await waitFor(() => calls.some(([method, href]) => method === "PATCH" && href === "/admin/users/3"), "the PATCH to land");
+    const [, , body] = calls.find(([method, href]) => method === "PATCH" && href === "/admin/users/3");
+    assert.deepEqual(JSON.parse(body), { is_active: false });
+
+    await waitFor(() => document.querySelector(".toast"), "the success toast");
+    const toastEl = document.querySelector(".toast");
+    assert.equal(toastEl.getAttribute("data-tone"), "success");
+    assert.equal(toastEl.querySelector("div").textContent, "User disabled");
+
+    // The reload re-renders the roster: jane's row now offers Enable and shows Disabled.
+    await waitFor(() => {
+      const btns = [...section.querySelectorAll("button.btn")].map((b) => b.textContent);
+      return btns.length === 2 && btns[0] === "Enable";
+    }, "the roster to reload with jane disabled");
+    assert.equal(calls.filter(([, href]) => href === "/admin/users").length, 2); // one GET per render
+    const buttons = [...section.querySelectorAll("button.btn")];
+    assert.deepEqual(buttons.map((b) => b.textContent), ["Enable", "Enable"]); // jane is now disabled too
+    assert.equal(section.querySelectorAll("tbody tr")[0].querySelectorAll("td")[2].textContent, "Disabled");
+  } finally {
+    stop();
+  }
+});
+
+test("a refused toggle shows a danger toast and leaves the roster untouched", async () => {
+  const { host, calls, stop } = renderSystem({ user: adminUser, patchError: "Cannot disable the last active admin" });
+  resetToasts();
+  try {
+    await waitFor(() => settled(host), "the system view to settle");
+
+    const section = sectionWith(host, "Users");
+    const enable = [...section.querySelectorAll("button.btn")].find((b) => b.textContent === "Enable"); // bob (id 4)
+    enable.click();
+    assert.equal(enable.dataset.loading, "true");
+
+    await waitFor(() => calls.some(([method]) => method === "PATCH"), "the PATCH to land");
+    // The refusal surfaces as a danger toast; catch clears the loading flag right after.
+    await waitFor(() => enable.dataset.loading === undefined, "the button to recover");
+    const toastEl = document.querySelector(".toast");
+    assert.equal(toastEl.getAttribute("data-tone"), "danger");
+    assert.equal(toastEl.querySelector("div").textContent, "Cannot disable the last active admin");
+
+    // The failed toggle does not reload the roster.
+    assert.equal(calls.filter(([, href]) => href === "/admin/users").length, 1); // no second GET after a failure
+    assert.deepEqual([...section.querySelectorAll("button.btn")].map((b) => b.textContent), ["Disable", "Enable"]);
+  } finally {
+    stop();
+  }
+});
+
+test("an org without users shows the empty plate instead of a table", async () => {
+  const { host, stop } = renderSystem({ user: adminUser, users: { count: 0, users: [] } });
+  try {
+    await waitFor(() => settled(host), "the system view to settle");
+
+    const section = sectionWith(host, "Users");
+    assert.equal(section.querySelector("table"), null);
+    const plate = section.querySelector(".empty");
+    assert.equal(plate.querySelector("h3").textContent, "No users found");
   } finally {
     stop();
   }
