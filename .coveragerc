@@ -3,8 +3,6 @@
 source = app, workers
 omit =
     app/documents/*
-    app/generation/*
-    app/datasets/*
 
 [report]
 fail_under = 85
