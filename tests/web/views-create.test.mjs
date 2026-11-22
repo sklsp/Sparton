@@ -283,3 +283,144 @@ test("shows an error state when every status endpoint fails", async () => {
   assert.match(error.textContent, /Could not reach the SPARTON API/);
 });
 
+test("gallery refresh re-fetches the latest images", async () => {
+  const { calls } = renderCreate();
+  await waitFor(() => document.querySelectorAll(".gallery figure").length === 2, "gallery figures");
+  const before = calls.filter(([m, h]) => m === "GET" && h === "/generated?limit=24").length;
+  const refreshBtn = document.querySelector('button[aria-label="Refresh gallery"]');
+  assert.ok(refreshBtn, "refresh button exists");
+  refreshBtn.click();
+  assert.equal(refreshBtn.dataset.busy, "true", "refresh shows a busy state while reloading");
+  await waitFor(() => calls.filter(([m, h]) => m === "GET" && h === "/generated?limit=24").length === before + 1, "gallery reload");
+});
+
+test("dry run shows a danger banner when validation fails", async () => {
+  renderCreate({ failDryRun: true });
+  await filledForm();
+  buttonByText("Dry run").click();
+  const banner = await waitFor(() => document.querySelector(".banner"), "failure banner");
+  assert.equal(banner.dataset.tone, "danger");
+  // api.js wraps thrown fetch errors into a generic connectivity message
+  assert.match(banner.textContent, /Could not reach the SPARTON API/);
+});
+
+test("datasets show an empty state whose button opens the create dialog", async () => {
+  renderCreate({ datasets: { count: 0, datasets: [] } });
+  const empty = await waitFor(() => sectionByHeading("Datasets")?.querySelector(".empty"), "datasets empty state");
+  assert.match(empty.textContent, /No datasets/);
+  buttonByText("Create dataset").click();
+  const dialogEl = await waitFor(() => document.querySelector("dialog"), "dataset dialog");
+  assert.match(dialogEl.textContent, /New dataset/);
+});
+
+test("dataset dialog does nothing when the name is blank", async () => {
+  const { posts } = renderCreate();
+  buttonByText("New").click();
+  const dialogEl = await waitFor(() => document.querySelector("dialog"), "dataset dialog");
+  buttonByText("Create").click(); // name left empty
+  assert.equal(posts.length, 0, "no POST without a name");
+  assert.ok(document.querySelector("dialog"), "dialog stays open");
+});
+
+test("shows a danger toast when creating a dataset fails", async () => {
+  renderCreate({ createDatasetResponse: json({ detail: "Name already in use" }, 409) });
+  buttonByText("New").click();
+  const dialogEl = await waitFor(() => document.querySelector("dialog"), "dataset dialog");
+  dialogEl.querySelector('input[aria-label="Dataset name"]').value = "Hero shots v2";
+  buttonByText("Create").click();
+  const toastEl = await waitFor(() => document.querySelector(".toast"), "failure toast");
+  assert.equal(toastEl.dataset.tone, "danger");
+  assert.match(toastEl.textContent, /Name already in use/);
+});
+
+test("dataset validation shows an error state when the endpoint fails", async () => {
+  renderCreate({ datasetValidateError: "validation service down" });
+  await waitFor(() => buttonByText("Validate"), "dataset row");
+  buttonByText("Validate").click();
+  const dialogEl = document.querySelector("dialog");
+  const error = await waitFor(() => dialogEl.querySelector(".error-state"), "validation error state");
+  // api.js wraps thrown fetch errors into a generic connectivity message
+  assert.match(error.textContent, /Could not reach the SPARTON API/);
+});
+
+test("training shows an empty state that mentions available presets", async () => {
+  renderCreate({ projects: { count: 0, projects: [] } });
+  const empty = await waitFor(() => sectionByHeading("Training")?.querySelector(".empty"), "training empty state");
+  assert.match(empty.textContent, /2 presets available/);
+});
+
+test("training shows a different empty state when no presets exist", async () => {
+  renderCreate({ projects: { count: 0, projects: [] }, presets: { presets: [] } });
+  const empty = await waitFor(() => sectionByHeading("Training")?.querySelector(".empty"), "training empty state");
+  assert.match(empty.textContent, /Create a dataset first/);
+});
+
+test("offline status without error details falls back to generic copy", async () => {
+  renderCreate({ comfy: { connected: false } });
+  const banner = await waitFor(() => document.querySelector(".banner"), "offline banner");
+  assert.match(banner.textContent, /not reachable at the configured address\./);
+  assert.equal(metricByLabel("ComfyUI").querySelector(".metric-sub").textContent, "not configured");
+  assert.equal(metricByLabel("Hardware").querySelector(".metric-value").textContent, "Unknown");
+  assert.equal(metricByLabel("Hardware").querySelector(".metric-sub").textContent, "no accelerator reported");
+});
+
+test("hardware tier and device details drive the hardware metric", async () => {
+  renderCreate({
+    comfy: { connected: true, base_url: "http://127.0.0.1:8188", version: "0.3.45" },
+    hardware: { tier: "workstation", devices: [{ name: "RTX 4090", vram_total: 25769803776 }], gpu_name: "NVIDIA GeForce RTX 4090" },
+  });
+  await waitFor(() => metricByLabel("Hardware"), "hardware metric");
+  assert.equal(metricByLabel("Hardware").querySelector(".metric-value").textContent, "Workstation"); // title() of the tier
+  assert.match(metricByLabel("Hardware").querySelector(".metric-sub").textContent, /VRAM/);
+
+  renderCreate({
+    comfy: { connected: true, base_url: "http://127.0.0.1:8188", version: "0.3.45" },
+    hardware: { tier: "workstation", devices: [{ name: "RTX 4090" }], gpu_name: "NVIDIA GeForce RTX 4090" },
+  });
+  await waitFor(() => metricByLabel("Hardware")?.querySelector(".metric-sub")?.textContent === "NVIDIA GeForce RTX 4090", "gpu name fallback");
+});
+
+test("submitting an empty prompt does nothing", async () => {
+  const { posts } = renderCreate();
+  const form = await filledForm({ promptText: "" });
+  form.dispatchEvent(new Event("submit"));
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.equal(posts.length, 0, "no generate POST for a blank prompt");
+  assert.equal(document.querySelector(".toast"), null);
+});
+
+test("dataset rows without metadata show a placeholder", async () => {
+  renderCreate({ datasets: { count: 1, datasets: [{ id: 9, name: "Bare dataset" }] } });
+  const sub = await waitFor(() => sectionByHeading("Datasets")?.querySelector(".row-sub"), "dataset row sub");
+  assert.equal(sub.textContent, "no images yet");
+});
+
+test("dataset validation handles legacy error lists and mixed issue shapes", async () => {
+  renderCreate({ datasetValidateReport: { valid: false, errors: ["Too few images", { code: "LOW_VARIETY" }, { message: "Blurred captions" }] } });
+  await waitFor(() => buttonByText("Validate"), "dataset row");
+  buttonByText("Validate").click();
+  const dialogEl = document.querySelector("dialog");
+  const banner = await waitFor(() => dialogEl.querySelector(".banner"), "issues banner");
+  assert.equal(banner.dataset.tone, "warning");
+  assert.match(banner.textContent, /3 issues would block training/); // plural side
+  const titles = [...dialogEl.querySelectorAll(".row-title")].map((el) => el.textContent);
+  assert.deepEqual(titles, ["Too few images", "LOW_VARIETY", "Blurred captions"]); // string, code fallback, message
+  assert.equal(dialogEl.querySelectorAll(".row-sub").length, 0, "no detail rows without issue.detail");
+});
+
+test("training panel renders boolean and object configuration values", async () => {
+  renderCreate({ trainingStatus: { configured: false, max_batch_size: { limit: 4 }, error: null } });
+  await waitFor(() => sectionByHeading("Training")?.querySelector(".badge"), "training badge");
+  const training = sectionByHeading("Training");
+  assert.ok([...training.querySelectorAll(".badge")].some((b) => b.textContent === "No")); // boolean false side (title-cased by badge())
+  assert.ok([...training.querySelectorAll("dd")].some((dd) => dd.textContent.trim() === '{"limit":4}')); // object values stringify
+});
+
+test("training rows fall back to the default preset and presets show names", async () => {
+  renderCreate({ projects: { count: 1, projects: [{ id: 5, name: "No preset project" }] }, presets: { presets: [{ name: "Fast" }] } });
+  await waitFor(() => sectionByHeading("Training")?.querySelector(".row-title"), "project row");
+  const training = sectionByHeading("Training");
+  assert.match(training.querySelector(".row-sub").textContent, /preset: default/);
+  assert.ok([...training.querySelectorAll(".chip")].some((c) => c.textContent === "Fast")); // name fallback when no id
+});
+
