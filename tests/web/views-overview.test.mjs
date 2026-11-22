@@ -18,6 +18,8 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
 const shop = { id: 1, name: "Bakkerij De Vries", url: "https://devries.nl", domain: "devries.nl", platform: "shopify", category: "bakery", currency: "EUR", crawl_frequency_hours: 24, is_active: true, competitor_count: 2, last_crawled_at: "2026-11-08T09:30:00Z", next_crawl_at: "2026-11-15T09:30:00Z", last_status: "COMPLETED", created_at: "2026-09-01T10:00:00Z" };
 const compHtml = { id: 7, shop_id: 1, domain: "bakkerijjansen.nl", name: "Bakkerij Jansen", url: "https://bakkerijjansen.nl", platform: "woocommerce", discovery_method: "search", confidence: 0.92, is_active: true, product_count: 48, last_crawled_at: "2026-11-08T09:30:00Z", last_status: "COMPLETED", data_source: "html", source_label: "Extracted from the page", created_at: "2026-09-02T10:00:00Z" };
 const compFeed = { id: 8, shop_id: 1, domain: "broodhuis.nl", name: "Broodhuis", url: "https://broodhuis.nl", platform: "shopify", discovery_method: "search", confidence: 0.97, is_active: true, product_count: 64, last_crawled_at: "2026-11-08T09:35:00Z", last_status: "FAILED", data_source: "api", source_label: "Exact", created_at: "2026-09-02T10:05:00Z" };
+// A rival that has never been crawled: no last_crawled_at, so the quiet line falls back to the shop's next check.
+const compFresh = { id: 9, shop_id: 1, domain: "newrival.nl", name: "New Rival", url: "https://newrival.nl", platform: "shopify", discovery_method: "search", confidence: 0.8, is_active: true, product_count: 0, last_crawled_at: null, last_status: null, data_source: "html", source_label: "Extracted from the page", created_at: "2026-11-14T10:00:00Z" };
 
 // Three changes this week, as _change_dict builds them (vs_you null: no match found).
 const cut = { id: 101, shop_id: 1, competitor_id: 7, kind: "price_decrease", severity: "high", title: "Zwarte brood down", summary: "", competitor: "Bakkerij Jansen", competitor_domain: "bakkerijjansen.nl", product: "Zwarte brood", previous_price: 4.5, new_price: 3.95, currency: "EUR", delta: -0.55, delta_pct: -12.2, evidence_url: "https://bakkerijjansen.nl/zwarte-brood", detected_at: "2026-11-12T08:00:00Z", acknowledged_at: null, vs_you: null };
@@ -49,7 +51,7 @@ const renderOverview = async (overview, { navigate = () => {}, extraRoutes = {} 
   setFetch((href) => (extraRoutes[href] ? extraRoutes[href]() : routes(overview)(href)));
   const host = document.createElement("div");
   ov.default(host, { navigate });
-  await waitFor(() => host.querySelector(".row-open") || host.querySelector(".first-run") || host.querySelector(".error-state"), "the overview to settle");
+  await waitFor(() => host.querySelector(".row-open") || host.querySelector(".first-run") || host.querySelector(".error-state") || host.querySelector(".board-quiet"), "the overview to settle");
   return host;
 };
 
@@ -264,4 +266,45 @@ test("a quiet week still shows the last moves", async () => {
 
   const legend = host.querySelector(".board-legend");
   assert.deepEqual([...legend.children].map((li) => li.textContent), [t("legend.exact"), t("legend.extracted"), t("legend.unread")]); // no struck this time
+});
+
+test("a quiet week with nothing earlier points at the next check", async () => {
+  const body = { shops: [shop], competitor_count: 1, competitors_healthy: 0, competitors_failing: 0, changes_this_week: 0, unacknowledged: 0, recent_changes: [], latest_report: null };
+  let changesHit = false;
+  const host = await renderOverview(body, {
+    extraRoutes: {
+      "/competitors": () => json({ count: 1, competitors: [compFresh] }), // never crawled: no "last check" to point at
+      "/changes?days=60&limit=8": () => { changesHit = true; return json({ count: 0, unacknowledged: 0, changes: [] }); },
+    },
+  });
+
+  assert.ok(changesHit); // a quiet week still asks for earlier moves
+  const long = { weekday: "long", day: "numeric", month: "long" }; // the same options quietWeek uses
+  const quiet = host.querySelector(".board-quiet");
+  assert.equal(quiet.textContent, `${t("ov.quiet.title")} ${t("ov.quiet.next", { when: fmtDate(new Date(shop.next_crawl_at), long) })}`);
+  assert.equal(host.querySelector(".board-sub"), null); // no earlier moves, so no second board
+  assert.equal(host.querySelectorAll(".board-row").length, 0);
+  assert.equal(host.querySelector(".report-teaser"), null); // shops present but latest_report is null
+});
+
+test("a quiet week before any rival was crawled shows the plain body", async () => {
+  const body = { shops: [{ ...shop, next_crawl_at: null }], competitor_count: 1, competitors_healthy: 0, competitors_failing: 0, changes_this_week: 0, unacknowledged: 0, recent_changes: [], latest_report: null };
+  // The /changes lookup fails; the view swallows it and shows no earlier board. A bare-array
+  // competitor list exercises the `list.competitors || list` fallback in load().
+  const host = await renderOverview(body, {
+    extraRoutes: {
+      "/competitors": () => json([compFresh]),
+      "/changes?days=60&limit=8": () => { throw new Error("nope"); },
+    },
+  });
+
+  const quiet = host.querySelector(".board-quiet");
+  assert.equal(quiet.textContent, `${t("ov.quiet.title")} ${t("ov.quiet.body")}`); // no last check and no next check to name
+  assert.equal(host.querySelector(".board-sub"), null);
+});
+
+test("reportTitle falls back to untitled and drops a missing period", () => {
+  assert.equal(ov.reportTitle({}), t("ov.report.untitled")); // no facts at all
+  assert.equal(ov.reportTitle({ facts: {} }), t("ov.report.untitled")); // facts without a shop name
+  assert.equal(ov.reportTitle({ facts: { shop: { name: "De Vries" } }, period_end: null }), t("rp.title", { shop: "De Vries" })); // no date suffix
 });
