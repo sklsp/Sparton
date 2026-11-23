@@ -10,7 +10,7 @@ import intelligenceView from "../../app/web/views/intelligence.js";
 import { t } from "../../app/web/i18n.js";
 import { resetToasts } from "../../app/web/ui.js";
 import { resetEnv, setFetch } from "./env.mjs";
-import { resetDom, Event } from "./dom.mjs";
+import { resetDom, Event, setHidden } from "./dom.mjs";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -44,14 +44,18 @@ const oppDetail = {
 };
 
 // Render the intelligence view; record every call as [method, href] and every POST body.
-function renderIntelligence({ jobs = jobsBody, stores = storesBody, opps = oppsBody, failJobs = false, failOpps = false, failStores = false, jobsFailuresLeft = 0, startResponse = null, detailResponse = null } = {}) {
+// jobsByCall: (n) => body | [body, status] for the /intelligence/jobs?limit=15 answers, counted from 1 —
+// mount loads the panel and checks for running jobs (calls 1-2), then each poll tick adds more.
+function renderIntelligence({ jobs = jobsBody, stores = storesBody, opps = oppsBody, failJobs = false, failOpps = false, failStores = false, jobsFailuresLeft = 0, startResponse = null, detailResponse = null, jobsByCall = null } = {}) {
   resetEnv();
   resetDom();
   resetToasts(); // ui.js caches its toasts host; a fresh document needs a fresh one.
+  intervals.clear(); // drop any poll interval a previous test left running (the fake registry is module-scoped)
   const host = document.createElement("main");
   document.body.appendChild(host);
   const calls = [];
   const posts = [];
+  let limit15Calls = 0; // how many times jobsByCall has answered /intelligence/jobs?limit=15
   setFetch((href, init) => {
     const method = init?.method ?? "GET";
     calls.push([method, href]);
@@ -65,6 +69,10 @@ function renderIntelligence({ jobs = jobsBody, stores = storesBody, opps = oppsB
         return json({ detail: "Research jobs unavailable" }, 503);
       }
       if (failJobs) return json({ detail: "Research jobs unavailable" }, 503);
+      if (jobsByCall && href === "/intelligence/jobs?limit=15") {
+        const answer = jobsByCall(++limit15Calls);
+        return Array.isArray(answer) ? json(answer[0], answer[1]) : json(answer);
+      }
       return json(jobs);
     }
     if (href.startsWith("/intelligence/stores?")) {
@@ -103,6 +111,25 @@ async function waitFor(fn, what) {
 // Every async panel has left its skeleton state (data or error rendered).
 const settled = (host) => host.querySelector("[aria-busy]") === null;
 const sectionWith = (host, title) => [...host.querySelectorAll("section")].find((s) => s.querySelector("h2")?.textContent === title);
+
+// intelligence.js polls on a real 5s setInterval; swap in a fake we fire by hand so no test
+// waits real time and no interval can outlive its test (a live one would keep Node from exiting).
+const intervals = new Map();
+let nextIntervalId = 0;
+Object.defineProperty(globalThis, "setInterval", {
+  value: (fn) => { const id = ++nextIntervalId; intervals.set(id, fn); return id; },
+  writable: true, configurable: true,
+});
+Object.defineProperty(globalThis, "clearInterval", {
+  value: (id) => { if (id != null) intervals.delete(id); },
+  writable: true, configurable: true,
+});
+
+// Fire every live interval once and await the work each callback starts.
+async function firePolls() {
+  const started = [...intervals.values()].map((fn) => fn());
+  await Promise.allSettled(started);
+}
 
 test("mounting loads stats, jobs, opportunities and stores from their endpoints", async () => {
   const { host, calls, stop } = renderIntelligence();
@@ -482,6 +509,215 @@ test("when every stats source fails the metrics panel shows an error state", asy
     stop();
   }
 });
+
+/* ------------------------------------------------- polling for running jobs */
+
+test("the poll refreshes the panels and stops once every job has finished", async () => {
+  const completedJobsBody = { count: 1, jobs: [jobDone] };
+  // Calls 1-2 are mount (panel load + running check); from call 3 on nothing is running.
+  const { host, calls, stop } = renderIntelligence({
+    jobsByCall: (n) => (n <= 2 ? jobsBody : completedJobsBody),
+  });
+  try {
+    await waitFor(() => settled(host), "the view to settle");
+
+    const count = (href) => calls.filter(([m, h]) => m === "GET" && h === href).length;
+    assert.equal(count("/intelligence/jobs?limit=15"), 2); // panel load + mount-time check
+
+    await firePolls();
+    await waitFor(() => settled(host), "the panels to settle after the poll");
+
+    const rows = [...sectionWith(host, "Research jobs").querySelectorAll(".row")];
+    assert.deepEqual(rows.map((r) => r.querySelector(".row-title").textContent), ["Job #9 · Scoring"]); // reloaded from the finished answer
+    assert.equal(count("/intelligence/jobs?limit=15"), 4); // the poll's own check + reloadJobs()
+    assert.equal(count("/intelligence/opportunities?limit=60"), 2); // mount + reloadOpps()
+    assert.equal(count("/intelligence/jobs?limit=100"), 2); // the stats panel reloaded too
+
+    await firePolls(); // the interval was cleared, so nothing happens now
+    assert.equal(count("/intelligence/jobs?limit=15"), 4);
+  } finally {
+    stop();
+  }
+});
+
+test("a failed poll clears the interval and leaves the panels as they were", async () => {
+  const { host, calls, stop } = renderIntelligence({
+    jobsByCall: (n) => (n <= 2 ? jobsBody : [{ detail: "Research jobs unavailable" }, 503]),
+  });
+  try {
+    await waitFor(() => settled(host), "the view to settle");
+
+    const count15 = () => calls.filter(([m, h]) => m === "GET" && h === "/intelligence/jobs?limit=15").length;
+    assert.equal(count15(), 2); // panel load + mount-time check
+
+    await firePolls(); // the tick's own check fails -> catch clears the interval
+    assert.equal(count15(), 3); // only the failed check: no reloadJobs after it
+    const rows = [...sectionWith(host, "Research jobs").querySelectorAll(".row")];
+    assert.equal(rows.length, 3); // stale rows stay; this panel shows no error state
+
+    await firePolls();
+    assert.equal(count15(), 3); // nothing is scheduled anymore
+  } finally {
+    stop();
+  }
+});
+test("a poll answer without a jobs key stops polling and empties the list", async () => {
+  const { host, calls, stop } = renderIntelligence({
+    jobsByCall: (n) => (n <= 2 ? jobsBody : {}), // no .jobs anywhere in the answer
+  });
+  try {
+    await waitFor(() => settled(host), "the view to settle");
+
+    const count15 = () => calls.filter(([m, h]) => m === "GET" && h === "/intelligence/jobs?limit=15").length;
+    assert.equal(count15(), 2); // panel load + mount-time check
+
+    await firePolls();
+    await waitFor(() => settled(host), "the panels to settle after the poll");
+
+    const section = sectionWith(host, "Research jobs");
+    assert.equal(section.querySelector(".row"), null);
+    assert.equal(section.querySelector(".empty h3").textContent, "No research yet"); // reloadJobs({}) renders the empty plate
+    assert.equal(count15(), 4); // the poll's check + reloadJobs()
+
+    await firePolls();
+    assert.equal(count15(), 4); // nothing is scheduled anymore
+  } finally {
+    stop();
+  }
+});
+
+test("the poll skips its tick while the tab is hidden", async () => {
+  const { host, calls, stop } = renderIntelligence(); // default fixture has running jobs -> polling starts
+  try {
+    await waitFor(() => settled(host), "the view to settle");
+
+    const count15 = () => calls.filter(([m, h]) => m === "GET" && h === "/intelligence/jobs?limit=15").length;
+    assert.equal(count15(), 2); // panel load + mount-time check (which started the poll)
+
+    setHidden(true);
+    await firePolls(); // the callback returns before fetching
+    assert.equal(count15(), 2);
+
+    setHidden(false);
+    await firePolls(); // now it polls again and reloads the jobs panel
+    assert.equal(count15(), 4); // the tick's check + reloadJobs()
+  } finally {
+    stop();
+  }
+});
+
+/* ------------------------------------------------- sorting opportunities */
+
+// Score and confidence disagree on the order so each sortable header sorts differently.
+const sortFixtures = {
+  count: 2,
+  opportunities: [
+    { id: 201, type: "pricing", title: "High score low confidence", summary: null, score: 90.0, confidence: 0.4, competition_level: "medium", status: "OPEN" },
+    { id: 202, type: "niche", title: "Low score high confidence", summary: null, score: 50.0, confidence: 0.95, status: "OPEN" }, // no competition level
+  ],
+};
+
+test("clicking a sortable header sorts by it and flips the direction on repeat clicks", async () => {
+  const { host, stop } = renderIntelligence({ opps: sortFixtures });
+  try {
+    await waitFor(() => settled(host), "the view to settle");
+
+    const section = sectionWith(host, "Opportunities");
+    const titles = () => [...section.querySelectorAll("tbody tr")].map((tr) => tr.children[0].textContent.trim());
+    assert.deepEqual(titles(), ["High score low confidence", "Low score high confidence"]); // default: score descending
+
+    const ths = [...section.querySelectorAll("thead th")];
+    const [titleTh, , , confTh, scoreTh] = ths;
+    assert.equal(scoreTh.getAttribute("aria-sort"), "descending"); // the initial sort owns Score
+
+    scoreTh.click(); // same column: flip to ascending
+    assert.deepEqual(titles(), ["Low score high confidence", "High score low confidence"]);
+    assert.equal(scoreTh.getAttribute("aria-sort"), "ascending");
+    assert.ok(ths.filter((th) => th.hasAttribute("data-sortable") && th !== scoreTh).every((th) => th.getAttribute("aria-sort") === "none"));
+
+    confTh.click(); // a different column: sort by it, descending again
+    assert.deepEqual(titles(), ["Low score high confidence", "High score low confidence"]); // 0.95 > 0.4
+    assert.equal(confTh.getAttribute("aria-sort"), "descending");
+    assert.equal(scoreTh.getAttribute("aria-sort"), "none");
+
+    confTh.click(); // flip it back
+    assert.deepEqual(titles(), ["High score low confidence", "Low score high confidence"]);
+    assert.equal(confTh.getAttribute("aria-sort"), "ascending");
+
+    titleTh.click(); // the string column sorts with localeCompare, descending
+    assert.deepEqual(titles(), ["Low score high confidence", "High score low confidence"]); // L > H
+    assert.equal(titleTh.getAttribute("aria-sort"), "descending");
+  } finally {
+    stop();
+  }
+});
+
+test("keyboard: Enter and space toggle a header sort, other keys do nothing", async () => {
+  const { host, stop } = renderIntelligence({ opps: sortFixtures });
+  try {
+    await waitFor(() => settled(host), "the view to settle");
+
+    const section = sectionWith(host, "Opportunities");
+    const titles = () => [...section.querySelectorAll("tbody tr")].map((tr) => tr.children[0].textContent.trim());
+    const scoreTh = [...section.querySelectorAll("thead th")][4];
+    const keydown = (el, key) => { const e = new Event("keydown"); e.key = key; el.dispatchEvent(e); };
+
+    keydown(scoreTh, "a"); // an unrelated key does nothing
+    assert.deepEqual(titles(), ["High score low confidence", "Low score high confidence"]);
+    assert.equal(scoreTh.getAttribute("aria-sort"), "descending");
+
+    keydown(scoreTh, " "); // space toggles like a click
+    assert.equal(scoreTh.getAttribute("aria-sort"), "ascending");
+    assert.deepEqual(titles(), ["Low score high confidence", "High score low confidence"]);
+
+    keydown(scoreTh, "Enter"); // Enter flips it back to descending
+    assert.equal(scoreTh.getAttribute("aria-sort"), "descending");
+  } finally {
+    stop();
+  }
+});
+
+test("missing competition level, confidence and score render as unknown or zero", async () => {
+  const { host, stop } = renderIntelligence({
+    opps: { count: 1, opportunities: [{ id: 203, type: "niche", title: "Sparse opportunity", summary: null, status: "OPEN" }] },
+  });
+  try {
+    await waitFor(() => settled(host), "the view to settle");
+
+    const row = sectionWith(host, "Opportunities").querySelector("tbody tr");
+    assert.equal(row.children[2].textContent.trim(), "Unknown"); // no competition level -> warning badge
+    assert.equal(row.children[3].textContent.trim(), "0%"); // no confidence
+    assert.equal(row.children[4].textContent.trim(), "0.0"); // no score
+  } finally {
+    stop();
+  }
+});
+
+test("a detail without summary, recommended action, evidence or sources shows only its fallbacks", async () => {
+  const bare = { id: 204, type: "niche", title: "Bare opportunity", status: "OPEN" }; // no score/confidence/summary/evidence/sources
+  const { host, stop } = renderIntelligence({ opps: { count: 1, opportunities: [bare] }, detailResponse: json(bare) });
+  try {
+    await waitFor(() => settled(host), "the view to settle");
+
+    sectionWith(host, "Opportunities").querySelector("tbody tr").click();
+    const dlg = document.querySelector("dialog");
+    assert.ok(dlg, "a dialog opens for the clicked opportunity");
+    await waitFor(() => dlg.querySelector(".dialog-body h3"), "the opportunity detail to render");
+
+    assert.equal(dlg.textContent.includes("No summary."), true); // the summary fallback
+    assert.equal(dlg.textContent.includes("Score 0.0"), true); // missing score -> zero chip (badge title-cases)
+    assert.equal(dlg.textContent.includes("0% Confidence"), true); // missing confidence -> zero chip
+    assert.equal(dlg.querySelector(".banner"), null); // no recommended-action banner
+    assert.equal(dlg.querySelector("dl.kv"), null); // no evidence block
+  } finally {
+    stop();
+  }
+});
+
+
+
+
+
 
 
 
