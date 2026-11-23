@@ -1,2 +1,0 @@
-- [x] N1. web tests: agent branches (1972 passed, 20 skipped, 2 xfailed, 1 warning in 215.79s (0:03:35))
-- [ ] N2. web tests: i18n branches BLOCKED
