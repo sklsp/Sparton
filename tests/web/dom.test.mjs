@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./env.mjs"; // env's fakes first, as in the real usage order
-import { Event, resetDom, setMedia } from "./dom.mjs";
+import { Event, resetDom, setMedia, setHidden } from "./dom.mjs";
 
 test("document exposes the entry points the builders use", () => {
   assert.equal(typeof document.createElement, "function");
@@ -201,6 +201,15 @@ test("matchMedia reports false until setMedia flips it (board.js reduced-motion 
   assert.equal(matchMedia(query).matches, false);
   setMedia(query, true);
   assert.equal(matchMedia(query).matches, true);
+});
+
+test("document.hidden stays false until setHidden flips it; resetDom restores it (agent.js poll pause)", () => {
+  resetDom();
+  assert.equal(document.hidden, false);
+  setHidden(true);
+  assert.equal(document.hidden, true);
+  resetDom();
+  assert.equal(document.hidden, false);
 });
 
 test("resetDom empties the body and clears lang", () => {

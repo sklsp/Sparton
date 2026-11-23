@@ -9,7 +9,7 @@ import agentView from "../../app/web/views/agent.js";
 import { t } from "../../app/web/i18n.js";
 import { resetToasts } from "../../app/web/ui.js";
 import { resetEnv, setFetch } from "./env.mjs";
-import { resetDom, Event } from "./dom.mjs";
+import { resetDom, Event, setHidden } from "./dom.mjs";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -45,6 +45,14 @@ const runFailed = { id: 8, request: "Sync the competitor price sheet", status: "
 // A run that vanished server-side; the detail endpoint answers 404 like agent_api.py does.
 const runsGone = { count: 1, runs: [{ id: 9, request: "Ghost run", status: "FAILED", iterations: 1, tool_calls_made: 0, started_at: iso(2 * 60e3) }] };
 
+// A finished run whose detail carries no counters and one bare step; the view must fall back
+// to zeros in the summary, an empty title and a generic "step" badge for that step.
+const sparseRow = { id: 12, request: "Sparse trace", status: "COMPLETED", started_at: iso(3 * 60e3) }; // no iterations or tool_calls_made
+const sparseDetail = { ...sparseRow, steps: [
+  { step_number: 0 }, // nothing but the number: no type, message, tool or status
+  { step_number: 1, type: "tool_call", tool: "read_pages", message: "Fetched the page", status: "ok" },
+] };
+
 // The live run's trace as it finishes; the poll sequence hands these out in order.
 const liveDone = { ...runLive, status: "COMPLETED", iterations: 3, tool_calls_made: 2, final_response: "Hero images refreshed." };
 
@@ -59,7 +67,7 @@ const toolsBody = { count: 2, tools: [
 
 
 // Render the agent view; record every call as [method, href] and every POST as [href, body].
-function renderAgent({ runs = runsBody, approvals = approvalsBody, failRunsOnce = false, startResponse = null, liveRunStates = [liveDetail], tools = toolsBody, failToolsOnce = false, failResolveOnce = false } = {}) {
+function renderAgent({ runs = runsBody, approvals = approvalsBody, rawRuns = null, rawApprovals = null, failRunsOnce = false, startResponse = null, liveRunStates = [liveDetail], tools = toolsBody, failToolsOnce = false, failResolveOnce = false, failStartOnce = false, failApprovalsOnce = false } = {}) {
   resetEnv();
   resetDom();
   resetToasts(); // ui.js caches its toasts host; a fresh document needs a fresh one.
@@ -70,12 +78,15 @@ function renderAgent({ runs = runsBody, approvals = approvalsBody, failRunsOnce 
   let runsFailuresLeft = failRunsOnce ? 1 : 0;
   let resolveFailuresLeft = failResolveOnce ? 1 : 0;
   let toolFailuresLeft = failToolsOnce ? 1 : 0;
+  let startFailuresLeft = failStartOnce ? 1 : 0;
+  let approvalsFailuresLeft = failApprovalsOnce ? 1 : 0;
   let liveStateIndex = 0; // the open run's detail answers in sequence, like a run progressing
   setFetch((href, init) => {
     const method = init?.method ?? "GET";
     calls.push([method, href]);
     if (method === "POST" && href === "/agent/run") {
       posts.push([href, JSON.parse(init.body)]);
+      if (startFailuresLeft > 0) { startFailuresLeft -= 1; return json({ detail: "The agent worker is down" }, 503); }
       return startResponse ?? json({ run_id: 7 }, 201);
     }
     const resolveMatch = href.match(/^\/approvals\/(\d+)\/resolve$/);
@@ -87,7 +98,7 @@ function renderAgent({ runs = runsBody, approvals = approvalsBody, failRunsOnce 
     }
     if (href === "/agent/runs?limit=25") {
       if (runsFailuresLeft > 0) { runsFailuresLeft -= 1; return json({ detail: "Agent runs unavailable" }, 503); }
-      return json(runs);
+      return json(rawRuns ?? runs); // rawRuns lets a test answer with an off-shape body
     }
     if (href === "/tools") {
       if (toolFailuresLeft > 0) { toolFailuresLeft -= 1; return json({ detail: "Tool registry unavailable" }, 503); }
@@ -99,10 +110,14 @@ function renderAgent({ runs = runsBody, approvals = approvalsBody, failRunsOnce 
       if (id === 9) return json({ detail: "Run not found" }, 404); // the run vanished server-side
       if (id === 8) return json({ ...runFailed, steps: [] });
       if (id === 7) return json({ ...runQueued, steps: [] }); // a queued run has no trace yet
+      if (id === 10) return json({ ...runQueued, id: 10 }); // a detail with no steps key at all
+      if (id === 12) return json(sparseDetail); // sparse trace: bare step, missing counters
       if (id === 6) { const state = liveRunStates[Math.min(liveStateIndex, liveRunStates.length - 1)]; liveStateIndex += 1; return typeof state === "string" ? json({ detail: state }, 503) : json(state); } // string entries are outages
       if (id === 5) return json(doneDetail);
     }
     if (href.startsWith("/approvals")) {
+      if (approvalsFailuresLeft > 0) { approvalsFailuresLeft -= 1; return json({ detail: "Approval queue unavailable" }, 503); }
+      if (rawApprovals !== null) return json(rawApprovals); // raw body, no filtering
       const filter = new URLSearchParams(href.split("?")[1] ?? "").get("status_filter"); // mirrors the API's status filter
       const items = filter
         ? approvals.approvals.filter((a) => a.status === filter)
@@ -588,6 +603,266 @@ test("Ctrl+Enter submits the composer like the Run agent button", async () => {
     assert.equal(document.querySelector('.toast[data-tone="success"]').querySelector("div").textContent, "Run #7 queued");
     assert.equal(input.value, ""); // the composer clears on success
     await waitFor(() => sectionWith(host, "Run #7"), "the new run panel");
+  } finally { stop(); }
+});
+
+test("a failed start shows a danger toast and keeps the message", async () => {
+  const { host, posts, stop } = renderAgent({ failStartOnce: true });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    const form = host.querySelector("form");
+    const input = form.querySelector('textarea[aria-label="Agent request"]');
+    input.value = "Find weak descriptions";
+
+    form.dispatchEvent(new Event("submit"));
+    await waitFor(() => document.querySelector('.toast[data-tone="danger"]'), "the danger toast");
+    assert.equal(document.querySelector('.toast[data-tone="danger"]').querySelector("div").textContent, "The agent worker is down");
+    assert.equal(input.value, "Find weak descriptions"); // kept for a retry
+    assert.equal(posts.length, 1);
+    const submit = [...form.querySelectorAll("button")].find((b) => b.textContent === "Run agent");
+    assert.equal(submit.getAttribute("data-loading"), null); // finally clears the loading state
+    assert.ok(!sectionWith(host, "Run #7"), "no run panel opens on failure"); // sectionWith returns undefined when absent
+  } finally { stop(); }
+});
+
+test("Meta+Enter submits the composer like Ctrl+Enter does", async () => {
+  const { host, posts, stop } = renderAgent();
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    const input = host.querySelector('textarea[aria-label="Agent request"]');
+    input.value = "Summarise this week";
+
+    const metaEnter = new Event("keydown"); // the Mac path of the same shortcut
+    metaEnter.key = "Enter";
+    metaEnter.metaKey = true;
+    input.dispatchEvent(metaEnter);
+    await waitFor(() => posts.length === 1, "the start-run POST");
+    assert.deepEqual(posts[0], ["/agent/run", { message: "Summarise this week", session_id: "dashboard" }]);
+    // The test's own await can resume before onsubmit continues (microtask order), so openRun, and the run poll
+    // that subscribe() starts inside its detail fetch, may not have happened yet. Wait for the panel so stop()
+    // clears a poll that exists; an uncleared real interval would keep the test process alive forever.
+    await waitFor(() => sectionWith(host, "Run #7"), "the run panel to open");
+  } finally { stop(); }
+});
+
+test("a failed approvals load shows an error state whose retry recovers", async () => {
+  const { host, stop } = renderAgent({ failApprovalsOnce: true });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    const section = sectionWith(host, "Approvals");
+    const err = section.querySelector(".error-state");
+    assert.ok(err, "the approvals panel reports the failure instead of a skeleton");
+    assert.equal(err.getAttribute("role"), "alert");
+    assert.equal(err.querySelector("p").textContent, "Approval queue unavailable");
+
+    [...err.querySelectorAll("button")].find((b) => b.textContent === t("ui.retry")).click();
+    await waitFor(() => approvalRows(host).length === 1, "the queue to reload after retry");
+    assert.equal(section.querySelector(".error-state"), null);
+  } finally { stop(); }
+});
+
+test("an approval without a summary or preview falls back to its tool name", async () => {
+  const bare = { id: 43, run_id: 6, tool: "update_product", summary: null, status: "PENDING", preview: null, created_at: iso(30e3) };
+  const { host, stop } = renderAgent({ approvals: { count: 1, approvals: [bare] } });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    const row = approvalRows(host)[0];
+    assert.equal(row.querySelector(".row-title").textContent, "update_product"); // no summary, so the tool name stands in
+    assert.deepEqual([...row.querySelectorAll("button")].map((b) => b.textContent), ["Reject", "Approve"]); // no Preview without a payload
+  } finally { stop(); }
+});
+
+test("the preview dialog falls back for a missing summary and null cell values", async () => {
+  const sparse = { id: 44, run_id: 6, tool: "update_price", summary: "", status: "PENDING", created_at: iso(30e3), preview: { changes: [{ field: "price", current: null, proposed: 12.5 }] } };
+  const { host, stop } = renderAgent({ approvals: { count: 1, approvals: [sparse] } });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    const row = approvalRows(host)[0];
+    [...row.querySelectorAll("button")].find((b) => b.textContent === "Preview").click();
+
+    const dlg = document.querySelector("dialog");
+    assert.equal(dlg.querySelector(".dialog-body p").textContent, "No summary provided."); // empty summary falls back
+    const cells = [...dlg.querySelectorAll("tbody tr td")].map((c) => c.textContent);
+    assert.deepEqual(cells, ["price", "\u2014", "12.5"]); // a null current renders the dash placeholder
+  } finally { stop(); }
+});
+
+test("a run row falls back to its id and zero steps when fields are missing", async () => {
+  const ghost = { id: 11, request: null, status: "COMPLETED", iterations: 0, started_at: iso(6e4) }; // no tool_calls_made either
+  const { host, stop } = renderAgent({ runs: { count: 1, runs: [ghost] } });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    const row = runRows(host)[0];
+    assert.equal(row.querySelector(".truncate").textContent, "Run #11"); // no request text, so the id stands in
+    assert.equal(row.querySelector("td.num").textContent, "0"); // missing tool_calls_made counts as zero
+  } finally { stop(); }
+});
+
+test("a detail without a steps key renders the empty feed", async () => {
+  const noSteps = { id: 10, request: "Warm up the cache", status: "PENDING", iterations: 0, started_at: iso(6e4) }; // no steps key at all
+  const { host, stop } = renderAgent({ runs: { count: 1, runs: [noSteps] } });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    runRows(host)[0].click();
+
+    const panel = () => sectionWith(host, "Run #10"); // re-queried: openRun swaps in a fresh node once loaded
+    await waitFor(() => panel()?.querySelector(".empty h3"), "the empty step feed to render");
+    assert.equal(panel().querySelector(".empty h3").textContent, "Waiting for the first step");
+  } finally { stop(); }
+});
+
+test("a tool without a description renders an empty sub-line", async () => {
+  const bareTool = { name: "read_pages", category: "catalogue", access: "read", requires_approval: false }; // no description field
+  const { host, stop } = renderAgent({ tools: { count: 3, tools: [toolsBody.tools[0], toolsBody.tools[1], bareTool] } });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    host.querySelector(".page-head-actions .btn").click(); // Tool registry
+
+    const dlg = document.querySelector("dialog");
+    await waitFor(() => dlg.querySelectorAll(".row").length === 3, "the tools to load");
+    assert.equal(dlg.querySelector(".dialog-body p").textContent, "3 tools available to the agent.");
+    const subs = [...dlg.querySelectorAll(".row")].map((r) => r.querySelector(".row-sub").textContent);
+    assert.deepEqual(subs, [toolsBody.tools[0].description, toolsBody.tools[1].description, ""]); // missing description renders empty
+  } finally { stop(); }
+});
+
+test("a hidden tab pauses both polls until it is visible again", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] }); // the view's two polls, not the fake fetches
+  const { host, calls, stop } = renderAgent();
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    runRows(host)[1].click(); // the RUNNING run
+
+    const panel = () => sectionWith(host, "Run #6"); // re-queried: openRun swaps in a fresh node once loaded
+    await waitFor(() => panel()?.querySelector(".tl-item"), "the step feed to render");
+    const detailCalls = () => calls.filter(([m, href]) => m === "GET" && href === "/agent/runs/6").length;
+    const approvalCalls = () => calls.filter(([, href]) => String(href).startsWith("/approvals")).length;
+    assert.equal(detailCalls(), 1); // the openRun fetch only
+
+    t.mock.timers.tick(20000); // visible: ten run polls and one approval poll fire
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(detailCalls(), 11);
+    assert.equal(approvalCalls(), 2);
+
+    setHidden(true);
+    t.mock.timers.tick(4000); // due ticks see the hidden tab and skip their fetches
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(detailCalls(), 11);
+    assert.equal(approvalCalls(), 2);
+
+    setHidden(false);
+    t.mock.timers.tick(2000); // the next due tick polls again
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(detailCalls(), 12);
+  } finally { stop(); t.mock.timers.reset(); }
+});
+
+test("a step that arrives after the empty feed replaces it", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] }); // drive the run poll deterministically
+  const notYet = { ...runLive, steps: [] }; // first answer: no trace yet -> the "waiting" placeholder
+  const { host, stop } = renderAgent({ liveRunStates: [notYet, liveDetail] });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    runRows(host)[1].click(); // the RUNNING run
+
+    const panel = () => sectionWith(host, "Run #6"); // re-queried: openRun swaps in a fresh node once loaded
+    await waitFor(() => panel()?.querySelector(".empty"), "the empty step feed to render");
+    assert.equal(panel().querySelectorAll(".tl-item").length, 0);
+
+    t.mock.timers.tick(2000); // the first poll hands out the trace; addStep must drop the placeholder
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(panel().querySelector(".empty"), null);
+    assert.equal(panel().querySelectorAll(".tl-item").length, 3);
+  } finally { stop(); t.mock.timers.reset(); }
+});
+
+test("a bare step and a sparse run render their fallbacks", async () => {
+  const runs = { count: 4, runs: [runQueued, runLive, sparseRow, runDone] }; // #12 carries no counters in the list either
+  const { host, stop } = renderAgent({ runs });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    runRows(host)[2].click(); // the sparse COMPLETED run
+
+    const panel = () => sectionWith(host, "Run #12");
+    await waitFor(() => panel()?.querySelectorAll(".tl-item").length === 2, "both steps to render");
+
+    const [bare, normal] = [...panel().querySelectorAll(".tl-item")];
+    // The bare step has no type, message, tool or status: empty title, generic badge, no status chip.
+    assert.equal(bare.querySelector(".tl-title").textContent, "");
+    assert.deepEqual([...bare.querySelectorAll(".tl-meta .badge")].map((b) => b.textContent), ["Step"]);
+    // The well-formed step renders normally next to it.
+    assert.equal(normal.querySelector(".tl-title").textContent, "Fetched the page");
+    assert.equal(normal.querySelector(".chip")?.textContent, "read_pages");
+
+    const foot = panel().querySelector("footer.card-foot");
+    assert.match(foot.textContent, /0 iterations/); // missing counters count as zero
+    assert.match(foot.textContent, /0 tool calls/);
+  } finally { stop(); }
+});
+
+test("an approvals response without an approvals key shows the empty queue", async () => {
+  const { host, stop } = renderAgent({ rawApprovals: {} }); // no approvals key at all
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    assert.equal(approvalRows(host).length, 0);
+    assert.equal(sectionWith(host, "Approvals").querySelector(".empty h3").textContent, "Nothing waiting on you");
+  } finally { stop(); }
+});
+
+test("a filter tab with no matches shows the filtered empty state", async () => {
+  const onlyPending = { count: 1, approvals: [approvalPending] }; // nothing approved or rejected yet
+  const { host, stop } = renderAgent({ approvals: onlyPending });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    [...sectionWith(host, "Approvals").querySelectorAll(".tab")][1].click(); // Approved
+
+    const body = () => sectionWith(host, "Approvals");
+    await waitFor(() => body().querySelector(".empty h3"), "the filtered empty state");
+    assert.equal(body().querySelector(".empty h3").textContent, "No approved approvals");
+    assert.equal(body().querySelector(".empty p").textContent, "Nothing has been resolved with this status yet.");
+  } finally { stop(); }
+});
+
+test("a runs response without a runs key shows the empty table", async () => {
+  const { host, stop } = renderAgent({ rawRuns: {} }); // no runs key at all
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    assert.equal(runRows(host).length, 0);
+    assert.equal(sectionWith(host, "Runs").querySelector(".empty h3").textContent, "No runs yet");
+  } finally { stop(); }
+});
+
+test("pressing Enter on a run row opens it", async () => {
+  const { host, stop } = renderAgent();
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    const row = runRows(host)[2]; // the COMPLETED run
+
+    const escape = new Event("keydown");
+    escape.key = "Escape"; // any key but Enter must not open the panel
+    row.dispatchEvent(escape);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.ok(!sectionWith(host, "Run #5"), "a non-Enter key must not open the panel");
+
+    const enter = new Event("keydown");
+    enter.key = "Enter";
+    row.dispatchEvent(enter);
+
+    const panel = () => sectionWith(host, "Run #5");
+    await waitFor(() => panel()?.querySelectorAll(".tl-item").length === 4, "the trace to render");
+  } finally { stop(); }
+});
+
+test("a preview change without current or proposed renders dashes", async () => {
+  const sparseApproval = { id: 43, run_id: 6, tool: "update_product", summary: "Adjust the launch price", status: "PENDING", preview: { changes: [{ field: "price" }] }, created_at: iso(15e3) }; // no values at all
+  const { host, stop } = renderAgent({ approvals: { count: 1, approvals: [sparseApproval] } });
+  try {
+    await waitFor(() => settled(host), "the panels to settle");
+    [...approvalRows(host)[0].querySelectorAll("button")].find((b) => b.textContent === "Preview").click();
+
+    const dlg = document.querySelector("dialog");
+    await waitFor(() => dlg?.querySelector("tbody"), "the changes table");
+    assert.deepEqual([...dlg.querySelectorAll("tbody td")].map((td) => td.textContent), ["price", "—", "—"]); // missing values render as dashes
   } finally { stop(); }
 });
 

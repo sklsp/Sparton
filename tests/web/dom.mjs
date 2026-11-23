@@ -325,6 +325,12 @@ function matchesSpec(el, spec) {
 let active = null;
 function setActive(el) { active = el; }
 
+// agent.js pauses its polls while the tab is hidden; setHidden flips it for those tests.
+let hidden = false;
+
+/** Flip document.hidden, as a backgrounded tab would; resetDom restores false. */
+export function setHidden(value) { hidden = Boolean(value); }
+
 function makeDocument() {
   const documentElement = new Element("html");
   const body = new Element("body");
@@ -334,6 +340,7 @@ function makeDocument() {
     documentElement,
     body,
     get activeElement() { return active ?? body; }, // browsers report <body> before anything is focused
+    get hidden() { return hidden; },
     createElement: (tag) => new Element(tag),
     createTextNode: (text) => new TextNode(text),
     createElementNS: (namespace, tag) => new Element(tag, namespace),
@@ -371,6 +378,7 @@ export function resetDom() {
   current.body.replaceChildren();
   current.documentElement.lang = "";
   active = null;
+  hidden = false;
   mediaMatches.clear();
 }
 
