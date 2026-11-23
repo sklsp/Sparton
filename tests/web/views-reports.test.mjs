@@ -291,3 +291,179 @@ test("markdown escapes everything before mapping", () => {
   assert.ok(!html.includes("<script>"));
   assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
 });
+
+// --- fallbacks: missing facts, ids, feeds and languages ----------------------
+
+// A report without facts, markdown or its own language: every fallback in listItem and reportBody.
+const bare = { ...reportA, id: 30, change_ids: [301] };
+delete bare.facts;
+delete bare.markdown;
+delete bare.language;
+
+// The same week written in a language the app does not know (not Dutch either).
+const foreign = { ...reportA, id: 33, language: "fr" };
+
+// A report that lists no change ids at all.
+const noIds = { ...reportA, id: 32 };
+delete noIds.change_ids;
+
+// The same week without an id: the detail pane has nothing to select.
+const noId = { ...reportA };
+delete noId.id;
+
+test("the list still renders when the shops feed fails", async () => {
+  const state = base();
+  resetEnv(); resetDom(); resetToasts();
+  setFetch((href, init) => (/^\/shops$/.test(href) ? json({ detail: "nope" }, 503) : routes(state)(href, init)));
+  location.hash = "#/reports";
+  const host = document.createElement("main");
+  reportsView(host, {});
+  await tick();
+
+  // The report body loads on its own; with no shops there is nothing to write now.
+  assert.equal(host.querySelectorAll("a.report-item").length, 2);
+  assert.ok(host.querySelector("#report-title"));
+  assert.equal(host.querySelectorAll("button").length, 0);
+});
+
+test("a report without facts renders untitled with fallback counts", async () => {
+  const state = base();
+  state.reports = [bare];
+  state.full = { 30: bare };
+  const { host } = await render(state);
+
+  // The list falls back to the untitled label and the body to an empty shop name.
+  assert.equal(host.querySelector("a.report-item strong").textContent, t("ov.report.untitled"));
+  assert.equal(host.querySelector("#report-title").textContent, t("rp.title", { shop: "" }));
+
+  // No facts means no counts but the one on screen: a single change, nothing else.
+  const rows = host.querySelectorAll("li.board-row");
+  assert.equal(rows.length, 1);
+  const counts = host.querySelector(".board-counts").children;
+  assert.equal(counts.length, 1);
+  assert.ok(counts[0].textContent.includes(t("ov.count.changes", { n: 1 })));
+
+  // No markdown means no prose plate at all.
+  assert.equal(host.querySelector(".report-prose"), null);
+});
+
+test("a report in a foreign language notes the English fallback", async () => {
+  const state = base();
+  state.reports = [foreign];
+  state.full = { 33: foreign };
+  const { host } = await render(state);
+
+  // French is not Dutch, so the note names the English dictionary; the prose keeps its language.
+  assert.equal(host.querySelector(".report-lang").textContent, t("rp.writtenIn.en"));
+  const prose = host.querySelector(".report-prose");
+  const langDiv = [...prose.children].find((el) => el.tagName === "DIV");
+  assert.equal(langDiv.lang, "fr");
+});
+
+test("the detail pane shows an error when one report fails to load", async () => {
+  const state = base();
+  resetEnv(); resetDom(); resetToasts();
+  setFetch(routes(state));
+  location.hash = "#/reports?id=99"; // not in state.full -> the API answers 404
+  const host = document.createElement("main");
+  reportsView(host, {});
+  await tick();
+
+  assert.equal(host.querySelectorAll("a.report-item").length, 2); // the list is fine
+  const err = host.querySelector(".report-host .error-state");
+  assert.ok(err);
+  assert.equal(err.querySelector("h3").textContent, t("rp.error"));
+  assert.equal(err.querySelector("p").textContent, "Report not found");
+});
+
+test("the detail pane stays empty when no report has an id", async () => {
+  const state = base();
+  state.reports = [noId];
+  state.full = {};
+  const { host } = await render(state);
+
+  assert.equal(host.querySelectorAll("a.report-item").length, 1);
+  const pane = host.querySelector(".report-host");
+  assert.ok(pane);
+  assert.equal(pane.children.length, 0);
+});
+
+test("the board is absent when the report lists no change ids", async () => {
+  const state = base();
+  state.reports = [noIds];
+  state.full = { 32: noIds };
+  const { host } = await render(state);
+
+  // The changes feed answers with four rows, but none of them belongs to this report.
+  assert.equal(host.querySelector(".week-board"), null);
+  assert.ok(host.querySelector(".report-prose"));
+});
+
+test("the board disappears when the changes feed omits its list", async () => {
+  const state = base();
+  resetEnv(); resetDom(); resetToasts();
+  setFetch((href, init) => (href === "/changes?days=365&limit=200" ? json({}) : routes(state)(href, init)));
+  location.hash = "#/reports";
+  const host = document.createElement("main");
+  reportsView(host, {});
+  await tick();
+
+  assert.equal(host.querySelector(".week-board"), null);
+  assert.ok(host.querySelector("#report-title"));
+});
+
+test("rows render as exact when the competitor list has no entries", async () => {
+  const state = base();
+  resetEnv(); resetDom(); resetToasts();
+  setFetch((href, init) => (href === "/competitors" ? json({}) : routes(state)(href, init)));
+  location.hash = "#/reports";
+  const host = document.createElement("main");
+  reportsView(host, {});
+  await tick();
+
+  // Without a source map no row can be hatched: every one of the report's changes is exact.
+  const rows = host.querySelectorAll(".week-board li.board-row");
+  assert.equal(rows.length, 3);
+  for (const row of rows) assert.ok(row.classList.contains("mark-row-exact"));
+});
+
+test("a report without a language renders prose in English", async () => {
+  const noLang = { ...reportA, id: 34, markdown: "## Head\n\ntext" };
+  delete noLang.language;
+  const state = base();
+  state.reports = [noLang];
+  state.full = { 34: noLang };
+  const { host } = await render(state);
+
+  // No language of its own means the UI language: no note, and the prose is tagged en.
+  assert.ok(host.querySelector(".report-prose"));
+  assert.equal(host.querySelector(".report-lang"), null);
+  const langDiv = [...host.querySelector(".report-prose").children].find((el) => el.tagName === "DIV");
+  assert.equal(langDiv.lang, "en");
+});
+
+test("markdown skips blank lines", () => {
+  const el = markdown("a\n\nb");
+  assert.ok(el.innerHTML.includes("<p>a</p>"));
+  assert.ok(el.innerHTML.includes("<p>b</p>"));
+  assert.ok(!el.innerHTML.includes("<p></p>"));
+});
+
+test("the list is empty when the API omits the reports key", async () => {
+  const state = base();
+  resetEnv(); resetDom(); resetToasts();
+  setFetch((href, init) => (href === "/reports?limit=30" ? json({}) : routes(state)(href, init)));
+  location.hash = "#/reports";
+  const host = document.createElement("main");
+  reportsView(host, {});
+  await tick();
+
+  // Shops exist, so the empty plate carries no call to action.
+  assert.equal(host.querySelector(".split-view"), null);
+  const plate = host.querySelector(".empty-plate");
+  assert.ok(plate);
+  assert.equal(plate.querySelector("h2").textContent, t("rp.empty.title"));
+  assert.equal(plate.querySelector("p").textContent, t("rp.empty.body"));
+  assert.equal(host.querySelector("a.btn"), null);
+});
+
