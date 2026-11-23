@@ -222,10 +222,24 @@ for (const [mod, label] of [[i18nHttpFailEn, "http failure"], [i18nNetFailNl, "n
 
   test(`fmt helpers format with the instance locale (${label})`, () => {
     assert.ok(/^\d/.test(mod.fmtNumber(1234567.89)));
+    assert.ok(/^\d/.test(mod.fmtNumber(null))); // nullish input falls back to 0
     assert.equal(mod.fmtMoney(null), "\u2014"); // dash in both locales
     assert.ok(/12[.,]50/.test(mod.fmtMoney(12.5))); // value path, locale-dependent separator
+    assert.equal(mod.fmtMoney(Number.NaN), "\u2014"); // NaN is not a value either
+    const bare = mod.fmtMoney(5, "", 0); // empty currency falls back to EUR; digits=0 drops decimals
+    assert.ok(bare.includes("€") && /5/.test(bare));
     assert.ok(String(mod.fmtDate(new Date(2026, 0, 5))).length > 0);
+    assert.ok(String(mod.fmtDate(new Date(2026, 0, 5), { year: "numeric" })).length > 0); // explicit opts override the default
     assert.ok(String(mod.fmtRelative(-1, "day")).length > 0);
+  });
+
+  test(`translateDom leaves a root without i18n elements untouched (${label})`, () => {
+    const root = document.createElement("div");
+    const el = document.createElement("span");
+    el.textContent = "untouched";
+    root.append(el);
+    mod.translateDom(root); // nothing matches: all three lookups come up empty
+    assert.equal(el.textContent, "untouched");
   });
 }
 
@@ -383,9 +397,23 @@ for (const [label, mod] of instances) {
 
   test(`fmt helpers format with the instance locale (${label})`, () => {
     assert.ok(/^\d/.test(mod.fmtNumber(1234567.89)));
+    assert.ok(/^\d/.test(mod.fmtNumber(null))); // nullish input falls back to 0
     assert.equal(mod.fmtMoney(null), "\u2014"); // dash in both locales
+    assert.equal(mod.fmtMoney(Number.NaN), "\u2014"); // NaN is not a value either
+    const bare = mod.fmtMoney(5, "", 0); // empty currency falls back to EUR; digits=0 drops decimals
+    assert.ok(bare.includes("€") && /5/.test(bare));
     assert.ok(mod.fmtDate(new Date(2026, 0, 5)).length > 0);
+    assert.ok(String(mod.fmtDate(new Date(2026, 0, 5), { year: "numeric" })).length > 0); // explicit opts override the default
     assert.ok(String(mod.fmtRelative(-1, "day")).length > 0);
+  });
+
+  test(`translateDom leaves a root without i18n elements untouched (${label})`, () => {
+    const root = document.createElement("div");
+    const el = document.createElement("span");
+    el.textContent = "untouched";
+    root.append(el);
+    mod.translateDom(root); // nothing matches: all three lookups come up empty
+    assert.equal(el.textContent, "untouched");
   });
 }
 
