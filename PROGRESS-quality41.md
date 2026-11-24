@@ -1,2 +1,2 @@
 - [x] F1. web tests: knowledge view, uncovered paths (1972 passed, 20 skipped, 2 xfailed, 1 warning in 202.92s (0:03:22))
-- [ ] F2. web tests: product and start views, branches
+- [x] F2. web tests: product and start views, branches (1972 passed, 20 skipped, 2 xfailed, 1 warning in 202.90s (0:03:22))
