@@ -15,7 +15,7 @@ every claim.
 - **A weekly AI-written report**, the numbers are computed by our diff engine;
   the AI writes the summary. It never invents a price.
 
-**Status: feature-complete, pre-launch.** CI runs 996 tests, plus 33 more that drive
+**Status: feature-complete, pre-launch.** CI runs 1,828 tests, plus 33 more that drive
 a real browser through signup, the product loop and tenant isolation. What is left
 needs real accounts and money (a live Stripe charge, SMTP delivery, a production
 deploy) and is listed step by step in [docs/LAUNCH.md](docs/LAUNCH.md).
@@ -211,11 +211,11 @@ pytest
 The dashboard's unit tests run on plain Node with no dependencies: `node --test "tests/web/**/*.test.mjs"` (Node 22). CI runs them in the Frontend job.
 
 The suite runs against SQLite with the deterministic LLM provider and the offline hash
-embedding backend: no network, no API key, no GPU, no Ollama. In CI that is 996 tests,
+embedding backend: no network, no API key, no GPU, no Ollama. In CI that is 1,828 tests,
 plus the 33 browser tests below in their own job; the experimental domains' tests skip
 unless `requirements-experimental.txt` is installed.
 
-The whole suite runs in about 1 minute, and tests must not sleep for real: pass a short
+The whole suite runs in about 2 minutes, and tests must not sleep for real: pass a short
 delay or a no-op through the crawler's delay and `sleep=` seams instead of waiting.
 
 `tests/test_browser_smoke.py` drives real Chrome against a real server (landing
