@@ -1,2 +1,0 @@
-- [x] O1. web tests: billing view, lines and branches (views-billing-more.test.mjs; billing.js now 100/100/92) — 1972 passed, 20 skipped, 2 xfailed, 1 warning in 203.82s (0:03:23)
-- [ ] O2. web tests: knowledge and board views, branches BLOCKED
