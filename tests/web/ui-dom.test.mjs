@@ -1,9 +1,9 @@
 // The ui.js builders against the small DOM fake from dom.mjs: h(), fill(), icon(),
-// badge and statusBadge. Checked against what the dashboard shows (classes, tones, labels).
+// badge, statusBadge, field, toast and dialog. Checked against what the dashboard shows (classes, tones, labels).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./env.mjs"; // browser fakes first...
-import "./dom.mjs"; // ...then the DOM fake; both install on globalThis at import time.
+import { Event, resetDom } from "./dom.mjs"; // ...then the DOM fake; both install on globalThis at import time.
 import * as ui from "../../app/web/ui.js";
 
 test("h() parses tag.class#id into element, classes and id", () => {
@@ -127,3 +127,48 @@ test("statusBadge() adds the pulsing dot when live", () => {
   assert.equal(dot.className, "dot dot-live");
   assert.equal(el.textContent, "Running");
 });
+
+test("field() wraps the label text and its control in a <label.field>", () => {
+  const input = ui.h("input");
+  const el = ui.field("Name", input);
+  assert.equal(el.tagName, "LABEL");
+  assert.ok(el.classList.contains("field"));
+  assert.equal(el.children[0].tagName, "SPAN");
+  assert.equal(el.children[0].textContent, "Name");
+  assert.equal(el.children[1], input); // the control is appended as-is
+});
+
+test("toast() dismiss button closes it and animationend removes it from the host", () => {
+  resetDom();
+  ui.resetToasts();
+  ui.toast("Saved", "success");
+  const host = document.body.querySelector(".toasts");
+  assert.ok(host); // created on first use, aria-live polite
+  const el = host.children[0];
+  assert.equal(el.getAttribute("data-tone"), "success");
+  el.querySelector(".toast-close").click(); // runs close(): marks closing, arms animationend and the fallback timer
+  assert.equal(el.dataset.closing, "true");
+  el.dispatchEvent(new Event("animationend")); // the once-listener removes the toast
+  assert.equal(host.children.length, 0);
+});
+
+test("dialog() header X button closes the dialog and fires onClose with returnValue", () => {
+  resetDom();
+  let closedWith = null;
+  const el = ui.dialog({ title: "Delete?", body: ui.h("p", "Sure?"), onClose: (value) => { closedWith = value; } });
+  assert.equal(el.open, true); // showModal() was called
+  el.querySelector(".icon-btn").click(); // the header close button calls el.close()
+  assert.equal(el.open, false);
+  assert.equal(closedWith, undefined); // bare close(): dom.mjs leaves returnValue unset (pinned in dom.test.mjs)
+  assert.ok(![...document.body.children].includes(el)); // the close event removed it from the body
+});
+
+test("ago() falls through to its final return for dates older than 30 days", { todo: "real bug, see sparton-quality-39/BUGS.md #1" }, () => {
+  // Should reach `return date.toLocaleDateString()` after the steps loop (ui.js line 145).
+  // It never does: the last step's condition `unit === "d"` is always true, so every input
+  // returns inside the loop and line 145 is unreachable dead code; old dates take the
+  // identical branch at ui.js:142 instead.
+  const old = new Date(Date.now() - 60 * 86_400_000);
+  assert.equal(ui.ago(old), old.toLocaleDateString());
+});
+
