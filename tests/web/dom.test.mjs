@@ -368,3 +368,16 @@ test("parentElement is the nearest element ancestor or null (catalog.js clears s
   assert.equal(cell.parentElement, row);
   assert.equal(row.parentElement, null); // detached: nothing above it
 });
+
+test("file inputs expose files; setFiles stands in for the picker (knowledge.js upload)", () => {
+  const input = document.createElement("input");
+  assert.equal(input.files, null); // nothing picked yet
+  input.setFiles([new File(["one"], "a.txt"), new File(["two"], "b.pdf")]);
+  assert.equal(input.files.length, 2); // the view checks files?.length before uploading
+  assert.deepEqual([...input.files].map((f) => f.name), ["a.txt", "b.pdf"]); // and iterates it
+});
+
+test("scrollHeight is a layout-free constant (knowledge.js textarea autosize)", () => {
+  const area = document.createElement("textarea");
+  assert.equal(area.scrollHeight, 0);
+});
