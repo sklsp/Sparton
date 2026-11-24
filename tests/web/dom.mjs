@@ -112,6 +112,11 @@ class Element {
   get checked() { return this.hasAttribute("checked"); }
   set checked(value) { if (value) this.setAttribute("checked", ""); else this.removeAttribute("checked"); }
 
+  // A file input exposes .files; the browser fills it itself when the user picks, so tests use
+  // setFiles as a stand-in. The view reads length and iterates; null means nothing picked yet.
+  get files() { return this._files ?? null; }
+  setFiles(list) { this._files = [...list]; return this; }
+
   get childNodes() { return [...this._childNodes]; }
   // children holds elements only, so text nodes never count against a tile row's length.
   get children() { return this._childNodes.filter((node) => node.nodeType === 1); }
@@ -185,6 +190,9 @@ class Element {
 
   // board.js reads offsetWidth to restart the step animation; a constant is enough.
   get offsetWidth() { return 0; }
+
+  // The chat textarea autosizes from scrollHeight (knowledge.js); no layout, so a constant.
+  get scrollHeight() { return 0; }
 
   // Views move keyboard focus (url.focus() in start.js); document.activeElement tracks it.
   focus() { setActive(this); }
