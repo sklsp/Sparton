@@ -313,6 +313,60 @@ test("datasets show an empty state whose button opens the create dialog", async 
   assert.match(dialogEl.textContent, /New dataset/);
 });
 
+
+test("creating a dataset from the empty state refreshes the list", async () => {
+  const { calls, posts } = renderCreate({ datasets: { count: 0, datasets: [] } });
+  await waitFor(() => buttonByText("Create dataset"), "datasets empty state");
+  buttonByText("Create dataset").click();
+  const dialogEl = await waitFor(() => document.querySelector("dialog"), "dataset dialog");
+  dialogEl.querySelector('input[aria-label="Dataset name"]').value = "Hero shots v2";
+  buttonByText("Create").click();
+
+  await waitFor(() => posts.some(([href]) => href === "/datasets"), "dataset POST");
+  const toastEl = await waitFor(() => document.querySelector(".toast"), "created toast");
+  assert.match(toastEl.textContent, /Dataset created/);
+  assert.equal(document.querySelector("dialog"), null, "dialog closes after create");
+  // onCreated re-fetches so the new dataset replaces the empty state
+  await waitFor(() => calls.filter(([m, h]) => m === "GET" && h === "/datasets").length === 2, "dataset reload");
+});
+
+test("cancel closes the dataset dialog without posting", async () => {
+  const { posts } = renderCreate();
+  buttonByText("New").click();
+  await waitFor(() => document.querySelector("dialog"), "dataset dialog");
+  buttonByText("Cancel").click();
+  assert.equal(document.querySelector("dialog"), null, "dialog closes on cancel");
+  assert.equal(posts.length, 0);
+});
+
+test("close dismisses the dataset validation dialog", async () => {
+  renderCreate();
+  await waitFor(() => buttonByText("Validate"), "dataset row");
+  buttonByText("Validate").click();
+  const dialogEl = await waitFor(() => document.querySelector("dialog"), "validation dialog");
+  await waitFor(() => dialogEl.querySelector(".banner"), "readiness report");
+  buttonByText("Close").click();
+  assert.equal(document.querySelector("dialog"), null, "dialog closes on Close");
+});
+
+test("a broken gallery image is replaced by a placeholder", async () => {
+  renderCreate();
+  const img = await waitFor(() => document.querySelector(".gallery img"), "gallery image");
+  const figure = img.parentElement;
+  img.dispatchEvent(new Event("error")); // the browser fires error when the file fails to load
+  assert.equal(figure.querySelector("img"), null, "broken image is removed");
+  assert.equal(figure.children[0].tagName, "DIV", "a placeholder takes its place");
+});
+
+test("returns an unmount hook that app.js calls on route change", async () => {
+  const host = document.createElement("div");
+  const unmount = createView(host);
+  await waitFor(() => host.querySelectorAll(".metric-label").length === 3, "status metrics");
+  assert.equal(typeof unmount, "function");
+  unmount(); // navigating away must not throw; the view keeps no timers today
+});
+
+
 test("dataset dialog does nothing when the name is blank", async () => {
   const { posts } = renderCreate();
   buttonByText("New").click();

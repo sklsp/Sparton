@@ -1,2 +1,2 @@
 - [x] E1. web tests: catalog functions (1972 passed, 20 skipped, 2 xfailed, 1 warning in 203.01s (0:03:23))
-- [ ] E2. web tests: create functions
+- [x] E2. web tests: create functions (1972 passed, 20 skipped, 2 xfailed, 1 warning in 218.41s (0:03:38))
